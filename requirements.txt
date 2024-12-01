@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+pytest
+apscheduler
+python-binance
+numpy
+python-kis

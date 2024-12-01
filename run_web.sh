@@ -1,0 +1,1 @@
+STREAMLIT_CONFIG=/Users/hsh/dev_project/sb-fsts/dashboard_web/.streamlit/config.toml streamlit run dashboard_web/main.py
