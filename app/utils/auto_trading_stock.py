@@ -3,30 +3,31 @@ import numpy as np
 import pandas as pd
 import requests
 import math
-from pykis import PyKis, KisChart, KisStock
+from pykis import PyKis, KisChart, KisStock, KisAuth
 from datetime import date, time
 import mplfinance as mpf
+from dotenv import load_dotenv
+import os
 
-
-API_KEY = "8aChkjQ9XijCL3LwC7LGJuDrn3FVFh62g9WPEaa0UnwmGt7hsu8tKBk61hQd76YG"
-API_SECRET = "YznqQReI62NOd7QQfaPSXk6whFrQxyraId9iEcwtUScNtCq7tTGHugM7kYv77SpP"
+# .env 파일 로드
+load_dotenv()
 
 
 class AutoTradingStock:
-    def __init__(self, api_key=API_KEY, api_secret=API_SECRET):
+    def __init__(self, api_key=os.getenv('API_KEY'), api_secret=os.getenv('API_SECRET')):
         
-        # 개인 계정으로 변경해야 함. env 파일로 빼는게 좋을 듯!
+        
         self.kis = PyKis(
-            id="YOUR_ID",             # 한국투자증권 HTS ID
-            appkey="PSyTGF07QupJyV76XGm3mkgcr4RDvSeODpVZ",    # 발급받은 App Key
-            secretkey="eteoHNN+iHktbHC1TOKNdDc2ecFHqwyA+o1OijESqRtWY2cirhUqbiuFfO5zmEPNqB8/P0RSBuTjZnPq4zc5u3dKHIg/HOFQqmZcCik621aWqti5MBReqNpr/NChcs8edoBKd4cgJaC47m3IKncU4GglKzWNqHtic/4X8lmOAZx0oDGuFkI=", # 발급받은 App Secret
-            account="67737279", # 계좌번호 (예: "12345678-01")
+            id=os.getenv('YOUR_ID'),             # 한국투자증권 HTS ID
+            appkey=os.getenv('API_KEY'),    # 발급받은 App Key
+            secretkey=os.getenv('API_SECRET'), # 발급받은 App Secret
+            account=os.getenv('ACCOUNT_NO'), # 계좌번호 (예: "12345678-01")
             keep_token=True           # 토큰 자동 갱신 여부
         )
 
     def send_discord_webhook(self, message, bot_type):
         if bot_type == 'trading':
-            webhook_url = 'https://discord.com/api/webhooks/1299642427606306848/7xUasdasdasds'  # 복사한 Discord 웹훅 URL로 변경
+            webhook_url = os.getenv('DISCORD_WEBHOOK_URL')  # 복사한 Discord 웹훅 URL로 변경
             username = "Stock Trading Bot"
 
         data = {
@@ -34,6 +35,7 @@ class AutoTradingStock:
             "username": username,  # 원하는 이름으로 설정 가능
         }
         
+
         # 요청 보내기
         response = requests.post(webhook_url, json=data)
         
@@ -42,6 +44,8 @@ class AutoTradingStock:
             print("메시지가 성공적으로 전송되었습니다.")
         else:
             print(f"메시지 전송 실패: {response.status_code}, {response.text}")
+
+
 
 
     # 봉 데이터를 가져오는 함수
