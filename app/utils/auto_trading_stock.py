@@ -12,18 +12,34 @@ import os
 # .env 파일 로드
 load_dotenv()
 
-
 class AutoTradingStock:
-    def __init__(self, api_key=os.getenv('API_KEY'), api_secret=os.getenv('API_SECRET')):
-        
-        
-        self.kis = PyKis(
-            id=os.getenv('YOUR_ID'),             # 한국투자증권 HTS ID
-            appkey=os.getenv('API_KEY'),    # 발급받은 App Key
-            secretkey=os.getenv('API_SECRET'), # 발급받은 App Secret
-            account=os.getenv('ACCOUNT_NO'), # 계좌번호 (예: "12345678-01")
-            keep_token=True           # 토큰 자동 갱신 여부
+    def __init__(self, id, api_key, secret_key, account, virtual=True):
+        self.virtual = virtual # 모의투자 여부 저장
+
+        # KisAuth 객체 생성
+        self.auth = KisAuth(
+            id=id,
+            appkey=api_key,
+            secretkey=secret_key,
+            account=account,
+            virtual=virtual
+            
         )
+        # PyKis 객체 생성 및 초기화
+        self.kis = PyKis(self.auth)
+        
+        print(f"{'모의투자' if self.virtual else '실전투자'} 계좌가 선택되었습니다.")
+        
+
+    def get_auth_info(self):
+        """인증 정보 확인"""
+        return {
+            "id": self.auth.id,
+            "account": self.auth.account,
+            "virtual": self.virtual
+            
+            
+        }
 
     def send_discord_webhook(self, message, bot_type):
         if bot_type == 'trading':
@@ -243,6 +259,16 @@ class AutoTradingStock:
                 # 평균 매수 단가 계산
                 average_entry_price = total_buy_budget / position
 
+                # 매수 알림 전송
+                message = (
+                f"📈 매수 이벤트 발생!\n"
+                f"종목: {symbol}\n"
+                f"매수가: {open_price:.2f} KRW\n"
+                f"매수 시점: {timestamp}\n"
+                f"총 포지션: {position}\n"
+                f"평균 매수 단가: {average_entry_price:.2f} KRW"
+                )
+                self.send_discord_webhook(message, "trading")
                 print(f"매수 시점: {timestamp}, 진입가: {open_price:.7f} KRW, 총 포지션: {position}, 평균 매수 단가: {average_entry_price:.7f} KRW")
 
             elif upper_wick and position > 0:  # 윗꼬리일 경우 매도 (매수한 횟수의 1/n 만큼 매도)
@@ -257,6 +283,18 @@ class AutoTradingStock:
                 # 평균 매수 단가 계산
                 average_entry_price = total_buy_budget / position if position > 0 else 0
 
+                # 매도 알림 전송
+                message = (
+                f"📉 매도 이벤트 발생!\n"
+                f"종목: {symbol}\n"
+                f"매도가: {exit_price:.2f} KRW\n"
+                f"매도 시점: {next_timestamp}\n"
+                f"실현 손익: {pnl:.2f} KRW\n"
+                f"남은 포지션: {position}\n"
+                f"평균 매수 단가: {average_entry_price:.2f} KRW"
+                )
+                self.send_discord_webhook(message, "trading")
+                
                 print(f"매도 시점: {next_timestamp}, 최근 매수가(스택): {entry_price} KRW, 청산가: {exit_price} KRW, 매매 주식 수: {math.floor(trade_amount / entry_price)}, 실현 손익: {pnl:.7f} krw, 남은 포지션: {position}, 평균 매수 단가: {average_entry_price:.7f} KRW")
 
             i += 1
