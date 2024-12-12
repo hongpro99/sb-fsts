@@ -10,9 +10,14 @@ from dotenv import load_dotenv
 import os
 import json
 from pykis import KisQuote
+from pykis import KisBalance
+from pykis import KisOrder
+
 
 # .env 파일 로드
 load_dotenv()
+
+
 
 class AutoTradingStock:
     def __init__(self, id, account, real_appkey, real_secretkey, virtual=False, virtual_id=None, virtual_appkey=None, virtual_secretkey=None):
@@ -177,7 +182,7 @@ class AutoTradingStock:
     f"거래 정지 여부: {'정지' if quote.halt else '정상'}\n"
     f"과매수 상태: {'예' if quote.overbought else '아니오'}\n"
     f"위험도: {quote.risk.capitalize()}\n"
-)
+    )
             # 디스코드 웹훅 전송
             self.send_discord_webhook(message,"trading")
 
@@ -189,59 +194,100 @@ class AutoTradingStock:
             self.send_discord_webhook(error_message,"trading")
             
     def inquire_balance(self):
-        """주식 잔고 조회"""
-        url = f"{self.base_url}/uapi/domestic-stock/v1/trading/inquire-balance"
+        """잔고 정보를 디스코드 웹훅으로 전송"""
+        
+                # 주 계좌 객체를 가져옵니다.
+        account = self.kis.account()
 
-        headers = {
-            'Content-Type': 'application/json; charset=utf-8',
-            'Authorization': f'Bearer {self.access_token}',
-            'tr_id': 'VTTC8434R' if self.virtual else 'TTTC8434R',
-            "appkey": self.kis.appkey,
-            "appsecret": self.kis.secretkey
-        }
+        balance: KisBalance = account.balance()
 
-        params = {
-            "CANO": self.kis.account,
-            "ACNT_PRDT_CD": "01",
-            "AFHR_FLPR_YN": "N",
-            "OFL_YN": "",
-            "INQR_DVSN": "01",
-            "UNPR_DVSN": "01",
-            "FUND_STTL_ICLD_YN": "N",
-            "FNCG_AMT_AUTO_RDPT_YN": "N",
-            "PRCS_DVSN": "01",
-            "CTX_AREA_FK100": "",
-            "CTX_AREA_NK100": ""
-        }
-
+        print(repr(balance)) # repr을 통해 객체의 주요 내용을 확인할 수 있습니다.
+        
         try:
-            response = requests.get(url, headers=headers, params=params)
-            if response.status_code == 200:
-                result = response.json()
-                print("잔고 조회 결과:", json.dumps(result, indent=4, ensure_ascii=False))
+            # 기본 잔고 정보
+            message = (
+                f"📃 주식 잔고 정보\n"
+                f"계좌 번호: {balance.account_number}\n"
+                f"총 구매 금액: {balance.purchase_amount:,.0f} KRW\n"
+                f"현재 평가 금액: {balance.current_amount:,.0f} KRW\n"
+                f"총 평가 손익: {balance.profit:,.0f} KRW\n"
+                f"총 수익률: {balance.profit_rate/ 100:.2%}\n\n"
+            )
+            
+            
+            # 보유 종목 정보 추가
+            message += "📊 보유 종목 정보:\n"
+            for stock in balance.stocks:
+                message += (
+                    f"종목명: {stock.symbol} (시장: {stock.market})\n"
+                    f"수량: {stock.qty:,}주\n"
+                    f"평균 단가: {stock.price:,.0f} KRW\n"
+                    f"평가 금액: {stock.amount:,.0f} KRW\n"
+                    f"평가 손익: {stock.profit:,.0f} KRW\n"
+                    f"수익률: {stock.profit_rate /100:.2%}\n\n"
+                )
                 
-                # Discord로 잔고 조회 결과 전송
-                message = (
-                    f"📊 잔고 조회 결과\n"
-                    f"계좌 번호: {self.kis.account}\n"
-                    f"조회 결과:\n```json\n{json.dumps(result, indent=4, ensure_ascii=False)}\n```"
+                
+            # 예수금 정보 추가
+            message += "💰 예수금 정보:\n"
+            for currency, deposit in balance.deposits.items():
+                message += (
+                    f"통화: {currency}\n"
+                    f"금액: {deposit.amount:,.0f} {currency}\n"
+                    f"환율: {deposit.exchange_rate}\n\n"
                 )
-                self.send_discord_webhook(message, bot_type="trading")
-                return result
-            else:
-                error_message = (
-                    f"❌ 잔고 조회 실패\n"
-                    f"상태 코드: {response.status_code}\n"
-                    f"응답 내용: {response.text}"
-                )
-                print(error_message)
-                self.send_discord_webhook(error_message, bot_type="trading")
-                return None
-        except Exception as e:
-            print(f"주식 잔고 조회 중 오류 발생: {e}")
-            self.send_discord_webhook(f"❌ 주식 잔고 조회 중 오류 발생: {e}", bot_type="trading")
-            return None
 
+            # 디스코드 웹훅으로 메시지 전송
+            self.send_discord_webhook(message, "trading")
+
+        except Exception as e:
+            # 오류 메시지 처리
+            error_message = f"❌ 잔고 정보를 처리하는 중 오류 발생: {e}"
+            print(error_message)
+            self.send_discord_webhook(error_message, "trading")
+    
+    def place_order(self, symbol, qty, buy_price=None, sell_price=None, order_type="buy"):
+        """주식 매수/매도 주문 함수
+        Args:
+            symbol (str): 종목 코드
+            qty (int): 주문 수량
+            price (int, optional): 주문 가격. 지정가 주문 시 필요
+            order_type (str): "buy" 또는 "sell"
+        """
+        try:
+            # 종목 객체 가져오기
+            stock = self.kis.stock(symbol)
+
+            # 매수/매도 주문 처리
+            if order_type == "buy":
+                if buy_price:
+                    order = stock.buy(price=buy_price, qty=qty)  # price 값이 있으면 지정가 매수
+                else:
+                    order = stock.buy(qty=qty)  # 시장가 매수
+                message = f"📈 매수 주문 완료! 종목: {symbol}, 수량: {qty}, 가격: {'시장가' if not buy_price else buy_price}"
+            elif order_type == "sell":
+                if sell_price:
+                    order = stock.sell(price=sell_price)  # 지정가 매도
+                else:
+                    order = stock.sell()  # 시장가 매도
+                message = f"📉 매도 주문 완료! 종목: {symbol}, 수량: {qty}, 가격: {'시장가' if not sell_price else sell_price}"
+            else:
+                raise ValueError("Invalid order_type. Must be 'buy' or 'sell'.")
+
+            # 디스코드로 주문 결과 전송
+            self.send_discord_webhook(message, "trading")
+
+            # 주문 상태 출력
+            print(f"주문 성공: {order}")
+
+            return order
+
+        except Exception as e:
+            error_message = f"주문 처리 중 오류 발생: {e}"
+            print(error_message)
+            self.send_discord_webhook(error_message, "trading")
+    
+        
     # 봉 데이터를 가져오는 함수
     def _get_ohlc(self, symbol, start_date, end_date):
         symbol_stock: KisStock = self.kis.stock(symbol)  # SK하이닉스 (코스피)
@@ -386,112 +432,7 @@ class AutoTradingStock:
 
         return simulation_plot
 
-        
-    # # 실시간 매매 시뮬레이션 함수
-    # def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw):
-    #     ohlc_data = self._get_ohlc(symbol, start_date, end_date)
-    #     realized_pnl = 0
-    #     trade_amount = target_trade_value_krw  # 매매 금액 (krw)
-    #     position = 0  # 현재 포지션 수량
-    #     total_buy_budget = 0  # 총 매수 가격
-    #     trade_stack = []  # 매수 가격을 저장하는 스택
-    #     previous_closes = []  # 이전 종가들을 저장
 
-    #     # 그래프 그리기 위한 데이터
-    #     timestamps = []
-    #     ohlc = []
-    #     buy_signals = []
-    #     sell_signals = []
-
-    #     i = 0
-    #     while i < len(ohlc_data) - 1:
-    #         candle = ohlc_data[i]
-    #         next_candle = ohlc_data[i + 1]
-
-    #         open_price = float(candle.open)
-    #         high_price = float(candle.high)
-    #         low_price = float(candle.low)
-    #         close_price = float(candle.close)
-    #         timestamp = candle.time
-    #         next_open_price = float(next_candle.open)
-    #         next_timestamp = next_candle.time
-
-    #         timestamps.append(timestamp)
-    #         ohlc.append([open_price, high_price, low_price, close_price])
-
-    #         # if len(previous_closes) >= 5:  # 최근 5개의 종가만 사용
-    #         #     previous_closes.pop(0)
-    #         previous_closes.append(close_price)
-
-    #         # 볼린저 밴드 계산
-    #         bollinger_band = self._cal_bollinger_band(previous_closes, close_price)
-
-    #         upper_wick, lower_wick = self._check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-
-    #         if lower_wick:  # 아랫꼬리일 경우 매수 (추가 매수 가능)
-    #             position += 1
-    #             trade_stack.append(open_price)
-    #             buy_signals.append((timestamp, open_price))
-
-    #             total_buy_budget += open_price * (trade_amount / open_price)  # 총 매수 금액 누적
-    #             # 평균 매수 단가 계산
-    #             average_entry_price = total_buy_budget / position
-
-    #             # 매수 알림 전송
-    #             message = (
-    #             f"📈 매수 이벤트 발생!\n"
-    #             f"종목: {symbol}\n"
-    #             f"매수가: {open_price:.2f} KRW\n"
-    #             f"매수 시점: {timestamp}\n"
-    #             f"총 포지션: {position}\n"
-    #             f"평균 매수 단가: {average_entry_price:.2f} KRW"
-    #             )
-    #             self.send_discord_webhook(message, "trading")
-    #             print(f"매수 시점: {timestamp}, 진입가: {open_price:.7f} KRW, 총 포지션: {position}, 평균 매수 단가: {average_entry_price:.7f} KRW")
-
-    #         elif upper_wick and position > 0:  # 윗꼬리일 경우 매도 (매수한 횟수의 1/n 만큼 매도)
-    #             exit_price = next_open_price
-    #             entry_price = trade_stack.pop()  # 스택에서 매수 가격을 가져옴
-    #             pnl = (exit_price - entry_price) * math.floor(trade_amount / entry_price) # 주식 수 연산 및 곱하기
-    #             realized_pnl += pnl
-    #             sell_signals.append((next_timestamp, exit_price))
-    #             position -= 1
-
-    #             total_buy_budget -= entry_price * (trade_amount / entry_price)  # 매도 시 매수 금액에서 차감
-    #             # 평균 매수 단가 계산
-    #             average_entry_price = total_buy_budget / position if position > 0 else 0
-
-    #             # 매도 알림 전송
-    #             message = (
-    #             f"📉 매도 이벤트 발생!\n"
-    #             f"종목: {symbol}\n"
-    #             f"매도가: {exit_price:.2f} KRW\n"
-    #             f"매도 시점: {next_timestamp}\n"
-    #             f"실현 손익: {pnl:.2f} KRW\n"
-    #             f"남은 포지션: {position}\n"
-    #             f"평균 매수 단가: {average_entry_price:.2f} KRW"
-    #             )
-    #             self.send_discord_webhook(message, "trading")
-                
-    #             print(f"매도 시점: {next_timestamp}, 최근 매수가(스택): {entry_price} KRW, 청산가: {exit_price} KRW, 매매 주식 수: {math.floor(trade_amount / entry_price)}, 실현 손익: {pnl:.7f} krw, 남은 포지션: {position}, 평균 매수 단가: {average_entry_price:.7f} KRW")
-
-    #         i += 1
-
-    #     # 마지막 봉의 close와 평균 매수 단가를 비교
-    #     final_close = float(ohlc_data[-1].close)
-    #     if position > 0:
-    #         current_pnl = (final_close - (total_buy_budget / position)) * position * (trade_amount / final_close)
-    #         print(f"현재 평균 매수 단가: {total_buy_budget / position:.7f} KRW")
-    #         print(f"마지막 봉의 종가: {final_close:.7f} KRW")
-    #         print(f"현재 가격 대비 평가 손익: {current_pnl:.7f} KRW")
-    #     else:
-    #         current_pnl = 0
-    #         print(f"현재 포지션 없음. 마지막 봉의 종가: {final_close:.7f} KRW")
-
-    #     # 캔들 차트 데이터프레임 생성
-    #     simulation_plot = self._draw_chart(symbol, ohlc, timestamps, buy_signals, sell_signals)
-
-    #     return simulation_plot, realized_pnl, current_pnl
     
     def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw):
         ohlc_data = self._get_ohlc(symbol, start_date, end_date)
@@ -598,4 +539,4 @@ class AutoTradingStock:
         simulation_plot = self._draw_chart(symbol, ohlc, timestamps, buy_signals, sell_signals)
 
         return simulation_plot, realized_pnl, current_cash
-    
+

@@ -71,6 +71,23 @@ async def select_account(ctx):
     except Exception as e:
         await ctx.send(f"❌ 오류 발생: {e}")
 
+# 잔고 조회 명령어
+@bot.command(name="balance")
+async def balance(ctx):
+    """디스코드 명령어로 잔고 조회"""
+    global auto_trading
+
+    if auto_trading is None:
+        await ctx.send("⚠️ AutoTradingStock 객체가 초기화되지 않았습니다. 'initialize_auto_trading()'을 실행해주세요.")
+        return
+
+    try:
+        await ctx.send("🔄 잔고 정보를 조회 중입니다...")
+        auto_trading.inquire_balance()
+    except Exception as e:
+        await ctx.send(f"❌ 잔고 조회 중 오류 발생: {e}")
+        
+                
 # 명령어: 트레이딩 시뮬레이션 실행
 @bot.command(name="simulate")
 async def simulate_trading(ctx, symbol: str = None):
@@ -114,6 +131,83 @@ async def simulate_trading(ctx, symbol: str = None):
     except Exception as e:
         await ctx.send(f"❌ 트레이딩 시뮬레이션 중 오류 발생: {e}")
 
+@bot.command(name="order")
+async def place_order(ctx):
+    # 메시지 필터링 함수 정의
+    def check(message):
+        return message.author == ctx.author and message.channel == ctx.channel
+
+    try:
+        # 주문 종류 요청 및 응답 대기
+        await ctx.send("📊 주문 종류를 선택해주세요 (매수/매도):")
+        order_type_msg = await bot.wait_for("message", check=check)
+        user_order_type = order_type_msg.content.strip().lower()
+
+        # 주문 종류 매핑
+        if user_order_type == "매수":
+            order_type = "buy"
+        elif user_order_type == "매도":
+            order_type = "sell"
+        else:
+            await ctx.send("❌ 잘못된 주문 종류입니다. '매수' 또는 '매도'를 입력해주세요.")
+            return
+
+        # 종목 코드 요청 및 응답 대기
+        await ctx.send("📄 종목 코드를 입력해주세요:")
+        symbol_msg = await bot.wait_for("message", check=check)
+        symbol = symbol_msg.content.strip()
+
+        # 주문 수량 요청 및 응답 대기
+        await ctx.send("🔢 주문 수량을 입력해주세요:")
+        qty_msg = await bot.wait_for("message", check=check)
+        qty_str = qty_msg.content.strip()
+
+        # 주문 수량 검증
+        if not qty_str.isdigit():
+            await ctx.send("❌ 입력된 수량이 올바르지 않습니다. 숫자를 입력해주세요.")
+            return
+        qty = int(qty_str)
+
+        # 주문 가격 요청 및 응답 대기
+        await ctx.send("💰 주문 가격을 입력해주세요 (시장가로 주문하려면 '시장가'를 입력하세요):")
+        price_msg = await bot.wait_for("message", check=check)
+        price_input = price_msg.content.strip()
+
+        # 가격 설정
+        buy_price = None
+        sell_price = None
+
+        if price_input.lower() == "시장가":
+            if order_type == "buy":
+                buy_price = None
+            elif order_type == "sell":
+                sell_price = None
+        elif price_input.isdigit():
+            if order_type == "buy":
+                buy_price = int(price_input)
+            elif order_type == "sell":
+                sell_price = int(price_input)
+        else:
+            await ctx.send("❌ 입력된 가격이 올바르지 않습니다. 숫자나 '시장가'를 입력해주세요.")
+            return
+
+        # 주문 실행
+        await ctx.send(
+            f"⏳ 주문을 실행 중입니다: 종목={symbol}, 수량={qty}, 매수 가격={buy_price if order_type == 'buy' else 'N/A'}, "
+            f"매도 가격={sell_price if order_type == 'sell' else 'N/A'}, 종류={order_type}"
+        )
+        auto_trading.place_order(
+            symbol, qty, buy_price=buy_price, sell_price=sell_price, order_type=order_type
+        )
+        await ctx.send(
+            f"✅ 주문 완료: 종목={symbol}, 수량={qty}, 매수 가격={buy_price if order_type == 'buy' else 'N/A'}, "
+            f"매도 가격={sell_price if order_type == 'sell' else 'N/A'}, 종류={order_type}"
+        )
+        #주문되었을때와 체결되었을 때를 나눠서 개발해야함!!(해야할 일)
+
+    except Exception as e:
+        await ctx.send(f"❌ 주문 처리 중 오류 발생: {e}")
+        
 # 봇 실행
 if __name__ == "__main__":
     try:
