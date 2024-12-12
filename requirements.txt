@@ -12,3 +12,4 @@ mplfinance
 pandas
 pykis
 discord
+requests

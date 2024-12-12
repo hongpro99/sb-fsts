@@ -8,32 +8,32 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import os
-
+from app.utils.auto_trading_stock import AutoTradingStock
 app = FastAPI()
 # .env 파일 로드
 load_dotenv()
 
-app = FastAPI()
 
-TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 
-intents = discord.Intents.default()
-intents.messages = True
-intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+
 
 # auto_trading 객체 초기화
 auto_trading = None
 
-@bot.event
-async def on_ready():
-    """봇 준비 완료 이벤트"""
-    print(f"{bot.user} 디스코드 봇이 실행 중입니다!")
-
-
 try:
-    # 사용자 입력 기반으로 객체 생성
-    auto_trading = create_auto_trading_stock()
+        #석문 모의투자 계좌
+    auto_trading = AutoTradingStock(
+        # HTS 로그인 ID  예) soju06
+    id=os.getenv('YOUR_ID'),
+        # 앱 키  예) Pa0knAM6JLAjIa93Miajz7ykJIXXXXXXXXXX
+    api_key=os.getenv('API_KEY'),
+        # 앱 시크릿 키  예) V9J3YGPE5q2ZRG5EgqnLHn7XqbJjzwXcNpvY . . .
+    secret_key=os.getenv('API_SECRET'),
+        # 앱 키와 연결된 계좌번호  예) 00000000-01
+    account=os.getenv('ACCOUNT_NO'),
+    virtual=True
+    )
+    
     print("AutoTradingStock 객체가 정상적으로 생성되었습니다.")
     
     # 생성된 객체의 인증 정보 확인
@@ -44,6 +44,12 @@ try:
     )
     auto_trading.send_discord_webhook(message, "trading")
     
+    # 잔고 조회
+    balance_result = auto_trading.inquire_balance()
+    if balance_result:
+        print("잔고 조회가 성공적으로 완료되었습니다.")
+    else:
+        print("잔고 조회 실패.")
     # 디버깅 용
     print(f"인증 정보: {auth_info}")
     

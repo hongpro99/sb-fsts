@@ -63,8 +63,9 @@ async def select_account(ctx):
 
             # 성공 메시지 및 인증 정보 디스코드로 전송
             await ctx.send(f"✅ {account_type} 계좌가 선택되었습니다.")
-            auth_info = auto_trading.get_auth_info()
-            await ctx.send(f"📋 인증 정보: {auth_info}")
+                # 생성된 객체의 계좌 정보를 디스코드로 전송
+            auto_trading.send_account_info_to_discord()
+
         else:
             await ctx.send("⚠️ 잘못된 입력입니다. 'y' 또는 'n'을 입력해주세요.")
     except Exception as e:
@@ -72,17 +73,24 @@ async def select_account(ctx):
 
 # 명령어: 트레이딩 시뮬레이션 실행
 @bot.command(name="simulate")
-async def simulate_trading(ctx):
+async def simulate_trading(ctx, symbol: str = None):
     global auto_trading
 
     if auto_trading is None:
         await ctx.send("⚠️ 먼저 'select' 명령어로 계좌를 선택해주세요.")
         return
 
-    symbol = "035420"  # Naver
+    if symbol is None:
+        await ctx.send("⚠️ 종목 코드를 입력해주세요. 예: `!simulate 035420`")
+        return
+    
+    
     start_date = date(2023, 1, 1)
     end_date = date(2024, 1, 1)
     target_trade_value_krw = 1000000
+    
+    await ctx.send(f"{symbol}의 시세입니다. ")
+    auto_trading.get_stock_quote(symbol)
 
     await ctx.send(f"📈 트레이딩 시뮬레이션을 시작합니다. 종목: {symbol}, 기간: {start_date} ~ {end_date}")
 
@@ -94,8 +102,8 @@ async def simulate_trading(ctx):
 
         # 시뮬레이션 결과 출력
         await ctx.send(f"✅ 트레이딩 시뮬레이션 완료!\n"
-                    f"실현 손익: {realized_pnl:.2f} KRW\n"
-                    f"현재 평가 손익: {current_pnl:.2f} KRW")
+                    f"총 실현 손익: {realized_pnl:.2f} KRW\n"
+                    f"현재 잔고: {current_pnl:.2f} KRW")
 
         # 차트를 저장하고 디스코드에 업로드
         chart_path = f"{symbol}_trading_chart.png"
