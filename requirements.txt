@@ -13,3 +13,4 @@ pandas
 pykis
 discord
 requests
+lightweight-charts

@@ -9,7 +9,7 @@ load_dotenv()
 def create_auto_trading_stock(user_choice: str):
     """사용자로부터 모의투자 여부를 입력받아 객체 생성"""
     
-    if user_choice == "y":
+    if user_choice == "mock":
         #석문 모의투자 계좌
         return AutoTradingStock(
         # HTS 로그인 ID  예) soju06
@@ -25,7 +25,7 @@ def create_auto_trading_stock(user_choice: str):
         # 앱 키와 연결된 계좌번호  예) 00000000-01
         virtual=True
         )
-    elif user_choice == "n":
+    elif user_choice == "real":
         #형 계좌
         return AutoTradingStock(
         id="dreaminmind",

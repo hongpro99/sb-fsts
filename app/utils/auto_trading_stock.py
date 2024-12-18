@@ -1,10 +1,10 @@
-import datetime
+import time
 import numpy as np
 import pandas as pd
 import requests
 import math
 from pykis import PyKis, KisChart, KisStock, KisAuth
-from datetime import date, time
+from datetime import datetime
 import mplfinance as mpf
 from dotenv import load_dotenv
 import os
@@ -12,7 +12,11 @@ import json
 from pykis import KisQuote
 from pykis import KisBalance
 from pykis import KisOrder
-
+from pykis import KisRealtimePrice, KisSubscriptionEventArgs, KisWebsocketClient, PyKis
+from pykis import PyKis, KisTradingHours
+from pykis import PyKis, KisOrderProfits
+from pykis import KisRealtimeExecution, KisSubscriptionEventArgs, KisWebsocketClient
+import asyncio
 
 # .env 파일 로드
 load_dotenv()
@@ -34,7 +38,9 @@ class AutoTradingStock:
         self.virtual_id = virtual_id
         self.virtual_appkey = virtual_appkey
         self.virtual_secretkey = virtual_secretkey
-
+        self.ticket = None  # 실시간 체결 구독 티켓
+        
+        
         if self.virtual:
             # 모의투자용 PyKis 객체 생성
             if not all([id,account, real_appkey, real_secretkey,virtual_id, virtual_appkey, virtual_secretkey]):
@@ -45,7 +51,7 @@ class AutoTradingStock:
             self.kis = PyKis(
                 id=id,
                 account=account,
-                appkey = real_appkey,
+                appkey=real_appkey,
                 secretkey=real_secretkey,
                 virtual_id=virtual_id,
                 virtual_appkey=virtual_appkey,
@@ -147,6 +153,7 @@ class AutoTradingStock:
         else:
             print(f"메시지 전송 실패: {response.status_code}, {response.text}")
 
+
     def get_stock_quote(self, symbol):
         """주식 시세를 가져와 디스코드로 전달"""
         try:
@@ -162,23 +169,23 @@ class AutoTradingStock:
     f"종목 코드: {quote.symbol}\n"
     f"종목명: {quote.name}\n"
     f"업종: {quote.sector_name}\n"
-    f"현재가: {quote.close} KRW\n"
-    f"시가: {quote.open} KRW\n"
-    f"고가: {quote.high} KRW\n"
-    f"저가: {quote.low} KRW\n"
-    f"전일 대비: {quote.change} KRW\n"
+    f"현재가: {quote.close:,.0f} KRW\n"
+    f"시가: {quote.open:,.0f} KRW\n"
+    f"고가: {quote.high:,.0f} KRW\n"
+    f"저가: {quote.low:,.0f} KRW\n"
+    f"전일 대비 가격: {quote.change:,.0f} KRW\n"
     f"등락률: {quote.change / (quote.close - quote.change):.2%}\n"
-    f"거래량: {quote.volume:,} 주\n"
+    f"거래량: {quote.volume:,.0f} 주\n"
     f"거래 대금: {quote.amount:,} KRW\n"
     f"시가총액: {quote.market_cap:,} 억 KRW\n"
-    f"52주 최고가: {quote.indicator.week52_high} KRW (일자: {quote.indicator.week52_high_date})\n"
-    f"52주 최저가: {quote.indicator.week52_low} KRW (일자: {quote.indicator.week52_low_date})\n"
-    f"EPS (주당순이익): {quote.indicator.eps} KRW\n"
-    f"BPS (주당순자산): {quote.indicator.bps} KRW\n"
+    f"52주 최고가: {quote.indicator.week52_high:,.0f} KRW (일자: {quote.indicator.week52_high_date})\n"
+    f"52주 최저가: {quote.indicator.week52_low:,.0f} KRW (일자: {quote.indicator.week52_low_date})\n"
+    f"EPS (주당순이익): {quote.indicator.eps:,.0f} KRW\n"
+    f"BPS (주당순자산): {quote.indicator.bps:,.0f} KRW\n"
     f"PER (주가수익비율): {quote.indicator.per}\n"
     f"PBR (주가순자산비율): {quote.indicator.pbr}\n"
     f"단위: {quote.unit}\n"
-    f"호가 단위: {quote.tick} KRW\n"
+    f"호가 단위: {quote.tick:,.0f} KRW\n"
     f"거래 정지 여부: {'정지' if quote.halt else '정상'}\n"
     f"과매수 상태: {'예' if quote.overbought else '아니오'}\n"
     f"위험도: {quote.risk.capitalize()}\n"
@@ -277,17 +284,338 @@ class AutoTradingStock:
             # 디스코드로 주문 결과 전송
             self.send_discord_webhook(message, "trading")
 
-            # 주문 상태 출력
-            print(f"주문 성공: {order}")
-
             return order
 
         except Exception as e:
             error_message = f"주문 처리 중 오류 발생: {e}"
             print(error_message)
             self.send_discord_webhook(error_message, "trading")
+
     
+    def get_trading_hours(self, country_code):
+        """
+        특정 국가의 주식 시장 거래 시간을 조회합니다.
+        Args:
+            country_code (str): 국가 코드 (예: US, KR, JP)
+        """
+        try:
+            # 거래 시간 조회
+            trading_hours: KisTradingHours = self.kis.trading_hours(country_code)
+
+            # 메시지 정리
+            message = (
+                f"📅 **{country_code} 주식 시장 거래 시간**\n"
+                f"정규 거래 시작: {trading_hours.open_kst}\n"
+                f"정규 거래 종료: {trading_hours.close_kst}\n"
+            )
+
+            # 결과 출력 및 웹훅 전송
+            print(message)
+            self.send_discord_webhook(message, "trading")
+            return message
         
+        except Exception as e:
+            error_message = f"❌ 거래 시간 조회 중 오류 발생: {e}"
+            print(error_message)
+            self.send_discord_webhook(error_message, "trading")
+            return None
+
+#실시간체결 모의투자 불가??
+    def start_realtime_execution(self):
+        """실시간 체결 구독 시작"""
+        account = self.kis.account()
+
+        def on_execution(sender: KisWebsocketClient, e: KisSubscriptionEventArgs[KisRealtimeExecution]):
+            """체결 이벤트 처리 함수"""
+            execution_data = e.response
+            self.send_discord_webhook(self.kis.websocket.subscriptions)  # 디스코드 웹훅 전송
+
+        # 이벤트 구독 시작
+        self.ticket = account.on("execution", on_execution)
+        print("🚀 실시간 체결 구독을 시작했습니다.")
+
+    def stop_realtime_execution(self):
+        """
+        실시간 체결 내역 구독 종료
+        """
+        if self.ticket:
+            self.ticket.unsubscribe()
+            print("🛑 실시간 체결 구독이 종료되었습니다.")
+
+# #직접 API 호출한 체결강도 순위 조회
+#     def get_volume_power_ranking(self, market_code="J", input_market="2001"):
+#         """
+#         시장별 거래량 순위 조회 메소드
+#         Args:
+#         market_code (str): 시장 코드 (KOSPI: "J", KOSDAQ: "Q", 전체: "U")
+#         """
+#         # API 요청 URL
+#         url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/ranking/volume-power"
+
+#         # 요청 헤더 설정
+#         headers = {
+#             "Content-Type": "application/json; charset=utf-8",
+#             "Authorization": str(self.kis.token),
+#             "appkey": self.appkey,
+#             "appsecret": self.secretkey,
+#             "tr_id": "FHPST01680000",
+#             "custtype": "P"
+#         }
+
+#         # 요청 파라미터 설정
+#         params = {
+#             "fid_trgt_exls_cls_code": "0",
+#             "fid_cond_mrkt_div_code": market_code,
+#             "fid_cond_scr_div_code": "20168",
+#             "fid_input_iscd": input_market,
+#             "fid_div_cls_code": "0",
+#             "fid_input_price_1": "",
+#             "fid_input_price_2": "",
+#             "fid_vol_cnt": "",
+#             "fid_trgt_cls_code": "0"
+#         }
+
+#         try:
+#             # API 요청
+#             response = requests.get(url, headers=headers, params=params)
+
+#             if response.status_code == 200:
+#                 result = response.json()
+#                 rankings = result.get("output", [])
+                
+#                 # 조회된 결과를 문자열로 정리
+#                 message = "**📊 체결강도 순위 조회 결과:**\n"
+#                 for idx, stock in enumerate(rankings[:10]):  # 상위 10개 종목만 표시
+#                     message += (
+#                         f"{idx+1}. 종목명: {stock['hts_kor_isnm']}\n"
+#                         f"종목코드: {stock["stck_shrn_iscd"]}\n"
+#                         f"당일 체결강도: {stock['tday_rltv']}\n"
+                        
+#                     )
+#                 print(message)
+#                 self.send_discord_webhook(message, "trading")
+
+#             else:
+#                 error_message = f"❌ 거래량 순위 조회 실패: {response.status_code} {response.text}"
+#                 print(error_message)
+#                 self.send_discord_webhook(error_message, "trading")
+
+#         except Exception as e:
+#             error_message = f"❌ 거래량 순위 조회 중 오류 발생: {e}"
+#             print(error_message)
+#             self.send_discord_webhook(error_message, "trading")
+
+    def get_volume_power_ranking_and_trade(self, input_market="2001"):
+        """
+        체결강도 순위를 조회하고 조건에 따라 종목을 자동으로 매수/매도
+        Args:
+            market_code (str): 시장 코드 (KOSPI: "J", KOSDAQ: "Q", 전체: "U")
+            input_market (str): 조회할 시장 코드
+        """
+        # API 요청 URL
+        url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/ranking/volume-power"
+
+        # 요청 헤더 설정
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "Authorization": str(self.kis.token),
+            "appkey": self.appkey,
+            "appsecret": self.secretkey,
+            "tr_id": "FHPST01680000",
+            "custtype": "P"
+        }
+
+        # 요청 파라미터 설정
+        params = {
+            "fid_trgt_exls_cls_code": "0",
+            "fid_cond_mrkt_div_code": "J",
+            "fid_cond_scr_div_code": "20168",
+            "fid_input_iscd": input_market,
+            "fid_div_cls_code": "0",
+            "fid_input_price_1": "",
+            "fid_input_price_2": "",
+            "fid_vol_cnt": "",
+            "fid_trgt_cls_code": "0"
+        }
+
+        try:
+            # API 요청 보내기
+            response = requests.get(url, headers=headers, params=params)
+
+            if response.status_code == 200:
+                result = response.json()
+                rankings = result.get("output", [])
+
+                # 메시지 구성
+                message = "**📊 체결강도 상위 종목 조회 및 자동 매수/매도**\n"
+                top_stocks = []
+
+                for idx, stock in enumerate(rankings[:5]):  # 상위 5개 종목만 처리
+                    stock_name = stock['hts_kor_isnm']
+                    stock_code = stock['stck_shrn_iscd']
+                    volume_power = float(stock['tday_rltv'])
+
+                    message += (
+                        f"{idx+1}. 종목명: {stock_name}\n"
+                        f"종목코드: {stock_code}\n"
+                        f"체결강도: {volume_power:.2f}\n"
+                    )
+
+                # 결과를 디스코드에 전송
+                print(message)
+                self.send_discord_webhook(message, "trading")
+
+
+                # 체결강도 1위 종목 선택
+                top_stock = rankings[0]
+                stock_name = top_stock['hts_kor_isnm']
+                stock_code = top_stock['stck_shrn_iscd']
+                volume_power = float(top_stock['tday_rltv'])
+                
+
+
+                # 1주 매수 실행 (시장가)
+                buy_qty = 1
+                buy_price = None  # 시장가
+                order_result = self.place_order(stock_code, buy_qty, buy_price, order_type="buy")
+
+                if order_result:
+                    self.send_discord_webhook(
+                        f"✅ 매수 완료: 종목명: {stock_name}, 수량: {buy_qty}주, 가격: 시장가\n", "trading" 
+                    )
+                    
+                    print(f"✅ 매수 완료: {stock_name} - 수량: {buy_qty}주")
+
+                    # 매수 가격 저장
+                    stock = self.kis.stock(stock_code)
+                    quote = stock.quote()
+                    purchase_price = float(quote.close)  # 매수가격 설정
+
+                    # 5% 상승 시 매도 조건 확인
+                    sell_price = round(purchase_price*1.05, 2)  # 매수가 대비 5% 상승
+                    self.monitor_and_sell(stock_code, stock_name, buy_qty, purchase_price, sell_price)
+                else:
+                    self.send_discord_webhook(f"❌ 매수 실패: 종목명: {stock_name}", "trading")
+            else:
+                error_message = f"❌ 체결강도 조회 실패: {response.status_code}, {response.text}"
+                print(error_message)
+                self.send_discord_webhook(error_message, "trading")
+
+        except Exception as e:
+            error_message = f"❌ 체결강도 조회 및 자동매수 중 오류 발생: {e}"
+            print(error_message)
+            self.send_discord_webhook(error_message, "trading")
+
+
+    async def monitor_and_sell(self, stock_code, stock_name, qty, purchase_price, sell_price, timeout=1800, interval = 60):
+        """
+        매수가 대비 5% 상승 시 자동 매도
+        """
+        try:
+            stock = self.kis.stock(stock_code)
+            start_time = time.time()
+
+            while True:
+                # 현재 시간과 시작 시간 비교
+                elapsed_time = time.time() - start_time
+                if elapsed_time > timeout:
+                    self.send_discord_webhook(
+                        f"⏳ 매도 조건 시간이 초과되었습니다. 목표가: {sell_price}원", "trading"
+                    )
+                    print("⏳ 매도 조건 시간이 초과되었습니다.")
+                    break
+
+                # 현재가 조회
+                quote = stock.quote()
+                current_price = float(quote.close)
+
+                print(f"[{elapsed_time:.0f}초 경과] 현재가: {current_price}, 목표 매도가: {sell_price}")
+
+                # 목표가 도달 시 매도 실행
+                if current_price >= sell_price:
+                    order_result = self.place_order(stock_code, qty, sell_price, order_type="sell")
+
+                    if order_result:
+                        profit = current_price - purchase_price
+                        profit_rate = (profit / purchase_price) * 100
+
+                        message = (
+                            f"✅ 자동 매도 완료!\n"
+                            f"종목명: {stock_name}\n"
+                            f"매수가: {purchase_price}원\n"
+                            f"매도가: {current_price}원\n"
+                            f"수익률: {profit_rate:.2f}%"
+                        )
+                        print(message)
+                        self.send_discord_webhook(message, "trading")
+                    else:
+                        self.send_discord_webhook(
+                            f"❌ 매도 실패: 종목명: {stock_name}", "trading"
+                        )
+                    break
+
+                # 일정 시간 대기
+                await asyncio.sleep(interval)
+
+        except Exception as e:
+            error_message = f"❌ 매도 조건 확인 중 오류 발생: {e}"
+            print(error_message)
+            self.send_discord_webhook(error_message, "trading")
+
+    # 배당률 상위 조회 함수
+    def get_top_dividend_stocks(self):
+        # 실전 투자 환경 URL
+        url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/ranking/dividend-rate"
+
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            'Authorization': str(self.kis.token),
+            "appkey": self.appkey,
+            "appsecret": self.secretkey,
+            "tr_id": "HHKDB13470100",  # 실전 거래용 TR_ID
+            "custtype": "P"
+        }
+
+        # 요청 쿼리 파라미터 설정
+        params = {
+            "CTS_AREA": "",
+            "GB1": "2",  # 전체 조회
+            "UPJONG": "2001",  # 업종 코드 (예시)
+            "GB2": "6",  # 배당률 순서
+            'GB3': '2',
+            "F_DT": "20240101",  # 시작 날짜
+            "T_DT": "20241201",  # 종료 날짜
+            "GB4": "1"  # 기타 설정
+        }
+
+        # API 요청 보내기
+        response = requests.get(url, headers=headers, params=params)
+
+        # 응답 처리
+        if response.status_code == 200:
+            result = response.json()
+            # 상위 5개 항목 추출
+            top_stocks = result.get("output", [])[:5]
+
+            # 결과 정리
+            message = "📊 KOSPI200 배당률 상위 5:\n"
+            for idx, stock in enumerate(top_stocks):
+                dividend_rate = float(stock['divi_rate']) / 100
+                message +=(
+                    f"{idx+1}. 종목명: {stock['isin_name']}\n"
+                    f"날짜: {stock['record_date']}\n"
+                    f"현금/주식배당금: {stock["per_sto_divi_amt"]}\n"
+                    f"배당률: {dividend_rate:.2f}% \n"
+                )
+        
+            # 디스코드 웹훅 전송
+            self.send_discord_webhook(message, "trading")
+                    
+        else:
+            error_message = f"❌ 배당률 조회 실패: {response.status_code}, {response.text}"
+            self.send_discord_webhook(error_message, "trading")
+            print(error_message)
+
     # 봉 데이터를 가져오는 함수
     def _get_ohlc(self, symbol, start_date, end_date):
         symbol_stock: KisStock = self.kis.stock(symbol)  # SK하이닉스 (코스피)
