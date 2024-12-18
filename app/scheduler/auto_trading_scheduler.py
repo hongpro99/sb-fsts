@@ -30,6 +30,9 @@ def send_discord_webhook(message, bot_type):
 
 def scheduled_trading_task():
     
+    # TO-DO
+    # 매수 로직 여기에 추가
+
     message = "매수가 완료되었습니다."
     bot_type = "trading"
 
