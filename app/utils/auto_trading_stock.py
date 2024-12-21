@@ -137,12 +137,17 @@ class AutoTradingStock:
 
     def send_discord_webhook(self, message, bot_type):
         if bot_type == 'trading':
+<<<<<<< HEAD
             webhook_url = os.getenv('DISCORD_WEBHOOK_URL')  # 복사한 Discord 웹훅 URL로 변경
             username = "FSTS trading Bot"
             
         elif bot_type == "simulation":
             webhook_url = os.getenv('DISCORD_SIMULATION_WEBHOOK_URL')  # 복사한 Discord 웹훅 URL로 변경
             username = "FSTS simulation Bot"
+=======
+            webhook_url = 'https://discord.com/api/webhooks/1313346849838596106/6Rn_8BNDeL9bMYfFtqscpu4hPah5c2RsNl0rBiPoSw_Qb9RXgDdVHoHmwEuStPv_ufnV'  # 복사한 Discord 웹훅 URL로 변경
+            username = "Stock Trading Bot"
+>>>>>>> 5e498773865491b77791554c66dad17695d4b53d
 
         data = {
             "content": message,
