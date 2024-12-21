@@ -7,7 +7,6 @@ apscheduler
 python-binance
 numpy
 python-kis
-<<<<<<< HEAD
 matplotlib
 mplfinance
 pandas
@@ -15,6 +14,3 @@ pykis
 discord
 requests
 lightweight-charts
-=======
-discord
->>>>>>> 5e498773865491b77791554c66dad17695d4b53d
