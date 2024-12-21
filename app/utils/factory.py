@@ -13,15 +13,15 @@ def create_auto_trading_stock(user_choice: str):
         #석문 모의투자 계좌
         return AutoTradingStock(
         # HTS 로그인 ID  예) soju06
-        id="dreaminmind",
-        account=os.getenv('ACCOUNT_NO'),
-        real_appkey = 'PSyTGF07QupJyV76XGm3mkgcr4RDvSeODpVZ',
-        real_secretkey= 'eteoHNN+iHktbHC1TOKNdDc2ecFHqwyA+o1OijESqRtWY2cirhUqbiuFfO5zmEPNqB8/P0RSBuTjZnPq4zc5u3dKHIg/HOFQqmZcCik621aWqti5MBReqNpr/NChcs8edoBKd4cgJaC47m3IKncU4GglKzWNqHtic/4X8lmOAZx0oDGuFkI=',
+        id=os.getenv('MOCK_YOUR_ID'),
+        account=os.getenv('MOCK_ACCOUNT_NO'),
+        real_appkey = os.getenv('REAL_API_KEY'),
+        real_secretkey= os.getenv('REAL_API_SECRET'),
         # 앱 키  예) Pa0knAM6JLAjIa93Miajz7ykJIXXXXXXXXXX
-        virtual_id = os.getenv('YOUR_ID'),
-        virtual_appkey=os.getenv('API_KEY'),
+        virtual_id = os.getenv('MOCK_YOUR_ID'),
+        virtual_appkey=os.getenv('MOCK_API_KEY'),
         # 앱 시크릿 키  예) V9J3YGPE5q2ZRG5EgqnLHn7XqbJjzwXcNpvY . . .
-        virtual_secretkey=os.getenv('API_SECRET'),
+        virtual_secretkey=os.getenv('MOCK_API_SECRET'),
         # 앱 키와 연결된 계좌번호  예) 00000000-01
         virtual=True
         )

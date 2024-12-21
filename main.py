@@ -41,11 +41,6 @@ class TradingBotManager:
 # 글로벌 객체 생성
 manager = TradingBotManager()
 
-# 봇 이벤트: 준비 완료
-@bot.event
-async def on_ready():
-    print(f"✅ 봇이 준비되었습니다. 봇 이름: {bot.user.name}")
-
 
 # 계좌 선택 명령어
 @bot.command(name="select")
@@ -269,7 +264,7 @@ async def simulate(ctx, symbol: str):
 
 
 # RSI 시뮬레이션 명령어
-@bot.command(name="rsi_simulate") #!rsi_trading 005930 2023-01-01 2023-12-31
+@bot.command(name="rsi_simulate") #!rsi_simulate 005930 2023-01-01 2023-12-31
 async def rsi_simulate(ctx, symbol: str, start_date: str, end_date: str):
     if not manager.is_initialized():
         await ctx.send("⚠️ 먼저 'select' 명령어로 계좌를 선택해주세요.")
