@@ -2,16 +2,18 @@ import uuid
 from fastapi import FastAPI, HTTPException
 from typing import Optional
 from datetime import datetime
-import json
+import asyncio
 import requests
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 from pytz import timezone
 
 from app.scheduler import auto_trading_scheduler
+from app.utils.discord_bot import run_discord_bot
 
 
-app = FastAPI()
+app = FastAPI() 
+
 # api 별 router 등록
 
 # 스케줄러 설정
