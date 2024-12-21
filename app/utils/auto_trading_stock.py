@@ -18,6 +18,8 @@ from pykis import PyKis, KisTradingHours
 from pykis import PyKis, KisOrderProfits
 from pykis import KisRealtimeExecution, KisSubscriptionEventArgs, KisWebsocketClient
 import asyncio
+from typing import List, Dict
+
 
 # .env 파일 로드
 load_dotenv()
@@ -42,7 +44,6 @@ class AutoTradingStock:
         self.ticket = None  # 실시간 체결 구독 티켓
         self.kis = None  # kis 초기화
         
-        
         if self.virtual:
             # 모의투자용 PyKis 객체 생성
             if not all([id,account, real_appkey, real_secretkey,virtual_id, virtual_appkey, virtual_secretkey]):
@@ -60,6 +61,7 @@ class AutoTradingStock:
                 virtual_secretkey=virtual_secretkey,
                 keep_token=True  # API 접속 토큰 자동 저장
             )
+            
         else:
             # 실전투자용 PyKis 객체 생성
             message = ("실전투자 API 객체를 생성 중입니다...")
@@ -659,4 +661,85 @@ class AutoTradingStock:
             error_message = f"❌ 배당률 조회 실패: {response.status_code}, {response.text}"
             self.send_discord_webhook(error_message, "trading")
             print(error_message)
+
+
+    def get_income_statement(self, symbol: str):
+        """
+        국내주식 손익계산서를 가져와 디스코드로 전송하는 함수
+        Args:
+            symbol (str): 종목 코드
+        """
+        url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/finance/income-statement"
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "authorization": str(self.kis.token),
+            "appkey": self.appkey,
+            "appsecret": self.secretkey,
+            "tr_id": "FHKST66430200",  # 실전 투자용 TR_ID
+            "custtype": "P"
+        }
+        params = {
+            "FID_DIV_CLS_CODE": "0",  # 0: 연도별 데이터, 1: 분기별 데이터
+            "fid_cond_mrkt_div_code": "J",  # 시장 코드
+            "fid_input_iscd": symbol  # 종목 코드
+        }
+
+        try:
+            # API 호출
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            result = response.json()
+
+            # API 실패 처리
+            if result.get("rt_cd") != "0":
+                error_message = f"⚠️ API 오류: {result.get('msg1')}"
+                self.send_discord_webhook(error_message, "trading")
+                return
+
+            # 데이터 가져오기
+            income_data = result.get("output", [])
+            if not income_data:
+                self.send_discord_webhook(f"⚠️ {symbol}에 대한 손익계산서 데이터가 없습니다.", "trading")
+                return
+
+            # 최근 2년 데이터 필터링
+            current_year = datetime.now().year
+            recent_data = [
+                data for data in income_data if int(data["stac_yymm"][:4]) >= current_year - 2
+            ]
+
+            if not recent_data:
+                self.send_discord_webhook(f"⚠️ 최근 2년간 손익계산서 데이터가 없습니다.", "trading")
+                return
+
+            # 메시지 생성
+            message = f"📊 {symbol} 최근 3년간 손익계산서:\n"
+            for data in recent_data:
+                message += (
+                    f"결산 년월: {data['stac_yymm']}\n"
+                    f"매출액: {data['sale_account']} KRW\n"
+                    f"매출 원가: {data['sale_cost']} KRW\n"
+                    f"매출 총이익: {data['sale_totl_prfi']} KRW\n"
+                    f"영업 이익: {data['bsop_prti']} KRW\n"
+                    f"당기순이익: {data['thtr_ntin']} KRW\n"
+                    f"-----------------------------\n"
+                )
+
+            # 디스코드에 메시지 전송
+            self.send_discord_webhook(message, "trading")
+
+        except requests.exceptions.RequestException as req_err:
+            error_message = f"❌ API 호출 중 오류 발생: {req_err}"
+            print(error_message)
+            self.send_discord_webhook(error_message, "trading")
+
+        except Exception as e:
+            # 일반적인 예외 처리
+            error_message = f"❌ 손익계산서 조회 중 오류 발생: {e}"
+            print(error_message)
+            self.send_discord_webhook(error_message, "trading")
+            
+            
+
+
 

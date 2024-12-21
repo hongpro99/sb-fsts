@@ -300,7 +300,7 @@ async def income_statement(ctx, symbol: str):
         await ctx.send(f"🔄 {symbol} 손익계산서를 조회 중입니다...")
 
         # 손익계산서 데이터 가져오기
-        await manager.auto_trading.get_income_statement(symbol)
+        manager.auto_trading.get_income_statement(symbol)
     except Exception as e:
         await ctx.send(f"❌ 손익계산서 조회 중 오류 발생: {e}")
 
