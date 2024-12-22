@@ -1,5 +1,6 @@
 import uuid
 from datetime import date
+from datetime import datetime
 from app.utils.factory import create_auto_trading_stock
 from app.utils.simulation import Simulation
 import discord
@@ -269,7 +270,7 @@ async def simulate(ctx, symbol: str):
 
 
 # RSI 시뮬레이션 명령어
-@bot.command(name="rsi_simulate") #!rsi_trading 005930 2023-01-01 2023-12-31
+@bot.command(name="rsi_simulate") #!rsi_simulate 005930 2023-01-01 2023-12-31
 async def rsi_simulate(ctx, symbol: str, start_date: str, end_date: str):
     if not manager.is_initialized():
         await ctx.send("⚠️ 먼저 'select' 명령어로 계좌를 선택해주세요.")
@@ -289,6 +290,37 @@ async def rsi_simulate(ctx, symbol: str, start_date: str, end_date: str):
         os.remove(chart_path)
     except Exception as e:
         await ctx.send(f"❌ RSI 시뮬레이션 중 오류 발생: {e}")
+        
+# 외국인 순매수 시뮬레이션 명령어
+@bot.command(name="foreign_simulate") #!foreign_simulate 005930 20230101 20231231
+async def foreign_simulate(ctx, symbol: str, start_date: str, end_date: str):
+    """
+    외국인 순매수 시뮬레이션 명령어
+    Args:
+        ctx: 디스코드 명령어 컨텍스트
+        symbol (str): 종목 코드
+        start_date (str): 시작 날짜 (YYYY-MM-DD 형식)
+        end_date (str): 종료 날짜 (YYYY-MM-DD 형식)
+    """
+    
+    await ctx.send(f"📊 외국인 순매수 시뮬레이션을 시작합니다.\n"
+                f"종목: {symbol}, 기간: {start_date} ~ {end_date}")
+
+    try:
+        # 외국인 순매수 데이터 가져오기
+        data = manager.auto_trading.fetch_foreign_investor_data(symbol, start_date, end_date)
+        
+        if not data:
+            await ctx.send(f"⚠️ {symbol}에 대한 데이터가 없습니다. 다른 기간을 입력해주세요.")
+            return
+
+        # 시뮬레이션 수행
+        await ctx.send("🔄 시뮬레이션을 실행 중입니다...")
+        manager.simulation.foreign_investor_simulate_trading(data)
+
+    except Exception as e:
+        await ctx.send(f"❌ 시뮬레이션 중 오류가 발생했습니다: {e}")
+
 
 @bot.command(name="income_statement") #income_statement 005930
 async def income_statement(ctx, symbol: str):

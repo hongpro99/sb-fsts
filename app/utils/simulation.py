@@ -526,3 +526,96 @@ class Simulation:
         )
 
         return fig
+    
+    def foreign_investor_simulate_trading(self, data:list):
+        """
+        외국인 순매수 데이터를 기반으로 매매 시뮬레이션을 수행합니다.
+        Args:
+            symbol (str): 종목 코드
+            start_date (str): 시작 날짜 (YYYYMMDD 형식)
+            end_date (str): 종료 날짜 (YYYYMMDD 형식)
+            initial_cash (float): 초기 자본
+        """
+        try:
+
+            print(f"[INFO] 총 {len(data)}개의 데이터가 준비되었습니다.")
+            
+            # 초기화
+            realized_pnl = 0  # 총 실현 손익
+            position = 0  # 현재 보유 주식 수량
+            current_cash = 1_000_000  # 초기 자산
+            trade_stack = []  # 매수 가격 스택
+            recent_foreign_net_buys = []  # 최근 외국인 순매수 상태를 추적
+            closes = []  # 종가 데이터
+
+            # 데이터 순회
+            for entry in data:
+                symbol = entry["symbol"]
+                date = entry["date"]
+                net_buy = entry["foreign_net_buy"]
+                close_price = entry["close_price"]
+
+                closes.append(close_price)
+                recent_foreign_net_buys.append(net_buy)
+                if len(recent_foreign_net_buys) > 3:
+                    recent_foreign_net_buys.pop(0)
+
+                # 매수 조건: 외국인 순매수가 음수 → 양수 전환 + 양수 3일 연속 유지
+                buy_signal = (
+                    len(recent_foreign_net_buys) == 3
+                    and recent_foreign_net_buys[0] < 0  # 첫날 음수
+                    and all(val > 0 for val in recent_foreign_net_buys[1:])  # 마지막 2일 양수
+                )
+
+                # 매도 조건: 외국인 순매수가 연속 2일 음수로 바뀜
+                sell_signal = (
+                    position > 0
+                    and len(recent_foreign_net_buys) >= 2
+                    and all(val < 0 for val in recent_foreign_net_buys[-2:])
+                )
+
+                # 3. 매수 작업
+                if buy_signal and current_cash >= close_price:
+                    position += 1  # 보유 주식 증가
+                    trade_stack.append(close_price)  # 매수가 저장
+                    current_cash -= close_price  # 현금 잔고 감소
+
+                    self.auto_trading_stock.send_discord_webhook(
+                        f"📈 매수 발생! 종목: {symbol}, 날짜: {date}, 가격: {close_price} KRW", "simulation"
+                    )
+                    print(f"[BUY] 날짜: {date}, 매수가: {close_price} KRW, 현재 잔고: {current_cash} KRW, 보유 주식: {position}")
+
+                # 4. 매도 작업
+                if sell_signal:
+                    entry_price = trade_stack.pop(0)  # 매수 가격 가져오기
+                    pnl = close_price - entry_price  # 개별 거래 손익
+                    realized_pnl += pnl  # 총 손익 업데이트
+                    current_cash += close_price  # 현금 잔고 증가
+                    position -= 1  # 보유 주식 감소
+
+                    self.auto_trading_stock.send_discord_webhook(
+                        f"📉 매도 발생! 종목: {symbol}, 날짜: {date}, 매도가: {close_price} KRW, 손익: {pnl:.2f} KRW",
+                        "simulation",
+                    )
+                    print(f"[SELL] 날짜: {date}, 매도가: {close_price} KRW, 손익: {pnl:.2f} KRW, 현재 잔고: {current_cash} KRW, 보유 주식: {position}")
+
+            # 5. 최종 평가
+            final_assets = current_cash + (position * closes[-1] if position > 0 else 0)  # 총 자산
+            self.auto_trading_stock.send_discord_webhook(
+                f"📊 시뮬레이션 완료!\n"
+                f"종목: {symbol}\n"
+                f"최종 자산: {final_assets:.2f} KRW\n"
+                f"현금 잔고: {current_cash:.2f} KRW\n"
+                f"보유 주식 평가 금액: {(position * closes[-1]):.2f} KRW\n"
+                f"총 실현 손익: {realized_pnl:.2f} KRW\n",
+                "simulation"
+            )
+            
+            print(f"[INFO] 시뮬레이션 완료! 최종 자산: {final_assets:.2f} KRW")
+
+        except Exception as e:
+            error_message = f"❌ 외국인 순매수 시뮬레이션 중 오류 발생: {e}"
+            print(error_message)
+            self.auto_trading_stock.send_discord_webhook(error_message, "simulation")
+
+

@@ -139,11 +139,11 @@ class AutoTradingStock:
 
     def send_discord_webhook(self, message, bot_type):
         if bot_type == 'trading':
-            webhook_url = os.getenv('DISCORD_WEBHOOK_URL')  # 복사한 Discord 웹훅 URL로 변경
+            webhook_url = os.getenv('TEST_DISCORD_WEBHOOK_URL')  # 복사한 Discord 웹훅 URL로 변경
             username = "FSTS trading Bot"
             
         elif bot_type == "simulation":
-            webhook_url = os.getenv('DISCORD_SIMULATION_WEBHOOK_URL')  # 복사한 Discord 웹훅 URL로 변경
+            webhook_url = os.getenv('TEST_DISCORD_SIMULATION_WEBHOOK_URL')  # 복사한 Discord 웹훅 URL로 변경
             username = "FSTS simulation Bot"
 
         data = {
@@ -738,6 +738,77 @@ class AutoTradingStock:
             error_message = f"❌ 손익계산서 조회 중 오류 발생: {e}"
             print(error_message)
             self.send_discord_webhook(error_message, "trading")
+            
+    def fetch_foreign_investor_data(self, symbol: str, start_date: str, end_date: str) -> list:
+        """
+        외국인 순매수 데이터를 가져옵니다.
+        Args:
+            symbol (str): 종목 코드
+            start_date (str): 시작 날짜 (YYYY-MM-DD 형식)
+            end_date (str): 종료 날짜 (YYYY-MM-DD 형식)
+        Returns:
+            list: 특정 기간에 해당하는 외국인 순매수 데이터 리스트
+        """
+        try:
+            print(f"[INFO] 외국인 순매수 데이터 가져오기 시작... 종목: {symbol}, 기간: {start_date} ~ {end_date}")
+
+            # API 요청 URL
+            url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/quotations/inquire-investor"
+
+            # API 요청 헤더
+            headers = {
+                "authorization": str(self.kis.token),
+                "appkey": self.appkey,
+                "appsecret": self.secretkey,
+                "tr_id": "FHKST01010900",  # 실전 거래용 TR_ID
+            }
+
+            # API 요청 파라미터
+            params = {
+                "FID_COND_MRKT_DIV_CODE": "J",  # 시장 코드 (KOSPI)
+                "FID_INPUT_ISCD": symbol,  # 종목 코드
+            }
+
+            # API 요청
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+
+            # 응답 데이터 파싱
+            result = response.json()
+
+            if result.get("rt_cd") != "0":
+                print(f"[WARNING] API 호출 실패: {result.get('msg1')}")
+                self.send_discord_webhook(f"⚠️ API 호출 실패: {result.get('msg1')}", "simulation")
+                return []
+
+            all_data = result.get("output", [])
+            if not all_data:
+                print(f"[INFO] {symbol}에 대한 데이터가 없습니다.")
+                return []
+
+            # 데이터 필터링: 사용자 지정 날짜에 맞는 데이터만 반환
+            filtered_data = []
+            for entry in all_data:
+                entry_date = entry["stck_bsop_date"]
+                print(f"[DEBUG] 반환된 데이터 날짜: {entry_date}")  # 반환된 날짜 확인
+
+                if start_date <= entry_date <= end_date:
+                    filtered_data.append({
+                        "symbol": symbol,
+                        "date": entry_date,  # 날짜
+                        "foreign_net_buy": float(entry["frgn_ntby_tr_pbmn"]),  # 외국인 순매수 거래 대금
+                        "close_price": float(entry["stck_clpr"]),  # 종가
+                    })
+
+            print(f"[INFO] 데이터 변환 완료! 총 {len(filtered_data)}개의 데이터가 준비되었습니다.")
+            return filtered_data
+
+        except Exception as e:
+            print(f"[ERROR] 외국인 순매수 데이터 가져오는 중 오류 발생: {e}")
+            self.send_discord_webhook(f"❌ 외국인 순매수 데이터 가져오는 중 오류 발생: {e}", "simulation")
+            return []
+
+
             
             
 
