@@ -2,7 +2,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from contextlib import contextmanager
 
-DATABASE_URL = "postgresql://coupleof:coupleof123@coupleof-rds.cp9lsfxv5if3.ap-northeast-2.rds.amazonaws.com/auto_trading"
+DB_ID = 'sbmaster'
+DB_PASSWORD = 'sbmaster123'
+DATABASE_URL = f"postgresql://{DB_ID}:{DB_PASSWORD}@sb-rds.cp9lsfxv5if3.ap-northeast-2.rds.amazonaws.com/fsts"
 
 # 엔진 설정
 engine = create_engine(DATABASE_URL)
