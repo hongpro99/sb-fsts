@@ -7,12 +7,14 @@ from pykis import PyKis, KisChart, KisStock
 from datetime import date, time
 import mplfinance as mpf
 
-from indicator import cal_bollinger_band
+from app.utils.technical_indicator import TechnicalIndicator
 
 
 API_KEY = "8aChkjQ9XijCL3LwC7LGJuDrn3FVFh62g9WPEaa0UnwmGt7hsu8tKBk61hQd76YG"
 API_SECRET = "YznqQReI62NOd7QQfaPSXk6whFrQxyraId9iEcwtUScNtCq7tTGHugM7kYv77SpP"
 
+# 보조지표 클래스 선언
+indicator = TechnicalIndicator()
 
 class AutoTradingStock:
     def __init__(self, api_key=API_KEY, api_secret=API_SECRET):
@@ -229,7 +231,7 @@ class AutoTradingStock:
 
             # 볼린저 밴드 계산
             # bollinger_band = self._cal_bollinger_band(previous_closes, close_price)
-            bollinger_band = cal_bollinger_band(previous_closes, close_price)
+            bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
 
             upper_wick, lower_wick = self._check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
 
