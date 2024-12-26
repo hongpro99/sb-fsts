@@ -9,7 +9,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from pytz import timezone
 
 from app.scheduler import auto_trading_scheduler
-from app.utils.discord_bot import run_discord_bot
 
 
 app = FastAPI() 
