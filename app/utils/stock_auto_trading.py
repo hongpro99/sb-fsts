@@ -8,6 +8,7 @@ from datetime import date, time
 import mplfinance as mpf
 
 from app.utils.technical_indicator import TechnicalIndicator
+from app.utils.trading_logic import TradingLogic
 
 
 API_KEY = "8aChkjQ9XijCL3LwC7LGJuDrn3FVFh62g9WPEaa0UnwmGt7hsu8tKBk61hQd76YG"
@@ -256,3 +257,20 @@ class AutoTradingStock:
         simulation_plot = self._draw_chart(symbol, ohlc, timestamps, buy_signals, sell_signals)
 
         return simulation_plot, realized_pnl, current_pnl
+
+
+    # 실시간 매매 함수
+    def trade(self):
+        
+        trading_logic = TradingLogic()
+
+        # 가격 조회
+        # DB 에서 종목 조회
+        # 체결 강도 로직 조회
+        is_buy_signal = trading_logic.func1()
+        # 매수 함수
+        if is_buy_signal is True:
+            # 매수
+            pass
+
+        return None
