@@ -7,6 +7,8 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import os
+from app.utils.database import get_db_session
+
 
 # 환경 변수 파일 로드
 load_dotenv()
@@ -197,8 +199,12 @@ async def dividend_ranking(ctx):
 
     try:
         await ctx.send("🔄 배당률 상위 종목을 조회 중입니다...")
-        manager.auto_trading.get_top_dividend_stocks()
-        await ctx.send("✅ 배당률 상위 종목 조회를 완료했습니다.")
+        
+        with get_db_session() as db:
+            manager.auto_trading.get_top_dividend_stocks(db)
+            
+        await ctx.send("✅ 배당률 상위 종목 조회 및 DB 저장을 완료했습니다.")
+        
     except Exception as e:
         await ctx.send(f"❌ 배당률 조회 중 오류 발생: {e}")
 

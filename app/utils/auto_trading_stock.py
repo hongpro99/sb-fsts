@@ -19,6 +19,10 @@ from pykis import PyKis, KisOrderProfits
 from pykis import KisRealtimeExecution, KisSubscriptionEventArgs, KisWebsocketClient
 import asyncio
 from typing import List, Dict
+from sqlalchemy.orm import Session
+from app.utils.crud_sql import SQLExecutor
+from app.utils.database import get_db_session
+
 
 
 # .env 파일 로드
@@ -43,6 +47,7 @@ class AutoTradingStock:
         self.virtual_secretkey = virtual_secretkey
         self.ticket = None  # 실시간 체결 구독 티켓
         self.kis = None  # kis 초기화
+        self.sql_executor = SQLExecutor()
         
         if self.virtual:
             # 모의투자용 PyKis 객체 생성
@@ -609,7 +614,7 @@ class AutoTradingStock:
             self.send_discord_webhook(error_message, "trading")
 
     # 배당률 상위 조회 함수
-    def get_top_dividend_stocks(self):
+    def get_top_dividend_stocks(self,db: Session):
         # 실전 투자 환경 URL
         url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/ranking/dividend-rate"
 
@@ -625,13 +630,13 @@ class AutoTradingStock:
         # 요청 쿼리 파라미터 설정
         params = {
             "CTS_AREA": "",
-            "GB1": "2",  # 전체 조회
-            "UPJONG": "2001",  # 업종 코드 (예시)
+            "GB1": "0",  # 전체 조회 #0:전체, 1:코스피, 2: 코스피200, 3: 코스닥
+            "UPJONG": "0001",  # 업종 코드 (예시) 코스피(0001:종합) 코스닥(1001:종합)
             "GB2": "6",  # 배당률 순서
             'GB3': '2',
-            "F_DT": "20240101",  # 시작 날짜
+            "F_DT": "20230101",  # 시작 날짜
             "T_DT": "20241201",  # 종료 날짜
-            "GB4": "1"  # 기타 설정
+            "GB4": "0"  # 기타 설정
         }
 
         # API 요청 보내기
@@ -644,19 +649,38 @@ class AutoTradingStock:
             top_stocks = result.get("output", [])[:5]
 
             # 결과 정리
-            message = "📊 KOSPI200 배당률 상위 5:\n"
+            message = "📊 KOSPI 배당률 상위 5:\n"
             for idx, stock in enumerate(top_stocks):
                 dividend_rate = float(stock['divi_rate']) / 100
+                
                 message +=(
                     f"{idx+1}. 종목명: {stock['isin_name']}\n"
                     f"날짜: {stock['record_date']}\n"
                     f"현금/주식배당금: {stock["per_sto_divi_amt"]}\n"
                     f"배당률: {dividend_rate:.2f}% \n"
                 )
+            
         
             # 디스코드 웹훅 전송
             self.send_discord_webhook(message, "trading")
                     
+            # DB에 데이터 삽입
+            for stock in top_stocks:
+                query = """
+                    INSERT INTO fsts.dividend_stocks (isin_name, record_date, per_sto_divi_amt, dividend_rate)
+                    VALUES (:isin_name, :record_date, :per_sto_divi_amt, :dividend_rate)
+                    RETURNING *
+                """
+                params = {
+                    "isin_name": stock['isin_name'],
+                    "record_date": stock['record_date'],
+                    "per_sto_divi_amt": float(stock['per_sto_divi_amt']),
+                    "dividend_rate": float(stock['divi_rate']) / 100
+                }
+                self.sql_executor.execute_insert(db, query, params)
+
+            print("📊 배당률 상위 5종목이 DB에 저장되었습니다.")
+            
         else:
             error_message = f"❌ 배당률 조회 실패: {response.status_code}, {response.text}"
             self.send_discord_webhook(error_message, "trading")

@@ -1,24 +1,24 @@
-from sqlalchemy import create_engine #데이터베이스 연결을 위한 엔진 생성
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from contextlib import contextmanager
 
-DATABASE_URL = "postgresql://coupleof:coupleof123@coupleof-rds.cp9lsfxv5if3.ap-northeast-2.rds.amazonaws.com/auto_trading"
-# postgresql 데이터베이스에 연결하기 위한 URL
+DB_ID = 'sbmaster'
+DB_PASSWORD = 'sbmaster123'
+DATABASE_URL = f"postgresql://{DB_ID}:{DB_PASSWORD}@sb-rds.cp9lsfxv5if3.ap-northeast-2.rds.amazonaws.com/fsts"
 
 # 엔진 설정
 engine = create_engine(DATABASE_URL)
 
-# 세션을 생성하기 위한 세션 팩토리 함수
+# 세션 설정
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-#데이터베이스 세션 반환 함수
 def get_db():
     db = SessionLocal()
     
     return db
 
 # 세션 생성 함수
-@contextmanager #데이터베이스 세션을 안전하게 처리할 수 있도록 함
+@contextmanager
 def get_db_session():
     db = SessionLocal()  # 세션 생성
     try:
