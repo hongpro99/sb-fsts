@@ -64,27 +64,6 @@ class AutoTradingStock:
         return klines
 
 
-    # 볼린저밴드 계산
-    def _cal_bollinger_band(self, previous_closes, close_price):
-        if len(previous_closes) >= 20:
-            sma = np.mean(previous_closes[-20:])
-            std = np.std(previous_closes[-20:])
-            upper_band = sma + (std * 2)
-            lower_band = sma - (std * 2)
-        else:
-            sma = np.mean(previous_closes) if previous_closes else close_price
-            std = np.std(previous_closes) if len(previous_closes) > 1 else 0
-            upper_band = sma + (std * 2)
-            lower_band = sma - (std * 2)
-
-        band = {}
-        band['upper'] = upper_band
-        band['middle'] = sma
-        band['lower'] = lower_band
-
-        return band
-
-
     # 윗꼬리와 아랫꼬리를 체크하는 함수
     def _check_wick(self, candle, previous_closes, lower_band, sma, upper_band):
         open_price = float(candle.open)
