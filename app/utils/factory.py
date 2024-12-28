@@ -28,13 +28,13 @@ def create_auto_trading_stock(user_choice: str):
     elif user_choice == "real":
         #형 계좌
         return AutoTradingStock(
-        id="dreaminmind",
+        id=os.getenv('REAL_YOUR_ID'),
         # 앱 키  예) Pa0knAM6JLAjIa93Miajz7ykJIXXXXXXXXXX
-        real_appkey="PSyTGF07QupJyV76XGm3mkgcr4RDvSeODpVZ",
+        real_appkey=os.getenv('REAL_API_KEY'),
         # 앱 시크릿 키  예) V9J3YGPE5q2ZRG5EgqnLHn7XqbJjzwXcNpvY . . .
-        real_secretkey="eteoHNN+iHktbHC1TOKNdDc2ecFHqwyA+o1OijESqRtWY2cirhUqbiuFfO5zmEPNqB8/P0RSBuTjZnPq4zc5u3dKHIg/HOFQqmZcCik621aWqti5MBReqNpr/NChcs8edoBKd4cgJaC47m3IKncU4GglKzWNqHtic/4X8lmOAZx0oDGuFkI=", # 발급받은 App Secret
+        real_secretkey=os.getenv('REAL_API_SECRET'), # 발급받은 App Secret
         # 앱 키와 연결된 계좌번호  예) 00000000-01
-        account="67737279",
+        account=os.getenv('REAL_ACCOUNT_NO'),
         virtual=False
         )
     else:

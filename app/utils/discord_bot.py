@@ -45,7 +45,6 @@ auto_trading = None
 #         print("지정된 채널을 찾을 수 없습니다.")
 
 
-        
 # 명령어: 모의투자 여부 입력받기
 @bot.command(name="select")
 async def select_account(ctx):
@@ -98,6 +97,10 @@ async def get_trading_hours(ctx):
     사용법: !trading_hours [국가코드]
     예: !trading_hours US
     """
+    if auto_trading is None:
+        await ctx.send("⚠️ AutoTradingStock 객체가 초기화되지 않았습니다. 'initialize_auto_trading()'을 실행해주세요.")
+        return
+    
     # 사용자 입력 필터링 함수
     def check(message):
         return message.author == ctx.author and message.channel == ctx.channel
@@ -161,6 +164,10 @@ async def simulate_trading(ctx, symbol: str = None):
 @bot.command(name="order")
 async def place_order(ctx):
     # 메시지 필터링 함수 정의
+    if auto_trading is None:
+        await ctx.send("⚠️ AutoTradingStock 객체가 초기화되지 않았습니다. 'initialize_auto_trading()'을 실행해주세요.")
+        return
+    
     def check(message):
         return message.author == ctx.author and message.channel == ctx.channel
 
@@ -235,30 +242,6 @@ async def place_order(ctx):
     except Exception as e:
         await ctx.send(f"❌ 주문 처리 중 오류 발생: {e}")
 
-#실시간 체결 모의투자 불가??
-@bot.command(name="start_realtime")
-async def start_realtime(ctx):
-    try:
-        # 실시간 체결 구독 시작
-        auto_trading.start_realtime_execution()
-        await ctx.send("🚀 실시간 체결 내역 구독을 시작합니다!")
-    except Exception as e:
-        await ctx.send(f"❌ 실시간 체결 내역 구독 시작 중 오류 발생: {e}")
-        
-@bot.command(name="stop_realtime")
-async def stop_realtime(ctx):
-    global auto_trading
-    """
-    실시간 체결 구독 종료 명령어
-    """
-    try:
-        # 실시간 체결 구독 종료
-        auto_trading.stop_realtime_execution()
-        await ctx.send("🛑 실시간 체결 내역 구독을 종료합니다.")
-        auto_trading = None  # 객체 해제
-    except Exception as e:
-        await ctx.send(f"❌ 실시간 체결 내역 구독 종료 중 오류 발생: {e}")
-
 @bot.command(name="volumeRanking_trading")
 async def volumeRanking_trading(ctx):
     """
@@ -267,6 +250,10 @@ async def volumeRanking_trading(ctx):
     """
     global auto_trading
 
+    if auto_trading is None:
+        await ctx.send("⚠️ AutoTradingStock 객체가 초기화되지 않았습니다. 'initialize_auto_trading()'을 실행해주세요.")
+        return
+    
     # 사용자 입력 처리
     def check(message):
         return message.author == ctx.author and message.channel == ctx.channel
@@ -304,7 +291,96 @@ async def dividend_ranking(ctx):
     except Exception as e:
         await ctx.send(f"❌ 오류 발생: {e}")
 
+# 외국인 순매수 시뮬레이션 명령어
+@bot.command(name="foreign_simulate") #!foreign_simulate 005930 20230101 20231231
+async def foreign_simulate(ctx, symbol: str, start_date: str, end_date: str):
+    """
+    외국인 순매수 시뮬레이션 명령어
+    Args:
+        ctx: 디스코드 명령어 컨텍스트
+        symbol (str): 종목 코드
+        start_date (str): 시작 날짜 (YYYY-MM-DD 형식)
+        end_date (str): 종료 날짜 (YYYY-MM-DD 형식)
+    """
+    
+    await ctx.send(f"📊 외국인 순매수 시뮬레이션을 시작합니다.\n"
+                f"종목: {symbol}, 기간: {start_date} ~ {end_date}")
 
+    try:
+        # 외국인 순매수 데이터 가져오기
+        data = auto_trading.fetch_foreign_investor_data(symbol, start_date, end_date)
+        
+        if not data:
+            await ctx.send(f"⚠️ {symbol}에 대한 데이터가 없습니다. 다른 기간을 입력해주세요.")
+            return
+
+        # 시뮬레이션 수행
+        await ctx.send("🔄 시뮬레이션을 실행 중입니다...")
+        auto_trading.foreign_investor_simulate_trading(data)
+
+    except Exception as e:
+        await ctx.send(f"❌ 시뮬레이션 중 오류가 발생했습니다: {e}")
+        
+@bot.command(name="income_statement") #income_statement 005930
+async def income_statement(ctx, symbol: str):
+    if auto_trading is None:
+        await ctx.send("⚠️ 먼저 계좌를 선택해주세요. `!select` 명령어를 사용하세요.")
+        return
+
+    try:
+        await ctx.send(f"🔄 {symbol} 손익계산서를 조회 중입니다...")
+
+        # 손익계산서 데이터 가져오기
+        auto_trading.get_income_statement(symbol)
+    except Exception as e:
+        await ctx.send(f"❌ 손익계산서 조회 중 오류 발생: {e}")
+        
+# 투자자 매매 동향 명령어
+@bot.command(name="investor_trend")
+async def investor_trend(ctx):
+    if auto_trading is None:
+        await ctx.send("⚠️ 먼저 계좌를 선택해주세요. `!select` 명령어를 사용하세요.")
+        return
+
+    def check(message):
+        return message.author == ctx.author and message.channel == ctx.channel
+
+    try:
+        await ctx.send("📊 시장 코드를 입력해주세요 (KSP: KOSPI, KSQ: KOSDAQ):")
+        market_msg = await bot.wait_for("message", check=check, timeout=30)
+        market_code = market_msg.content.strip().upper()
+
+        await ctx.send("📊 업종 코드를 입력해주세요 (0001: KOSPI, 1001:KOSDAQ):")
+        industry_msg = await bot.wait_for("message", check=check, timeout=30)
+        industry_code = industry_msg.content.strip()
+
+        auto_trading.get_investor_trend(market_code, industry_code)
+        await ctx.send(f"✅ 투자자 매매 동향 조회를 완료했습니다.")
+    except Exception as e:
+        await ctx.send(f"❌ 투자자 매매 동향 조회 중 오류 발생: {e}")
+        
+        # RSI 시뮬레이션 명령어
+@bot.command(name="rsi_simulate") #!rsi_simulate 005930 2023-01-01 2023-12-31
+async def rsi_simulate(ctx, symbol: str, start_date: str, end_date: str):
+    if auto_trading is None:
+        await ctx.send("⚠️ 먼저 계좌를 선택해주세요. `!select` 명령어를 사용하세요.")
+        return
+
+    try:
+        await ctx.send(f"📊 RSI 매매 시뮬레이션을 시작합니다. 종목: {symbol}, 기간: {start_date} ~ {end_date}")
+        plot, _, _, final_assets, total_pnl = auto_trading.rsi_simulate_trading(symbol, start_date, end_date)
+
+        # 결과 출력
+        await ctx.send(f"✅ RSI 시뮬레이션 완료!\n최종 자산: {final_assets:.2f} KRW\n총 손익: {total_pnl:.2f} KRW")
+
+        # 차트 업로드
+        chart_path = f"{symbol}_rsi_simulation.png"
+        plot.savefig(chart_path)
+        await ctx.send(file=discord.File(chart_path))
+        os.remove(chart_path)
+    except Exception as e:
+        await ctx.send(f"❌ RSI 시뮬레이션 중 오류 발생: {e}")
+                        
 # 봇 실행
 if __name__ == "__main__":
     try:

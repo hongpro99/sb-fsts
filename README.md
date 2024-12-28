@@ -12,6 +12,7 @@ develop branch 사용할 것!!!!!
 main.py -> fastapi 실행
 app.utils.discord_bot.py -> discord bot 실행. python -m app.utils.discord_bot 명령어로 실행
 technical_indicator.py -> 보조 지표 계산하는 로직은 다 이쪽으로 빼도록
+stock_auto_trading.py -> 시뮬레이션용, stock.ipynb으로 결과 확인
 
 ex.
 1. 차트 데이터 가져오기 -> auto_trading_stock.py

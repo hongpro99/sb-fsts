@@ -22,7 +22,7 @@ class AutoTradingStock:
         
         # 개인 계정으로 변경해야 함. env 파일로 빼는게 좋을 듯!
         self.kis = PyKis(
-            id="YOUR_ID",             # 한국투자증권 HTS ID
+            id="dreaminmind",             # 한국투자증권 HTS ID
             appkey="PSyTGF07QupJyV76XGm3mkgcr4RDvSeODpVZ",    # 발급받은 App Key
             secretkey="eteoHNN+iHktbHC1TOKNdDc2ecFHqwyA+o1OijESqRtWY2cirhUqbiuFfO5zmEPNqB8/P0RSBuTjZnPq4zc5u3dKHIg/HOFQqmZcCik621aWqti5MBReqNpr/NChcs8edoBKd4cgJaC47m3IKncU4GglKzWNqHtic/4X8lmOAZx0oDGuFkI=", # 발급받은 App Secret
             account="67737279", # 계좌번호 (예: "12345678-01")
