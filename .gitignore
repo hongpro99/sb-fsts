@@ -8,3 +8,4 @@ virtual_secret.json
 =======
 __pycache__
 >>>>>>> 5e498773865491b77791554c66dad17695d4b53d
+.env
