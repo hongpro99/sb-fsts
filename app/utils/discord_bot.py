@@ -1,16 +1,24 @@
 import uuid
 from fastapi import FastAPI
+<<<<<<< HEAD
 from datetime import datetime
 from datetime import date
 import uvicorn
 import os
+=======
+from datetime import datetime, date
+import uvicorn
+>>>>>>> ee5d3e9fa8a844eafdc6ec4da5891f41b0f16160
 from app.utils.factory import create_auto_trading_stock
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import os
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> ee5d3e9fa8a844eafdc6ec4da5891f41b0f16160
 # 환경 변수 파일 로드
 load_dotenv()
 

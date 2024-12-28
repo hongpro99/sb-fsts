@@ -4,7 +4,7 @@ import os
 # 프로젝트 루트를 PYTHONPATH에 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.utils.auto_trading_stock import AutoTradingStock
+from app.utils.stock_auto_trading import AutoTradingStock
 import streamlit as st
 import matplotlib.pyplot as plt
 from io import BytesIO
