@@ -7,4 +7,10 @@ apscheduler
 python-binance
 numpy
 python-kis
+matplotlib
+mplfinance
+pandas
+pykis
 discord
+requests
+lightweight-charts

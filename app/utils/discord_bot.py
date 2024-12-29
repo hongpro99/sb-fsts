@@ -1,7 +1,9 @@
 import uuid
 from fastapi import FastAPI
-from datetime import datetime, date
+from datetime import datetime
+from datetime import date
 import uvicorn
+import os
 from app.utils.factory import create_auto_trading_stock
 import discord
 from discord.ext import commands
