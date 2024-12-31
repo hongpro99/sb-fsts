@@ -22,7 +22,7 @@ from typing import List, Dict
 from sqlalchemy.orm import Session
 from app.utils.crud_sql import SQLExecutor
 from app.utils.database import get_db_session
-from app.utils.technical_indicator import TechnicalIndicator   # auto_trading.py에서 가져옴
+from app.utils.technical_indicator import TechnicalIndicator   
 from app.utils.trading_logic import TradingLogic
 
 # .env 파일 로드
@@ -48,6 +48,8 @@ class AutoTradingStock:
         self.ticket = None  # 실시간 체결 구독 티켓
         self.kis = None  # kis 초기화
         self.sql_executor = SQLExecutor()
+        # TradingLogic 초기화
+        self.trading_logic = TradingLogic(self)
         
         if self.virtual:
             # 모의투자용 PyKis 객체 생성
