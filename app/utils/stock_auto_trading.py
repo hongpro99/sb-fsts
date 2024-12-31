@@ -168,11 +168,8 @@ class AutoTradingStock:
     # 실시간 매매 시뮬레이션 함수
     def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw):
         ohlc_data = self._get_ohlc(symbol, start_date, end_date)
-        realized_pnl = 0
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
         position = 0  # 현재 포지션 수량
-        total_buy_budget = 0  # 총 매수 가격
-        trade_stack = []  # 매수 가격을 저장하는 스택
         previous_closes = []  # 이전 종가들을 저장
 
         trading_history = {
@@ -217,9 +214,6 @@ class AutoTradingStock:
             history = {}
 
             if lower_wick:  # 아랫꼬리일 경우 매수 (추가 매수 가능)
-                position += 1
-                trade_stack.append(open_price)
-
                 history['position'] = 'BUY'
                 history['price'] = open_price
                 history['quantity'] = math.floor(trade_amount / open_price) # 특정 금액을 주기적으로 산다고 가정해서 주식 수 계산
@@ -228,29 +222,15 @@ class AutoTradingStock:
                 # draw 차트 위함
                 buy_signals.append((timestamp, open_price))
 
-                # total_buy_budget += open_price * (trade_amount / open_price)  # 총 매수 금액 누적
-                # # 평균 매수 단가 계산
-                # average_entry_price = total_buy_budget / position
-
                 print(f"매수 시점: {timestamp}, 매수가: {open_price} KRW, 매수량: {history['quantity']}")
 
             elif upper_wick and position > 0:  # 윗꼬리일 경우 매도 (매수한 횟수의 1/n 만큼 매도)
-                exit_price = next_open_price
-                entry_price = trade_stack.pop()  # 스택에서 매수 가격을 가져옴
-                pnl = (exit_price - entry_price) * math.floor(trade_amount / entry_price) # 주식 수 연산 및 곱하기
-                realized_pnl += pnl
-
                 history['position'] = 'SELL'
                 history['price'] = open_price
                 history['quantity'] = math.floor(trade_amount / open_price) # 특정 금액을 주기적으로 산다고 가정해서 주식 수 계산
                 trading_history['history'].append(history)
 
                 sell_signals.append((timestamp, open_price))
-                position -= 1
-
-                total_buy_budget -= entry_price * (trade_amount / entry_price)  # 매도 시 매수 금액에서 차감
-                # 평균 매수 단가 계산
-                average_entry_price = total_buy_budget / position if position > 0 else 0
 
                 print(f"매도 시점: {timestamp}, 매도가: {open_price} KRW, 매도량: {history['quantity']}")
             
@@ -259,6 +239,9 @@ class AutoTradingStock:
                 print(f"총 비용: {result['total_cost']}KRW, 총 보유량: {result['total_quantity']}주, 평균 단가: {result['average_price']}KRW, 실현 손익 (Realized PnL): {result['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {result['unrealized_pnl']}KRW")
             else:
                 print("아직 매매 기록이 없습니다.")
+
+            # 현재 포지션 개수 (없는데 sell 하지 않기 위함)
+            position = result['total_quantity']
 
             i += 1
 
