@@ -51,7 +51,7 @@ class AutoTradingStock:
 
 
     # 봉 데이터를 가져오는 함수
-    def _get_ohlc(self, symbol, start_date, end_date):
+    def _get_ohlc(self, symbol, start_date, end_date, mode="default"):
         symbol_stock: KisStock = self.kis.stock(symbol)  # SK하이닉스 (코스피)
         chart: KisChart = symbol_stock.chart(
             start=start_date,
@@ -59,9 +59,11 @@ class AutoTradingStock:
         ) # 2023년 1월 1일부터 2023년 12월 31일까지의 일봉입니다.
         klines = chart.bars
 
-        # 첫 번째 데이터를 제외하고, 각 항목의 open 값을 전날 close 값으로 변경
-        for i in range(1, len(klines)):
-            klines[i].open = klines[i - 1].close  # 전날의 close로 open 값을 변경
+        # 첫 번째 데이터를 제외하고, 각 항목의 open 값을 전날 close 값으로 변경 
+        # mode = continuous
+        if mode == 'continuous':
+            for i in range(1, len(klines)):
+                klines[i].open = klines[i - 1].close  # 전날의 close로 open 값을 변경
             
         return klines
 
