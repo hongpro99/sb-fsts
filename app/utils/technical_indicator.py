@@ -21,3 +21,14 @@ class TechnicalIndicator:
         band['lower'] = lower_band
 
         return band
+    
+
+    # 이동평균 계산
+    def cal_ma(self, close_prices, window):
+        # 마지막 3일 이동평균 계산
+        if len(close_prices) >= window:
+            sma_last = sum(close_prices[-window:]) / window
+        else:
+            sma_last = None  # 데이터가 부족할 경우 None
+        
+        return sma_last
