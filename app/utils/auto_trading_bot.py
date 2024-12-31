@@ -361,3 +361,8 @@ class AutoTradingBot:
         # 체결 강도 로직 조회
 
         return None
+    
+
+    # 컷 로스 (손절)
+    def cut_loss(self, target_trade_value_usdt):
+        pass
