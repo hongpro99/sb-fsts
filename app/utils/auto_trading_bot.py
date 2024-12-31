@@ -306,17 +306,58 @@ class AutoTradingBot:
 
 
     # 실시간 매매 함수
-    def trade(self):
+    def trade(self, symbol, start_date, end_date, target_trade_value_krw):
         
-        trading_logic = TradingLogic()
+        ohlc_data = self._get_ohlc(symbol, start_date, end_date)
+        trade_amount = target_trade_value_krw  # 매매 금액 (krw)
+
+        previous_closes = [float(candle.close) for candle in ohlc_data[:-2]]  # 마지막 봉을 제외한 종가들
+
+        # 마지막 봉 데이터
+        candle = ohlc_data[-2]
+        open_price = float(candle.open)
+        high_price = float(candle.high)
+        low_price = float(candle.low)
+        close_price = float(candle.close)
+        timestamp = candle.time
+
+        # 마지막 직전 봉 데이터
+        previous_candle = ohlc_data[-3]
+        prev_open_price = float(previous_candle.open)
+        prev_close_price = float(previous_candle.close)
+        
+        # 볼린저 밴드 계산
+        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
+        
+        # 로직 체크 (윗꼬리, 아랫꼬리)
+        # 여기에 원하는 로직 호출
+        upper_wick, lower_wick = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+
+        # 마지막 직전 봉 음봉, 양봉 계산
+        is_bearish_prev_candle = prev_close_price < prev_open_price  # 음봉 확인
+        is_bullish_prev_candle = prev_close_price > prev_open_price  # 양봉 확인
+
+        print(f'마지막 직전 봉 : {prev_close_price - prev_open_price}. 양봉 : {is_bullish_prev_candle}, 음봉 : {is_bearish_prev_candle}')
+
+        # 최근 매매 기준 n% 변동성 미만일 경우 추가 매매 하지 않도로 설정
+        # TO-DO
+
+        # 매매 구현 (모든 로직이 true 일 경우)
+        if lower_wick:  # 아랫꼬리일 경우 매수 (추가 매수 가능)
+            pass
+            # 매수 함수 구현
+            # trade(buy)
+        elif upper_wick:  # 윗꼬리일 경우 매도 (매수한 횟수의 1/n 만큼 매도)
+            pass
+            # 매수 함수 구현
+            # trade(sell)
+        
+        # result = self.calculate_pnl(trading_history, close_price)
+        # print(f"총 비용: {result['total_cost']}KRW, 총 보유량: {result['total_quantity']}주, 평균 단가: {result['average_price']}KRW, 실현 손익 (Realized PnL): {result['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {result['unrealized_pnl']}KRW")
+    
 
         # 가격 조회
         # DB 에서 종목 조회
         # 체결 강도 로직 조회
-        is_buy_signal = trading_logic.func1()
-        # 매수 함수
-        if is_buy_signal is True:
-            # 매수
-            pass
 
         return None
