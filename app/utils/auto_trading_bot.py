@@ -291,11 +291,8 @@ class AutoTradingBot:
 
                 print(f"매도 시점: {timestamp}, 매도가: {open_price} KRW, 매도량: {history['quantity']}")
             
-            if trading_history.get('history', None) is not None:
-                result = self.calculate_pnl(trading_history, close_price)
-                print(f"총 비용: {result['total_cost']}KRW, 총 보유량: {result['total_quantity']}주, 평균 단가: {result['average_price']}KRW, 실현 손익 (Realized PnL): {result['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {result['unrealized_pnl']}KRW")
-            else:
-                print("아직 매매 기록이 없습니다.")
+            result = self.calculate_pnl(trading_history, close_price)
+            print(f"총 비용: {result['total_cost']}KRW, 총 보유량: {result['total_quantity']}주, 평균 단가: {result['average_price']}KRW, 실현 손익 (Realized PnL): {result['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {result['unrealized_pnl']}KRW")
 
             # 현재 포지션 개수 (없는데 sell 하지 않기 위함)
             position = result['total_quantity']
