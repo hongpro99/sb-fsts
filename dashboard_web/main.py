@@ -4,7 +4,7 @@ import os
 # 프로젝트 루트를 PYTHONPATH에 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.utils.stock_auto_trading import AutoTradingStock
+from app.utils.auto_trading_bot import AutoTradingBot
 import streamlit as st
 import matplotlib.pyplot as plt
 from io import BytesIO
@@ -64,7 +64,7 @@ def main():
         # ax.set_ylabel("Y-axis")
         # ax.legend()
         
-        auto_trading_stock = AutoTradingStock()
+        auto_trading_stock = AutoTradingBot()
 
         # symbol = '352820'
 

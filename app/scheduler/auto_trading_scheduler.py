@@ -3,7 +3,7 @@ import requests
 
 from app.utils.database import get_db, get_db_session
 from app.utils.crud_sql import SQLExecutor
-from app.utils.stock_auto_trading import AutoTradingStock
+from app.utils.auto_trading_bot import AutoTradingBot
 
 # db = get_db()
 sql_executor = SQLExecutor()
@@ -33,7 +33,7 @@ def scheduled_trading_task():
     
     # TO-DO
     # 매수 로직 여기에 추가
-    auto_trading_bot = AutoTradingStock()
+    auto_trading_bot = AutoTradingBot()
     auto_trading_bot.trade()
 
     message = "매수가 완료되었습니다."

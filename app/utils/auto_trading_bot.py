@@ -9,26 +9,83 @@ import mplfinance as mpf
 
 from app.utils.technical_indicator import TechnicalIndicator
 from app.utils.trading_logic import TradingLogic
+from app.utils.crud_sql import SQLExecutor
+from app.utils.database import get_db, get_db_session
 
-
-API_KEY = "8aChkjQ9XijCL3LwC7LGJuDrn3FVFh62g9WPEaa0UnwmGt7hsu8tKBk61hQd76YG"
-API_SECRET = "YznqQReI62NOd7QQfaPSXk6whFrQxyraId9iEcwtUScNtCq7tTGHugM7kYv77SpP"
 
 # 보조지표 클래스 선언
 indicator = TechnicalIndicator()
 logic = TradingLogic()
 
-class AutoTradingStock:
-    def __init__(self, api_key=API_KEY, api_secret=API_SECRET):
+class AutoTradingBot:
+    """
+        실전투자와 모의투자를 선택적으로 설정 가능
+    """
+    def __init__(self, user_name, virtual=False, app_key=None, secret_key=None, account=None):
         
-        # 개인 계정으로 변경해야 함. env 파일로 빼는게 좋을 듯!
-        self.kis = PyKis(
-            id="YOUR_ID",             # 한국투자증권 HTS ID
-            appkey="PSyTGF07QupJyV76XGm3mkgcr4RDvSeODpVZ",    # 발급받은 App Key
-            secretkey="eteoHNN+iHktbHC1TOKNdDc2ecFHqwyA+o1OijESqRtWY2cirhUqbiuFfO5zmEPNqB8/P0RSBuTjZnPq4zc5u3dKHIg/HOFQqmZcCik621aWqti5MBReqNpr/NChcs8edoBKd4cgJaC47m3IKncU4GglKzWNqHtic/4X8lmOAZx0oDGuFkI=", # 발급받은 App Secret
-            account="67737279", # 계좌번호 (예: "12345678-01")
-            keep_token=True           # 토큰 자동 갱신 여부
-        )
+        sql_executor = SQLExecutor()
+
+        query = """
+            SELECT * FROM fsts.user_info
+            WHERE name = :name;
+        """
+
+        params = {
+            "name": user_name
+        }
+
+        with get_db_session() as db:
+            result = sql_executor.execute_select(db, query, params)
+
+        self.kis_id = result[0]['kis_id']
+        self.app_key = result[0]['app_key']
+        self.secret_key = result[0]['secret_key']
+        self.account = result[0]['account']
+        self.virtual = virtual
+        self.virtual_kis_id = result[0]['virtual_kis_id']
+        self.virtual_app_key = result[0]['virtual_app_key']
+        self.virtual_secret_key = result[0]['virtual_secret_key']
+        self.virtual_account = result[0]['virtual_account']
+
+        # 임의로 app_key 및 secret_key 넣고 싶을 경우
+        if app_key is not None and secret_key is not None and account is not None:
+            if virtual is True:
+                self.virual_app_key = app_key
+                self.virual_secret_key = secret_key
+                self.virual_account = account
+            else:
+                self.app_key = app_key
+                self.secret_key = secret_key
+                self.account = account
+
+        # 모의투자용 PyKis 객체 생성
+        if self.virtual:
+            if not all([self.kis_id, self.app_key, self.secret_key, self.account, 
+                        self.virtual_kis_id, self.virtual_app_key, self.virtual_secret_key, self.virtual_account]):
+                raise ValueError("모의투자 정보를 완전히 제공해야 합니다.")
+            
+            self.kis = PyKis(
+                id=self.kis_id,         # 한국투자증권 HTS ID
+                appkey=self.app_key,    # 발급받은 App Key
+                secretkey=self.secret_key, # 발급받은 App Secret
+                account=self.virtual_account, # 계좌번호 (예: "12345678-01")
+                virtual_id=self.virtual_kis_id,
+                virtual_appkey=self.virtual_app_key,
+                virtual_secretkey=self.virtual_secret_key,
+                keep_token=True  # API 접속 토큰 자동 저장
+            )
+        # 실전투자용 PyKis 객체 생성
+        else:
+            self.kis = PyKis(
+                id=self.kis_id,             # 한국투자증권 HTS ID
+                appkey=self.app_key,    # 발급받은 App Key
+                secretkey=self.secret_key, # 발급받은 App Secret
+                account=self.account, # 계좌번호 (예: "12345678-01")
+                keep_token=True           # 토큰 자동 갱신 여부
+            )
+                            
+        print(f"{'모의투자' if self.virtual else '실전투자'} API 객체가 성공적으로 생성되었습니다.")
+
 
     def send_discord_webhook(self, message, bot_type):
         if bot_type == 'trading':
