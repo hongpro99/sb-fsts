@@ -1,80 +1,84 @@
-import requests
+from datetime import datetime, timedelta
 
 class TradingLogic:
-    def __init__(self, auto_trading):
+    def __init__(self, ohlc_data):
+        self.ohlc_data = ohlc_data
+
+    def _find_data_by_offset(self, base_date, offset):
         """
-        TradingLogic 초기화
-        Args:
-            auto_trading (AutoTradingStock): AutoTradingStock 객체
+        기준 날짜(base_date)로부터 offset일 전 데이터를 반환.
         """
-        self.auto_trading = auto_trading
+        target_date = base_date - timedelta(days=offset)
 
-    # 체결강도 로직에 따라 매매 대상인지 확인하고 거래 실행
-    def get_volume_power_ranking_and_trade(self, input_market="2001"):
-        """
-        체결강도 순위를 조회하고 조건에 따라 매수/매도 실행
-        Args:
-            input_market (str): 조회할 시장 코드
-        Returns:
-            bool: 매수/매도 신호가 발생했는지 여부
-        """
-        
-        try:
-            # 기존 코드 유지
-            kis = self.auto_trading.kis
-            appkey = self.auto_trading.appkey
-            secretkey = self.auto_trading.secretkey
-            
-            url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/ranking/volume-power"
-            headers = {
-                "Content-Type": "application/json; charset=utf-8",
-                "Authorization": str(self.kis.token),
-                "appkey": self.appkey,
-                "appsecret": self.secretkey,
-                "tr_id": "FHPST01680000",
-                "custtype": "P"
-            }
-            params = {
-                "fid_trgt_exls_cls_code": "0",
-                "fid_cond_mrkt_div_code": "J",
-                "fid_cond_scr_div_code": "20168",
-                "fid_input_iscd": input_market,
-                "fid_div_cls_code": "0",
-                "fid_input_price_1": "",
-                "fid_input_price_2": "",
-                "fid_vol_cnt": "",
-                "fid_trgt_cls_code": "0"
-            }
+        # 데이터 검색
+        for data in self.ohlc_data:
+            if data.time.date() == target_date.date():  # datetime 객체 비교
+                return data
+        return None
 
-            response = requests.get(url, headers=headers, params=params)
-            if response.status_code == 200:
-                result = response.json()
-                rankings = result.get("output", [])
+    def get_open(self, base_date, offset):
+        data = self._find_data_by_offset(base_date, offset)
+        return data.open if data else None
 
-                if rankings:
-                    # 상위 종목으로 매매 실행
-                    top_stock = rankings[0]
-                    stock_code = top_stock['stck_shrn_iscd']
-                    stock_name = top_stock['hts_kor_isnm']
-                    volume_power = float(top_stock['tday_rltv'])
+    def get_close(self, base_date, offset):
+        data = self._find_data_by_offset(base_date, offset)
+        return data.close if data else None
 
-                    # 매수 실행
-                    buy_qty = 1
-                    buy_price = None  # 시장가
-                    order_result = self.place_order(stock_code, buy_qty, buy_price, order_type="buy")
+    def get_high(self, base_date, offset):
+        data = self._find_data_by_offset(base_date, offset)
+        return data.high if data else None
 
-                    if order_result:
-                        print(f"✅ 매수 완료: 종목명 {stock_name}, 수량 {buy_qty}")
-                        return True
-                    else:
-                        print(f"❌ 매수 실패: 종목명 {stock_name}")
-                        return False
-                else:
-                    print("⚠️ 체결강도 데이터가 없습니다.")
-                    return False
-            else:
-                print(f"❌ 체결강도 조회 실패: {response.status_code}, {response.text}")
-                return False
-        except Exception as e:
-            print(f"❌ 체결강도 로직 실행 중 오류 발생: {e}")
-            return False
+    def get_low(self, base_date, offset):
+        data = self._find_data_by_offset(base_date, offset)
+        return data.low if data else None
+
+
+def check_trading_signal(condition, base_date):
+    """
+    매수 신호를 체크하는 함수.
+    조건:
+    1. D-2 장대음봉: 시초가와 종가 차이가 3% 이상이며 e < s
+    2. D-1 조건: S < l, E > e + (s - e) / 2
+    3. 매매 시점: P > h
+    4. 손절 조건: P < L
+    """
+
+    # D-2 데이터
+    s = condition.get_open(base_date, 2)
+    e = condition.get_close(base_date, 2)
+
+    # D-1 데이터
+    S = condition.get_open(base_date, 1)
+    E = condition.get_close(base_date, 1)
+    h = condition.get_high(base_date, 1)
+    l = condition.get_low(base_date, 1)
+
+    # 당일 데이터
+    SS = condition.get_open(base_date, 0)
+    P = condition.get_close(base_date, 0)
+
+    # D-2 조건 체크
+    if s is None or e is None:
+        return "데이터 부족 (D-2)"
+    d2_condition = (abs(s - e) / s >= 0.03) and (e < s)
+
+    # D-1 조건 체크
+    if S is None or E is None or h is None or l is None:
+        return "데이터 부족 (D-1)"
+    d1_condition = (S < l) and (E > e + (s - e) / 2)
+
+    # 매매 조건 체크
+    if SS is None or P is None:
+        return "데이터 부족 (당일)"
+    buy_signal = d2_condition and d1_condition and (P > h)
+
+    # 손절 조건 체크
+    stop_loss = P < l
+
+    # 결과 반환
+    if buy_signal:
+        return "매수 신호 발생"
+    elif stop_loss:
+        return "손절 조건 발생"
+    else:
+        return "조건 미충족"
