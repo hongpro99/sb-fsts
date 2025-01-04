@@ -89,7 +89,7 @@ class AutoTradingBot:
 
     def send_discord_webhook(self, message, bot_type):
         if bot_type == 'trading':
-            webhook_url = 'https://discord.com/api/webhooks/1313346849838596106/6Rn_8BNDeL9bMYfFtqscpu4hPah5c2RsNl0rBiPoSw_Qb9RXgDdVHoHmwEuStPv_ufnV'  # 복사한 Discord 웹훅 URL로 변경
+            webhook_url = 'https://discord.com/api/webhooks/1324331095583363122/wbpm4ZYV4gRZhaSywRp28ZWQrp_hJf8iiitISJrNYtAyt5NmBccYWAeYgcGd5pzh4jRK'  # 복사한 Discord 웹훅 URL로 변경
             username = "Stock Trading Bot"
 
         data = {
@@ -128,7 +128,7 @@ class AutoTradingBot:
     def _draw_chart(self, symbol, ohlc, timestamps, buy_signals, sell_signals):
 
         # 캔들 차트 데이터프레임 생성
-        df = pd.DataFrame(ohlc, columns=['Open', 'High', 'Low', 'Close'], index=pd.DatetimeIndex(timestamps))
+        df = pd.DataFrame(ohlc, columns=['Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
 
         # 볼린저 밴드 계산
         df['Middle'] = df['Close'].rolling(window=20).mean()
@@ -167,11 +167,11 @@ class AutoTradingBot:
 
         # signal이 존재할 때만 가능
         if len(buy_signals) > 0:
-            add_plot.append(mpf.make_addplot(df['Buy_Signal'], type='scatter', markersize=20, marker='^', color='green', label='BUY'))
+            add_plot.append(mpf.make_addplot(df['Buy_Signal'], type='scatter', markersize=60, marker='^', color='black', label='BUY'))
         if len(sell_signals) > 0:
-            add_plot.append(mpf.make_addplot(df['Sell_Signal'], type='scatter', markersize=20, marker='v', color='red', label='SELL'))
+            add_plot.append(mpf.make_addplot(df['Sell_Signal'], type='scatter', markersize=60, marker='v', color='black', label='SELL'))
 
-        simulation_plot = mpf.plot(df, type='candle', style='charles', title=f'{symbol}', addplot=add_plot, ylabel='Price (KRW)', figsize=(20, 9), returnfig=True)
+        simulation_plot = mpf.plot(df, type='candle', style='charles', title=f'{symbol}', addplot=add_plot, volume=True, ylabel_lower='Volume', ylabel='Price(KRW)', figsize=(20, 9), returnfig=True)
 
         return simulation_plot
 
@@ -191,6 +191,7 @@ class AutoTradingBot:
                     raise ValueError("매도 수량이 매수 수량보다 많습니다.")
                 
                 # 매도의 실현 손익 계산
+                # total_quantity 가 팔고자 하는 양보다 적을 때
                 sell_quantity = trade['quantity']
                 sell_price = trade['price']
                 
@@ -243,20 +244,18 @@ class AutoTradingBot:
         sell_signals = []
 
         i = 0
-        while i < len(ohlc_data) - 1:
+        while i < len(ohlc_data):
             candle = ohlc_data[i]
-            next_candle = ohlc_data[i + 1]
 
             open_price = float(candle.open)
             high_price = float(candle.high)
             low_price = float(candle.low)
             close_price = float(candle.close)
+            volume = float(candle.volume)
             timestamp = candle.time
-            next_open_price = float(next_candle.open)
-            next_timestamp = next_candle.time
 
             timestamps.append(timestamp)
-            ohlc.append([open_price, high_price, low_price, close_price])
+            ohlc.append([open_price, high_price, low_price, close_price, volume])
 
             # if len(previous_closes) >= 5:  # 최근 5개의 종가만 사용
             #     previous_closes.pop(0)
@@ -284,7 +283,13 @@ class AutoTradingBot:
             elif upper_wick and position > 0:  # 윗꼬리일 경우 매도 (매수한 횟수의 1/n 만큼 매도)
                 history['position'] = 'SELL'
                 history['price'] = open_price
-                history['quantity'] = math.floor(trade_amount / open_price) # 특정 금액을 주기적으로 산다고 가정해서 주식 수 계산
+
+                # 매도할수 있는 양이 대상 금액보다 적을 때
+                if trading_history['total_quantity'] < math.floor(trade_amount / open_price):
+                    history['quantity'] = trading_history['total_quantity']
+                else:
+                    history['quantity'] = math.floor(trade_amount / open_price) # 특정 금액을 주기적으로 산다고 가정해서 주식 수 계산
+
                 trading_history['history'].append(history)
 
                 sell_signals.append((timestamp, open_price))
@@ -306,15 +311,15 @@ class AutoTradingBot:
 
 
     # 실시간 매매 함수
-    def trade(self, symbol, start_date, end_date, target_trade_value_krw):
+    def trade(self, symbol, symbol_name, start_date, end_date, target_trade_value_krw):
         
         ohlc_data = self._get_ohlc(symbol, start_date, end_date)
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
 
         previous_closes = [float(candle.close) for candle in ohlc_data[:-2]]  # 마지막 봉을 제외한 종가들
 
-        # 마지막 봉 데이터
-        candle = ohlc_data[-2]
+        # 마지막 봉 데이터 (마지막 봉이란 당일)
+        candle = ohlc_data[-1]
         open_price = float(candle.open)
         high_price = float(candle.high)
         low_price = float(candle.low)
@@ -322,7 +327,7 @@ class AutoTradingBot:
         timestamp = candle.time
 
         # 마지막 직전 봉 데이터
-        previous_candle = ohlc_data[-3]
+        previous_candle = ohlc_data[-2]
         prev_open_price = float(previous_candle.open)
         prev_close_price = float(previous_candle.close)
         
@@ -346,11 +351,11 @@ class AutoTradingBot:
         if lower_wick:  # 아랫꼬리일 경우 매수 (추가 매수 가능)
             pass
             # 매수 함수 구현
-            # trade(buy)
+            self.send_discord_webhook(f"{symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW", "trading")
         elif upper_wick:  # 윗꼬리일 경우 매도 (매수한 횟수의 1/n 만큼 매도)
             pass
             # 매수 함수 구현
-            # trade(sell)
+            self.send_discord_webhook(f"{symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
         
         # result = self.calculate_pnl(trading_history, close_price)
         # print(f"총 비용: {result['total_cost']}KRW, 총 보유량: {result['total_quantity']}주, 평균 단가: {result['average_price']}KRW, 실현 손익 (Realized PnL): {result['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {result['unrealized_pnl']}KRW")

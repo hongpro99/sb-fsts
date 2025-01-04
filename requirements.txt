@@ -10,7 +10,9 @@ python-kis
 matplotlib
 mplfinance
 pandas
-pykis
 discord
 requests
 lightweight-charts
+streamlit
+seaborn
+streamlit-aggrid

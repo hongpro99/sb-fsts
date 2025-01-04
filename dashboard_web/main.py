@@ -1,17 +1,19 @@
 import sys
 import os
-
-# 프로젝트 루트를 PYTHONPATH에 추가
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from app.utils.auto_trading_bot import AutoTradingBot
 import streamlit as st
 import matplotlib.pyplot as plt
 from io import BytesIO
 import seaborn as sns
 from st_aggrid import AgGrid
 import pandas as pd
+from datetime import datetime, date, timedelta 
 
+# 프로젝트 루트를 PYTHONPATH에 추가
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app.utils.auto_trading_bot import AutoTradingBot
+from app.utils.crud_sql import SQLExecutor
+from app.utils.database import get_db, get_db_session
 
 
 def main():
@@ -46,12 +48,28 @@ def main():
     with tabs[1]:
         st.header("📈 그래프 페이지")
         
+        sql_executor = SQLExecutor()
+
+        query = """
+            SELECT 종목코드, 종목이름 FROM fsts.kospi200 ORDER BY 종목이름;
+        """
+
+        params = {}
+
+        with get_db_session() as db:
+            result = sql_executor.execute_select(db, query, params)
+
         # Dropdown 메뉴를 통해 데이터 선택
         symbol_options = {
-            "삼성전자": "352820",
-            "대한항공": "003490",
+            # "삼성전자": "352820",
+            # "대한항공": "003490",
         }
-        
+
+        for stock in result:
+            key = stock['종목이름']  # 'a' 값을 키로
+            value = stock['종목코드']  # 'b' 값을 값으로
+            symbol_options[key] = value  # 딕셔너리에 추가
+
         # Dropdown 메뉴 생성
         selected_symbol = st.selectbox("주식 종목을 선택하세요:", list(symbol_options.keys()))
         symbol = symbol_options[selected_symbol]
@@ -64,15 +82,19 @@ def main():
         # ax.set_ylabel("Y-axis")
         # ax.legend()
         
-        auto_trading_stock = AutoTradingBot()
+        user_name = "홍석형"
+
+        auto_trading_bot = AutoTradingBot(user_name=user_name)
 
         # symbol = '352820'
 
-        data_interval='15m'
-        data_count = 1200 # 최대 1500
+        # 당일로부터 1년전 기간으로 차트 분석
+        end_date = date.today()
+        start_date = end_date - timedelta(days=365)
+
         target_trade_value_krw = 1000000  # 매수 목표 거래 금액
 
-        simulation_plot, realized_pnl, current_pnl = auto_trading_stock.simulate_trading(symbol, data_interval, data_count, target_trade_value_krw)
+        simulation_plot = auto_trading_bot.simulate_trading(symbol, start_date, end_date, target_trade_value_krw)
 
         fig, ax = simulation_plot
 
