@@ -22,6 +22,7 @@ from typing import List, Dict
 from sqlalchemy.orm import Session
 from app.utils.crud_sql import SQLExecutor
 from app.utils.database import get_db_session
+from app.utils.technical_indicator import TechnicalIndicator
 
 
 
@@ -799,17 +800,19 @@ class AutoTradingStock:
             return []
         
     # 봉 데이터를 가져오는 함수
-    def _get_ohlc(self, symbol, start_date, end_date):
-        symbol_stock: KisStock = self.kis.stock(symbol)  
+    def _get_ohlc(self, symbol, start_date, end_date, mode="default"):
+        symbol_stock: KisStock = self.kis.stock(symbol)  # SK하이닉스 (코스피)
         chart: KisChart = symbol_stock.chart(
             start=start_date,
             end=end_date,
         ) # 2023년 1월 1일부터 2023년 12월 31일까지의 일봉입니다.
         klines = chart.bars
 
-        # 첫 번째 데이터를 제외하고, 각 항목의 open 값을 전날 close 값으로 변경
-        for i in range(1, len(klines)):
-            klines[i].open = klines[i - 1].close  # 전날의 close로 open 값을 변경
+        # 첫 번째 데이터를 제외하고, 각 항목의 open 값을 전날 close 값으로 변경 
+        # mode = continuous
+        if mode == 'continuous':
+            for i in range(1, len(klines)):
+                klines[i].open = klines[i - 1].close  # 전날의 close로 open 값을 변경
             
         return klines
         
@@ -1063,20 +1066,7 @@ class AutoTradingStock:
             print(error_message)
             self.send_discord_webhook(error_message, "simulation")
             
-    # 실시간 매매 함수
-    def trade(self):        
-        trading_logic = TradingLogic()
 
-        # 가격 조회
-        # DB 에서 종목 조회
-        # 체결 강도 로직 조회
-        is_buy_signal = trading_logic.func1()
-        # 매수 함수
-        if is_buy_signal is True:
-            # 매수
-            pass
-
-        return None
 
 
             
