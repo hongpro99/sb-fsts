@@ -1,84 +1,145 @@
-from datetime import datetime, timedelta
-
+# tradinglogic.py
 class TradingLogic:
-    def __init__(self, ohlc_data):
-        self.ohlc_data = ohlc_data
-
-    def _find_data_by_offset(self, base_date, offset):
+    def __init__(self, ohlc):
         """
-        기준 날짜(base_date)로부터 offset일 전 데이터를 반환.
+        초기화 메소드.
+        :param ohlc: 날짜별 OHLC 데이터 (KisDomesticDailyChartBar 객체 리스트)
         """
-        target_date = base_date - timedelta(days=offset)
+        self.ohlc = ohlc
 
-        # 데이터 검색
-        for data in self.ohlc_data:
-            if data.time.date() == target_date.date():  # datetime 객체 비교
-                return data
-        return None
+    def engulfing_logic(self):
+        """
+        상승장악형1 매매 로직.
+        :return: 매수 성공 목록과 개별 신호
+        """
+        results = []
+        successful_trades = []
 
-    def get_open(self, base_date, offset):
-        data = self._find_data_by_offset(base_date, offset)
-        return data.open if data else None
+        if len(self.ohlc) < 3:
+            raise ValueError("3일 이상의 데이터가 필요합니다.")
 
-    def get_close(self, base_date, offset):
-        data = self._find_data_by_offset(base_date, offset)
-        return data.close if data else None
+        for i in range(2, len(self.ohlc)):
+            d_2 = self.ohlc[i - 2]  # D-2 데이터
+            d_1 = self.ohlc[i - 1]  # D-1 데이터
+            current = self.ohlc[i]  # 당일 데이터
 
-    def get_high(self, base_date, offset):
-        data = self._find_data_by_offset(base_date, offset)
-        return data.high if data else None
+            # D-2 조건 (음봉)
+            d_2_condition = d_2.close < d_2.open
 
-    def get_low(self, base_date, offset):
-        data = self._find_data_by_offset(base_date, offset)
-        return data.low if data else None
+            # D-1 조건
+            d_1_condition = (
+                d_1.open < d_2.low and
+                d_1.close > d_2.high
+            )
 
+            # 매매 시점
+            buy_signal = current.close > d_1.high
 
-def check_trading_signal(condition, base_date):
-    """
-    매수 신호를 체크하는 함수.
-    조건:
-    1. D-2 장대음봉: 시초가와 종가 차이가 3% 이상이며 e < s
-    2. D-1 조건: S < l, E > e + (s - e) / 2
-    3. 매매 시점: P > h
-    4. 손절 조건: P < L
-    """
+            # 손절 조건
+            stoploss = current.close < d_1.low
 
-    # D-2 데이터
-    s = condition.get_open(base_date, 2)
-    e = condition.get_close(base_date, 2)
+            # 모든 조건 충족 여부 확인
+            all_conditions_met = d_2_condition and d_1_condition
 
-    # D-1 데이터
-    S = condition.get_open(base_date, 1)
-    E = condition.get_close(base_date, 1)
-    h = condition.get_high(base_date, 1)
-    l = condition.get_low(base_date, 1)
+            if all_conditions_met:
+                if buy_signal:
+                    trade_result = {
+                        "날짜": current.time,
+                        "매수/매도": "매수신호",
+                        "특징": "상승장악형1",
+                        "매매시점": "P > H",
+                        "손절조건": "미충족" if not stoploss else "충족",
+                        "매수 성공 여부": "성공",
+                    }
+                    results.append(trade_result)
+                    successful_trades.append(trade_result)
+                else:
+                    results.append({
+                        "날짜": current.time,
+                        "매수/매도": "매수신호",
+                        "특징": "상승장악형1",
+                        "매매시점": "미충족",
+                        "손절조건": "미충족" if not stoploss else "충족",
+                        "매수 성공 여부": "실패",
+                    })
+            else:
+                results.append({
+                    "날짜": current.time,
+                    "매수/매도": "조건 미충족",
+                    "특징": "미충족",
+                    "매매시점": "미충족",
+                    "손절조건": "미충족",
+                    "매수 성공 여부": "실패",
+                })
 
-    # 당일 데이터
-    SS = condition.get_open(base_date, 0)
-    P = condition.get_close(base_date, 0)
+        return results, successful_trades
 
-    # D-2 조건 체크
-    if s is None or e is None:
-        return "데이터 부족 (D-2)"
-    d2_condition = (abs(s - e) / s >= 0.03) and (e < s)
+    def trading_signal_penetrating(self):
+        """
+        이전 매매 로직 (상승장악형 외의 로직).
+        :return: 매수 성공 목록과 개별 신호
+        """
+        # 이전 로직 구현 (생략 가능)
+        results = []
+        successful_trades = []
 
-    # D-1 조건 체크
-    if S is None or E is None or h is None or l is None:
-        return "데이터 부족 (D-1)"
-    d1_condition = (S < l) and (E > e + (s - e) / 2)
+        if len(self.ohlc) < 3:
+            raise ValueError("3일 이상의 데이터가 필요합니다.")
 
-    # 매매 조건 체크
-    if SS is None or P is None:
-        return "데이터 부족 (당일)"
-    buy_signal = d2_condition and d1_condition and (P > h)
+        # 로직 예제 (D-2 음봉, D-1 상승, 매매 조건 등)
+        for i in range(2, len(self.ohlc)):
+            d_2 = self.ohlc[i - 2]
+            d_1 = self.ohlc[i - 1]
+            current = self.ohlc[i]
 
-    # 손절 조건 체크
-    stop_loss = P < l
+            # D-2 조건
+            d_2_condition = d_2.close < d_2.open
+            d_2_long_bear = abs(d_2.close - d_2.open) >= (float(d_2.open) * 0.03)
 
-    # 결과 반환
-    if buy_signal:
-        return "매수 신호 발생"
-    elif stop_loss:
-        return "손절 조건 발생"
-    else:
-        return "조건 미충족"
+            # D-1 조건
+            d_1_condition = (
+                d_1.open < d_2.low and
+                d_1.close > d_2.close + (d_2.open - d_2.close) / 2
+            )
+
+            # 매매 시점
+            buy_signal = current.close > d_1.high
+
+            # 손절 조건
+            stoploss = current.close < d_1.low
+
+            # 모든 조건 충족 여부
+            all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition
+
+            if all_conditions_met:
+                if buy_signal:
+                    trade_result = {
+                        "날짜": current.time,
+                        "매수/매도": "매수신호",
+                        "특징": "기존 로직",
+                        "매매시점": "P > H",
+                        "손절조건": "미충족" if not stoploss else "충족",
+                        "매수 성공 여부": "성공",
+                    }
+                    results.append(trade_result)
+                    successful_trades.append(trade_result)
+                else:
+                    results.append({
+                        "날짜": current.time,
+                        "매수/매도": "매수신호",
+                        "특징": "기존 로직",
+                        "매매시점": "미충족",
+                        "손절조건": "미충족",
+                        "매수 성공 여부": "실패",
+                    })
+            else:
+                results.append({
+                    "날짜": current.time,
+                    "매수/매도": "조건 미충족",
+                    "특징": "미충족",
+                    "매매시점": "미충족",
+                    "손절조건": "미충족",
+                    "매수 성공 여부": "실패",
+                })
+
+        return results, successful_trades
