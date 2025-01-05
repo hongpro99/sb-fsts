@@ -1,4 +1,5 @@
 
+# 무조건 매수 여부, 및 매도 여부를 return 하도록 구성
 class TradingLogic:
 
     # 체결 강도 기준 매매 대상인지 확인

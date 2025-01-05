@@ -224,7 +224,7 @@ class AutoTradingBot:
 
 
     # 실시간 매매 시뮬레이션 함수
-    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw):
+    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, trading_logic='check_wick'):
         ohlc_data = self._get_ohlc(symbol, start_date, end_date)
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
         position = 0  # 현재 포지션 수량
@@ -264,12 +264,22 @@ class AutoTradingBot:
             # 볼린저 밴드 계산
             bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
             sma = indicator.cal_ma(previous_closes, 5)
-
-            upper_wick, lower_wick = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-
+            
+            # 매매 이력
             history = {}
 
-            if lower_wick:  # 아랫꼬리일 경우 매수 (추가 매수 가능)
+            # initiate
+            buy_yn = False
+            sell_yn = False
+
+            if trading_logic == 'check_wick':
+                upper_wick, lower_wick = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+
+                buy_yn = lower_wick # 아랫꼬리일 경우 매수 (추가 매수 가능)
+                sell_yn = upper_wick and position > 0 # 윗꼬리일 때 매도. 매수한 횟수의 1/n 만큼 매도
+
+
+            if buy_yn: # 매수 (추가 매수 가능)
                 history['position'] = 'BUY'
                 history['price'] = open_price
                 history['quantity'] = math.floor(trade_amount / open_price) # 특정 금액을 주기적으로 산다고 가정해서 주식 수 계산
@@ -280,7 +290,7 @@ class AutoTradingBot:
 
                 print(f"매수 시점: {timestamp}, 매수가: {open_price} KRW, 매수량: {history['quantity']}")
 
-            elif upper_wick and position > 0:  # 윗꼬리일 경우 매도 (매수한 횟수의 1/n 만큼 매도)
+            elif sell_yn:  # 매수한 횟수의 1/n 만큼 매도
                 history['position'] = 'SELL'
                 history['price'] = open_price
 
