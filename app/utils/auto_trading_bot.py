@@ -227,7 +227,7 @@ class AutoTradingBot:
     def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, trading_logic='check_wick'):
         ohlc_data = self._get_ohlc(symbol, start_date, end_date)
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
-        position = 0  # 현재 포지션 수량
+        position_count = 0  # 현재 포지션 수량
         previous_closes = []  # 이전 종가들을 저장
 
         trading_history = {
@@ -277,7 +277,7 @@ class AutoTradingBot:
                 upper_wick, lower_wick = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
 
                 buy_yn = lower_wick # 아랫꼬리일 경우 매수 (추가 매수 가능)
-                sell_yn = upper_wick and position > 0 # 윗꼬리일 때 매도. 매수한 횟수의 1/n 만큼 매도
+                sell_yn = upper_wick and position_count > 0 # 윗꼬리일 때 매도. 매수한 횟수의 1/n 만큼 매도
             
             elif trading_logic == 'penetrating':
                 pass
@@ -314,7 +314,7 @@ class AutoTradingBot:
             print(f"총 비용: {result['total_cost']}KRW, 총 보유량: {result['total_quantity']}주, 평균 단가: {result['average_price']}KRW, 실현 손익 (Realized PnL): {result['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {result['unrealized_pnl']}KRW")
 
             # 현재 포지션 개수 (없는데 sell 하지 않기 위함)
-            position = result['total_quantity']
+            position_count = result['total_quantity']
 
             i += 1
 
