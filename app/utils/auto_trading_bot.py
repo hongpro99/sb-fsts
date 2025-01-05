@@ -189,7 +189,7 @@ class AutoTradingBot:
             elif trade['position'] == 'SELL':  # 매도일 경우
                 if total_quantity == 0:
                     raise ValueError("매도 수량이 매수 수량보다 많습니다.")
-                
+                    
                 # 매도의 실현 손익 계산
                 # total_quantity 가 팔고자 하는 양보다 적을 때
                 sell_quantity = trade['quantity']
@@ -202,6 +202,7 @@ class AutoTradingBot:
                 # 매도 후 수량 및 비용 감소
                 total_quantity -= sell_quantity
                 total_cost -= average_price * sell_quantity
+                total_cost = max(total_cost, 0)  # 비용이 음수가 되지 않도록
             
             # 모든 주식을 매도했을 경우 비용 리셋
             if total_quantity == 0:

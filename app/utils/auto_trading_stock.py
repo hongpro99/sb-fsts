@@ -22,6 +22,7 @@ from typing import List, Dict
 from sqlalchemy.orm import Session
 from app.utils.crud_sql import SQLExecutor
 from app.utils.database import get_db_session
+from app.utils.technical_indicator import TechnicalIndicator
 
 
 
@@ -102,45 +103,8 @@ class AutoTradingStock:
             "📢 투자 계좌 정보:\n" +
             "\n".join([f"{key}: {value}" for key, value in account_info.items()])
         )
-
         # 디스코드로 전송
         self.send_discord_webhook(message, "trading")
-
-    def get_access_token(self):
-        """
-        한국투자증권 API에서 액세스 토큰을 발급받는 함수
-        """
-        url = f"{self.base_url}/oauth2/tokenP"
-        headers = {"Content-Type": "application/json; charset=utf-8"}
-        data = {
-        "grant_type": "client_credentials",
-        "appkey": os.getenv('API_KEY'),  # 본인의 appkey로 변경
-        "appsecret": os.getenv('API_SECRET')  # 본인의 appsecret로 변경
-        }
-
-        try:
-            response = requests.post(url, headers=headers, data=json.dumps(data))
-            if response.status_code == 200:
-                token_data = response.json()
-                print("토큰 발급 성공:", token_data)
-                return token_data["access_token"]
-            else:
-                print(f"토큰 발급 실패: {response.status_code} {response.text}")
-                return None
-        except Exception as e:
-            print(f"토큰 발급 중 오류 발생: {e}")
-            return None    
-        
-
-    #def get_auth_info(self):
-    #    """인증 정보 확인"""
-    #    return {
-    #        "id": self.id,
-    #        "account": self.account,
-    #        "virtual": self.virtual
-            
-            
-    #    }
 
     def send_discord_webhook(self, message, bot_type):
         if bot_type == 'trading':
@@ -265,6 +229,7 @@ class AutoTradingStock:
             error_message = f"❌ 잔고 정보를 처리하는 중 오류 발생: {e}"
             print(error_message)
             self.send_discord_webhook(error_message, "trading")
+    
     
     def place_order(self, symbol, qty, buy_price=None, sell_price=None, order_type="buy"):
         """주식 매수/매도 주문 함수
@@ -693,6 +658,7 @@ class AutoTradingStock:
         Args:
             symbol (str): 종목 코드
         """
+        
         url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/finance/income-statement"
         headers = {
             "Content-Type": "application/json; charset=utf-8",
@@ -773,6 +739,7 @@ class AutoTradingStock:
         Returns:
             list: 특정 기간에 해당하는 외국인 순매수 데이터 리스트
         """
+        
         try:
             print(f"[INFO] 외국인 순매수 데이터 가져오기 시작... 종목: {symbol}, 기간: {start_date} ~ {end_date}")
 
@@ -831,6 +798,275 @@ class AutoTradingStock:
             print(f"[ERROR] 외국인 순매수 데이터 가져오는 중 오류 발생: {e}")
             self.send_discord_webhook(f"❌ 외국인 순매수 데이터 가져오는 중 오류 발생: {e}", "simulation")
             return []
+        
+    # 봉 데이터를 가져오는 함수
+    def _get_ohlc(self, symbol, start_date, end_date, mode="default"):
+        symbol_stock: KisStock = self.kis.stock(symbol)  # SK하이닉스 (코스피)
+        chart: KisChart = symbol_stock.chart(
+            start=start_date,
+            end=end_date,
+        ) # 2023년 1월 1일부터 2023년 12월 31일까지의 일봉입니다.
+        klines = chart.bars
+
+        # 첫 번째 데이터를 제외하고, 각 항목의 open 값을 전날 close 값으로 변경 
+        # mode = continuous
+        if mode == 'continuous':
+            for i in range(1, len(klines)):
+                klines[i].open = klines[i - 1].close  # 전날의 close로 open 값을 변경
+            
+        return klines
+        
+    def rsi_simulate_trading(self, symbol: str, start_date: str, end_date: str, 
+                    rsi_window: int = 14, buy_threshold: int = 50, sell_threshold: int = 70):
+        """
+        RSI 매매 로직 및 시각화 데이터 포함
+        Args:
+            symbol (str): 종목 코드
+            start_date (str): 시작 날짜 (YYYY-MM-DD 형식)
+            end_date (str): 종료 날짜 (YYYY-MM-DD 형식)
+            rsi_window (int): RSI 계산에 사용할 기간
+            buy_threshold (float): RSI 매수 임계값
+            sell_threshold (float): RSI 매도 임계값
+        """
+        # 문자열 날짜를 datetime.date 타입으로 변환
+        start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+        
+        print(f"[DEBUG] RSI 매매 시작 - 종목: {symbol}, 기간: {start_date} ~ {end_date}")
+        
+        # OHLC 데이터 조회
+        ohlc_data = self._get_ohlc(symbol, start_date, end_date)
+
+        # 초기화
+        realized_pnl = 0  # 총 실현 손익
+        position = 0  # 현재 포지션
+        current_cash = 1_000_000  # 초기 자본
+        buy_signals = []  # 매수 신호
+        sell_signals = []  # 매도 신호
+
+        # 그래프 데이터 저장용
+        timestamps = []
+        ohlc = []
+        closes = []
+
+        for candle in ohlc_data:
+            open_price = float(candle.open)
+            high_price = float(candle.high)
+            low_price = float(candle.low)
+            close_price = float(candle.close)
+            timestamp = candle.time
+
+            # OHLC 데이터 수집
+            timestamps.append(timestamp)
+            ohlc.append([open_price, high_price, low_price, close_price])
+            closes.append(close_price)
+
+        print(f"[DEBUG] 가져온 종가 데이터: {closes[:20]}... (총 {len(closes)} 개)")
+        
+        technical_indicator = TechnicalIndicator()
+        
+        # RSI 계산
+        rsi_values = technical_indicator.calculate_rsi(closes, rsi_window)
+        print(f"[DEBUG] 계산된 RSI 데이터: {rsi_values[:20]}... (총 {len(rsi_values)} 개)")
+
+        for i in range(rsi_window, len(rsi_values)):
+            close_price = closes[i]
+            rsi = rsi_values[i]
+            prev_rsi = rsi_values[i - 1]
+            date = timestamps[i]
+
+            # 디버깅 로그
+            print(f"[DEBUG] 날짜: {date}, 종가: {close_price:.2f}, RSI: {rsi}, 이전 RSI: {prev_rsi}")
+
+            # **RSI 값이 None인 경우 건너뜀**
+            if rsi is None or prev_rsi is None:
+                print("[DEBUG] RSI 값이 None입니다. 루프를 건너뜁니다.")
+                continue
+
+            # 매수 조건: RSI가 buy_threshold를 상향 돌파
+            if rsi > buy_threshold and prev_rsi < buy_threshold and current_cash >= close_price:
+                position += 1
+                current_cash -= close_price
+                buy_signals.append((date, close_price))
+                print(f"[DEBUG] 📈 매수 발생! 날짜: {date}, 가격: {close_price:.2f}, RSI: {rsi}")
+                self.send_discord_webhook(
+                    f"📈 매수 발생! 종목: {symbol}, 가격: {close_price}, RSI: {rsi:.2f}, 이전 RSI: {prev_rsi:.2f}, 시간: {date}",
+                    "simulation"
+                )
+
+            # 매도 조건: RSI가 sell_threshold를 상향 돌파 후 다시 하락
+            elif rsi < sell_threshold and prev_rsi > sell_threshold and position > 0:
+                current_cash += close_price
+                pnl = close_price - buy_signals[-1][1]  # 개별 거래 손익
+                realized_pnl += pnl
+                position -= 1
+                sell_signals.append((date, close_price))
+                print(f"[DEBUG] 📉 매도 발생! 날짜: {date}, 가격: {close_price:.2f}, RSI: {rsi}, 손익: {pnl:.2f}")
+                self.send_discord_webhook(
+                    f"📉 매도 발생! 종목: {symbol}, 가격: {close_price}, RSI: {rsi:.2f}, 이전 RSI: {prev_rsi:.2f}, 시간: {date}, 손익: {pnl:.2f} KRW",
+                    "simulation"
+                )
+
+        # 최종 평가
+        final_assets = current_cash + (position * closes[-1] if position > 0 else 0)
+        print(f"[DEBUG] 최종 평가 완료 - 최종 자산: {final_assets:.2f}, 총 실현 손익: {realized_pnl:.2f}")
+        self.send_discord_webhook(
+            f"📊 RSI 매매 시뮬레이션 완료\n"
+            f"종목: {symbol}\n"
+            f"기간: {start_date} ~ {end_date}\n"
+            f"최종 자산: {final_assets} KRW\n"
+            f"현금 잔고: {current_cash} KRW\n"
+            f"보유 주식 평가 금액: {(position * closes[-1])} KRW\n"
+            f"총 실현 손익: {realized_pnl} KRW\n",
+            "simulation"
+        )
+
+        # 캔들 차트 시각화
+        simulation_plot = self.visualize_trades(symbol, ohlc, timestamps, buy_signals, sell_signals)
+        return simulation_plot, buy_signals, sell_signals, final_assets, realized_pnl
+
+    def visualize_trades(self, symbol, ohlc, timestamps, buy_signals, sell_signals):
+        """
+        매수/매도 신호를 포함한 거래 차트를 시각화합니다.
+        Args:
+            symbol (str): 종목 코드
+            ohlc (list): OHLC 데이터 리스트 (각 요소는 [Open, High, Low, Close])
+            timestamps (list): 타임스탬프 데이터 리스트
+            buy_signals (list): 매수 신호 (각 요소는 (timestamp, price) 형태)
+            sell_signals (list): 매도 신호 (각 요소는 (timestamp, price) 형태)
+        Returns:
+            matplotlib.figure.Figure: 생성된 차트의 Figure 객체
+        """
+
+        df = pd.DataFrame(ohlc, columns=["Open", "High", "Low", "Close"], index=pd.DatetimeIndex(timestamps))
+
+        # 매수/매도 신호 열 추가 및 초기화
+        df["Buy_Signal"] = pd.Series(index=df.index, dtype="float64")
+        df["Sell_Signal"] = pd.Series(index=df.index, dtype="float64")
+
+        for date, price in buy_signals:
+            if date in df.index:
+                df.at[date, "Buy_Signal"] = price
+
+        for date, price in sell_signals:
+            if date in df.index:
+                df.at[date, "Sell_Signal"] = price
+            
+        # NaN 값 제거 또는 대체 (mplfinance에서 오류 방지)
+        df["Buy_Signal"].fillna(0, inplace=True)
+        df["Sell_Signal"].fillna(0, inplace=True)
+
+        # mplfinance 추가 플롯 설정
+        add_plots = [
+            mpf.make_addplot(df["Buy_Signal"], type="scatter", markersize=100, marker="^", color="green", label="Buy Signal"),
+            mpf.make_addplot(df["Sell_Signal"], type="scatter", markersize=100, marker="v", color="red", label="Sell Signal")
+        ]
+
+        # 캔들 차트 플롯 생성
+        fig, ax = mpf.plot(
+            df,
+            type="candle",
+            style="charles",
+            title=f"{symbol} Trading Signals",
+            ylabel="Price (KRW)",
+            addplot=add_plots,
+            returnfig=True,
+            figsize=(20, 10)
+        )
+
+        return fig
+    
+    def foreign_investor_simulate_trading(self, data:list):
+        """
+        외국인 순매수 데이터를 기반으로 매매 시뮬레이션을 수행합니다.
+        Args:
+            symbol (str): 종목 코드
+            start_date (str): 시작 날짜 (YYYYMMDD 형식)
+            end_date (str): 종료 날짜 (YYYYMMDD 형식)
+            initial_cash (float): 초기 자본
+        """
+        try:
+            print(f"[INFO] 총 {len(data)}개의 데이터가 준비되었습니다.")
+            
+            # 초기화
+            realized_pnl = 0  # 총 실현 손익
+            position = 0  # 현재 보유 주식 수량
+            current_cash = 1_000_000  # 초기 자산
+            trade_stack = []  # 매수 가격 스택
+            recent_foreign_net_buys = []  # 최근 외국인 순매수 상태를 추적
+            closes = []  # 종가 데이터
+
+            # 데이터 순회
+            for entry in data:
+                symbol = entry["symbol"]
+                date = entry["date"]
+                net_buy = entry["foreign_net_buy"]
+                close_price = entry["close_price"]
+
+                closes.append(close_price)
+                recent_foreign_net_buys.append(net_buy)
+                if len(recent_foreign_net_buys) > 3:
+                    recent_foreign_net_buys.pop(0)
+
+                # 매수 조건: 외국인 순매수가 음수 → 양수 전환 + 양수 3일 연속 유지
+                buy_signal = (
+                    len(recent_foreign_net_buys) == 3
+                    and recent_foreign_net_buys[0] < 0  # 첫날 음수
+                    and all(val > 0 for val in recent_foreign_net_buys[1:])  # 마지막 2일 양수
+                )
+
+                # 매도 조건: 외국인 순매수가 연속 2일 음수로 바뀜
+                sell_signal = (
+                    position > 0
+                    and len(recent_foreign_net_buys) >= 2
+                    and all(val < 0 for val in recent_foreign_net_buys[-2:])
+                )
+
+                # 3. 매수 작업
+                if buy_signal and current_cash >= close_price:
+                    position += 1  # 보유 주식 증가
+                    trade_stack.append(close_price)  # 매수가 저장
+                    current_cash -= close_price  # 현금 잔고 감소
+
+                    self.send_discord_webhook(
+                        f"📈 매수 발생! 종목: {symbol}, 날짜: {date}, 가격: {close_price} KRW", "simulation"
+                    )
+                    print(f"[BUY] 날짜: {date}, 매수가: {close_price} KRW, 현재 잔고: {current_cash} KRW, 보유 주식: {position}")
+
+                # 4. 매도 작업
+                if sell_signal:
+                    entry_price = trade_stack.pop(0)  # 매수 가격 가져오기
+                    pnl = close_price - entry_price  # 개별 거래 손익
+                    realized_pnl += pnl  # 총 손익 업데이트
+                    current_cash += close_price  # 현금 잔고 증가
+                    position -= 1  # 보유 주식 감소
+
+                    self.send_discord_webhook(
+                        f"📉 매도 발생! 종목: {symbol}, 날짜: {date}, 매도가: {close_price} KRW, 손익: {pnl:.2f} KRW",
+                        "simulation",
+                    )
+                    print(f"[SELL] 날짜: {date}, 매도가: {close_price} KRW, 손익: {pnl:.2f} KRW, 현재 잔고: {current_cash} KRW, 보유 주식: {position}")
+
+            # 5. 최종 평가
+            final_assets = current_cash + (position * closes[-1] if position > 0 else 0)  # 총 자산
+            self.send_discord_webhook(
+                f"📊 시뮬레이션 완료!\n"
+                f"종목: {symbol}\n"
+                f"최종 자산: {final_assets:.2f} KRW\n"
+                f"현금 잔고: {current_cash:.2f} KRW\n"
+                f"보유 주식 평가 금액: {(position * closes[-1]):.2f} KRW\n"
+                f"총 실현 손익: {realized_pnl:.2f} KRW\n",
+                "simulation"
+            )
+            
+            print(f"[INFO] 시뮬레이션 완료! 최종 자산: {final_assets:.2f} KRW")
+
+        except Exception as e:
+            error_message = f"❌ 외국인 순매수 시뮬레이션 중 오류 발생: {e}"
+            print(error_message)
+            self.send_discord_webhook(error_message, "simulation")
+            
+
 
 
             
