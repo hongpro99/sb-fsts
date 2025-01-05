@@ -278,34 +278,37 @@ class AutoTradingBot:
 
                 buy_yn = lower_wick # 아랫꼬리일 경우 매수 (추가 매수 가능)
                 sell_yn = upper_wick and position > 0 # 윗꼬리일 때 매도. 매수한 횟수의 1/n 만큼 매도
+            
+            elif trading_logic == 'penetrating':
+                pass
 
 
             if buy_yn: # 매수 (추가 매수 가능)
                 history['position'] = 'BUY'
-                history['price'] = open_price
-                history['quantity'] = math.floor(trade_amount / open_price) # 특정 금액을 주기적으로 산다고 가정해서 주식 수 계산
+                history['price'] = close_price
+                history['quantity'] = math.floor(trade_amount / close_price) # 특정 금액을 주기적으로 산다고 가정해서 주식 수 계산
                 trading_history['history'].append(history)
 
                 # draw 차트 위함
-                buy_signals.append((timestamp, open_price))
+                buy_signals.append((timestamp, close_price))
 
-                print(f"매수 시점: {timestamp}, 매수가: {open_price} KRW, 매수량: {history['quantity']}")
+                print(f"매수 시점: {timestamp}, 매수가: {close_price} KRW, 매수량: {history['quantity']}")
 
             elif sell_yn:  # 매수한 횟수의 1/n 만큼 매도
                 history['position'] = 'SELL'
-                history['price'] = open_price
+                history['price'] = close_price
 
                 # 매도할수 있는 양이 대상 금액보다 적을 때
-                if trading_history['total_quantity'] < math.floor(trade_amount / open_price):
+                if trading_history['total_quantity'] < math.floor(trade_amount / close_price):
                     history['quantity'] = trading_history['total_quantity']
                 else:
-                    history['quantity'] = math.floor(trade_amount / open_price) # 특정 금액을 주기적으로 산다고 가정해서 주식 수 계산
+                    history['quantity'] = math.floor(trade_amount / close_price) # 특정 금액을 주기적으로 산다고 가정해서 주식 수 계산
 
                 trading_history['history'].append(history)
 
-                sell_signals.append((timestamp, open_price))
+                sell_signals.append((timestamp, close_price))
 
-                print(f"매도 시점: {timestamp}, 매도가: {open_price} KRW, 매도량: {history['quantity']}")
+                print(f"매도 시점: {timestamp}, 매도가: {close_price} KRW, 매도량: {history['quantity']}")
             
             result = self.calculate_pnl(trading_history, close_price)
             print(f"총 비용: {result['total_cost']}KRW, 총 보유량: {result['total_quantity']}주, 평균 단가: {result['average_price']}KRW, 실현 손익 (Realized PnL): {result['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {result['unrealized_pnl']}KRW")
