@@ -260,10 +260,6 @@ class AutoTradingBot:
             # if len(previous_closes) >= 5:  # 최근 5개의 종가만 사용
             #     previous_closes.pop(0)
             previous_closes.append(close_price)
-
-            # 볼린저 밴드 계산
-            bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-            sma = indicator.cal_ma(previous_closes, 5)
             
             # 매매 이력
             history = {}
@@ -273,6 +269,11 @@ class AutoTradingBot:
             sell_yn = False
 
             if trading_logic == 'check_wick':
+                
+                # 볼린저 밴드 계산
+                bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
+                sma = indicator.cal_ma(previous_closes, 5)
+
                 upper_wick, lower_wick = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
 
                 buy_yn = lower_wick # 아랫꼬리일 경우 매수 (추가 매수 가능)
