@@ -1,33 +1,27 @@
-from datetime import datetime, timedelta
+def get_ohlc_by_date(ohlc_data, current_date, d_date=0):
+    """
+    현재 날짜와 d_date 오프셋을 기준으로 OHLC 데이터를 반환.
+    
+    :param ohlc_data: OHLC 데이터 리스트 (시간순 정렬된 데이터)
+    :param current_date: 기준 날짜 (datetime 또는 str 형식)
+    :param d_date: 음수는 과거, 0은 현재, 양수는 미래 데이터를 가져옴
+    :return: OHLC 데이터 (시가, 고가, 저가, 종가)
+    """
+    # 현재 날짜 기준으로 데이터 인덱스 찾기
+    for i, candle in enumerate(ohlc_data):
+        candle_date = candle.time  # datetime 형식 가정
+        if candle_date == current_date:
+            target_index = i + d_date
+            if 0 <= target_index < len(ohlc_data):
+                target_candle = ohlc_data[target_index]
+                return {
+                    "open": float(target_candle.open),
+                    "high": float(target_candle.high),
+                    "low": float(target_candle.low),
+                    "close": float(target_candle.close),
+                    "time": target_candle.time,
+                }
+            else:
+                return None  # 범위를 벗어난 경우 None 반환
 
-class Condition:
-    def __init__(self, ohlc_data):
-        self.ohlc_data = ohlc_data
-
-    def _find_data_by_offset(self, base_date, offset):
-        """
-        기준 날짜(base_date)로부터 offset일 전 데이터를 반환.
-        """
-        target_date = base_date - timedelta(days=offset)
-
-        # 데이터 검색
-        for data in self.ohlc_data:
-            if data.time.date() == target_date.date():  # datetime 객체 비교
-                return data
-        return None
-
-    def get_open(self, base_date, offset):
-        data = self._find_data_by_offset(base_date, offset)
-        return data.open if data else None
-
-    def get_close(self, base_date, offset):
-        data = self._find_data_by_offset(base_date, offset)
-        return data.close if data else None
-
-    def get_high(self, base_date, offset):
-        data = self._find_data_by_offset(base_date, offset)
-        return data.high if data else None
-
-    def get_low(self, base_date, offset):
-        data = self._find_data_by_offset(base_date, offset)
-        return data.low if data else None
+    raise ValueError(f"현재 날짜 {current_date}에 해당하는 데이터를 찾을 수 없습니다.")

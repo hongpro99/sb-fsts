@@ -1,4 +1,3 @@
-# 무조건 매수 여부, 및 매도 여부를 return 하도록 구성
 class TradingLogic:
 
     # 체결 강도 기준 매매 대상인지 확인
@@ -156,76 +155,36 @@ class TradingLogic:
 
         return results, successful_trades
 
-    def trading_signal_penetrating(self):
+    def penetrating(self, candle, d_1, d_2):
         """
-        이전 매매 로직 (상승장악형 외의 로직).
-        :return: 매수 성공 목록과 개별 신호
+        상승장악형 로직으로 매수/매도 신호를 판단.
+        :param candle: 현재 캔들 데이터
+        :param d_1: D-1 캔들 데이터
+        :param d_2: D-2 캔들 데이터
+        :return: 매수 신호, 손절 신호, 익절 신호
         """
-        # 이전 로직 구현 (생략 가능)
-        results = []
-        successful_trades = []
+        if not d_1 or not d_2:
+            # D-1 또는 D-2 데이터가 없으면 신호 없음
+            return False
 
-        if len(self.ohlc) < 3:
-            raise ValueError("3일 이상의 데이터가 필요합니다.")
+        # D-2 조건: 큰 음봉
+        d_2_condition = d_2.close < d_2.open
+        d_2_long_bear = abs(d_2.close - d_2.open) >= (float(d_2.open) * 0.03)
 
-        # 로직 예제 (D-2 음봉, D-1 상승, 매매 조건 등)
-        for i in range(2, len(self.ohlc)):
-            d_2 = self.ohlc[i - 2]
-            d_1 = self.ohlc[i - 1]
-            current = self.ohlc[i]
+        # D-1 조건: 상승 반전
+        d_1_condition = (
+            d_1.open < d_2.low and
+            d_1.close > d_2.close + (d_2.open - d_2.close) / 2
+        )
 
-            # D-2 조건
-            d_2_condition = d_2.close < d_2.open
-            d_2_long_bear = abs(d_2.close - d_2.open) >= (float(d_2.open) * 0.03)
+        # 매수 신호
+        buy_signal = candle.close > d_1.high and  candle.close> d_2.high
+        all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition
+        # 손절 신호와 익절 신호는 `simulate_trading`에서 판단
+        return all_conditions_met and buy_signal
 
-            # D-1 조건
-            d_1_condition = (
-                d_1.open < d_2.low and
-                d_1.close > d_2.close + (d_2.open - d_2.close) / 2
-            )
-
-            # 매매 시점
-            buy_signal = current.close > d_1.high
-
-            # 손절 조건
-            stoploss = current.close < d_1.low
-
-            # 모든 조건 충족 여부
-            all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition
-
-            if all_conditions_met:
-                if buy_signal:
-                    trade_result = {
-                        "날짜": current.time,
-                        "매수/매도": "매수신호",
-                        "특징": "기존 로직",
-                        "매매시점": "P > H",
-                        "손절조건": "미충족" if not stoploss else "충족",
-                        "매수 성공 여부": "성공",
-                    }
-                    results.append(trade_result)
-                    successful_trades.append(trade_result)
-                else:
-                    results.append({
-                        "날짜": current.time,
-                        "매수/매도": "매수신호",
-                        "특징": "기존 로직",
-                        "매매시점": "미충족",
-                        "손절조건": "미충족",
-                        "매수 성공 여부": "실패",
-                    })
-            else:
-                results.append({
-                    "날짜": current.time,
-                    "매수/매도": "조건 미충족",
-                    "특징": "미충족",
-                    "매매시점": "미충족",
-                    "손절조건": "미충족",
-                    "매수 성공 여부": "실패",
-                })
-
-        return results, successful_trades
     
+
     def engulfing_logic2(self):
         """
         상승장악형2 매매 로직.
@@ -432,3 +391,82 @@ class TradingLogic:
 
         return results, successful_trades
 
+    def doji_star_logic(self):
+        """
+        상승 도지 스타 매매 로직.
+        :return: 매수 성공 목록과 개별 신호
+        """
+        results = []
+        successful_trades = []
+
+        if len(self.ohlc) < 3:
+            raise ValueError("3일 이상의 데이터가 필요합니다.")
+
+        for i in range(2, len(self.ohlc)):
+            d_2 = self.ohlc[i - 2]  # D-2 데이터
+            d_1 = self.ohlc[i - 1]  # D-1 데이터
+            current = self.ohlc[i]  # 당일 데이터
+
+            # D-2 조건: D-2 종가 < D-2 시초가 (음봉)
+            d_2_condition = d_2.close < d_2.open
+            print(f"\n[D-2 조건] 날짜: {d_2.time}")
+            print(f"  D-2 종가 < D-2 시초가: {d_2.close} < {d_2.open} = {d_2_condition}")
+
+            # D-1 조건
+            d_1_condition = (
+                d_1.close == d_1.open and  # 도지 조건
+                d_1.open < d_2.low         # D-1 시초가 < D-2 최저가
+            )
+            print(f"\n[D-1 조건] 날짜: {d_1.time}")
+            print(f"  D-1 종가 = D-1 시초가: {d_1.close} == {d_1.open} = {d_1.close == d_1.open}")
+            print(f"  D-1 시초가 < D-2 최저가: {d_1.open} < {d_2.low} = {d_1.open < d_2.low}")
+
+            # 매매 시점: 당일 종가 > D-2 최고가
+            buy_signal = current.close > d_2.high
+            print(f"\n[매매 시점] 날짜: {current.time}")
+            print(f"  당일 종가 > D-2 최고가: {current.close} > {d_2.high} = {buy_signal}")
+
+            # 손절 조건: 당일 종가 < D-1 최저가
+            stoploss = current.close < d_1.low
+            print(f"\n[손절 조건] 날짜: {current.time}")
+            print(f"  당일 종가 < D-1 최저가: {current.close} < {d_1.low} = {stoploss}")
+
+            # 모든 조건 충족 여부 확인
+            all_conditions_met = d_2_condition and d_1_condition
+            print(f"\n[전체 조건 충족 여부] 날짜: {current.time}")
+            print(f"  D-2 조건: {d_2_condition}")
+            print(f"  D-1 조건: {d_1_condition}")
+            print(f"  모든 조건 충족: {all_conditions_met}")
+
+            if all_conditions_met:
+                if buy_signal:
+                    trade_result = {
+                        "날짜": current.time,
+                        "매수/매도": "매수신호",
+                        "특징": "상승 도지 스타",
+                        "매매시점": "P > h",
+                        "손절조건": "미충족" if not stoploss else "충족",
+                        "매수 성공 여부": "성공",
+                    }
+                    results.append(trade_result)
+                    successful_trades.append(trade_result)
+                else:
+                    results.append({
+                        "날짜": current.time,
+                        "매수/매도": "매수신호",
+                        "특징": "상승 도지 스타",
+                        "매매시점": "미충족",
+                        "손절조건": "미충족" if not stoploss else "충족",
+                        "매수 성공 여부": "실패",
+                    })
+            else:
+                results.append({
+                    "날짜": current.time,
+                    "매수/매도": "조건 미충족",
+                    "특징": "미충족",
+                    "매매시점": "미충족",
+                    "손절조건": "미충족",
+                    "매수 성공 여부": "실패",
+                })
+
+        return results, successful_trades
