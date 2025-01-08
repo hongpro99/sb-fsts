@@ -18,20 +18,64 @@ from app.utils.database import get_db, get_db_session
 
 def main():
     
+    # for DB
+    sql_executor = SQLExecutor()
+
     st.set_page_config(layout="wide")
 
     # 탭 생성
-    tabs = st.tabs(["🏠 Home", "📈 Graph Page", "📊 Data Analysis Page"])
+    tabs = st.tabs(["🏠 거래 내역", "📈 시뮬레이션 그래프", "📊 Data Analysis Page"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
-        st.header("🏠 홈 페이지")
-        # 데이터 생성
+        st.header("🏠 트레이딩 봇 거래 내역")
+        
         data = {
-            "Name": ["Alice", "Bob", "Charlie"],
-            "Age": [25, 30, 35],
-            "City": ["New York", "San Francisco", "Los Angeles"]
+            "Trading Bot Name": [],
+            "Trading Logic": [],
+            "Trade Date": [],
+            "Symbol Name": [],
+            "Symbol": [],
+            "Position": [],
+            "Price": [],
+            "Quantity": []
         }
+
+        query = """
+            select
+                trading_bot_name,
+                trading_logic,
+                trade_date,
+                symbol_name,
+                symbol,
+                position,
+                price,
+                quantity
+            from fsts.trading_history
+            order by trading_logic, trade_date, symbol_name;
+        """
+
+        params = {}
+
+        with get_db_session() as db:
+            result = sql_executor.execute_select(db, query, params)
+
+        for row in result:
+            data["Trading Bot Name"].append(row['trading_bot_name'])
+            data["Trading Logic"].append(row['trading_logic'])
+            data["Trade Date"].append(row['trade_date'])
+            data["Symbol Name"].append(row['symbol_name'])
+            data["Symbol"].append(row['symbol'])
+            data["Position"].append(row['position'])
+            data["Price"].append(row['price'])
+            data["Quantity"].append(row['quantity'])
+
+        # 데이터 생성
+        # data = {
+        #     "Name": ["Alice", "Bob", "Charlie"],
+        #     "Age": [25, 30, 35],
+        #     "City": ["New York", "San Francisco", "Los Angeles"]
+        # }
         df = pd.DataFrame(data)
         
         # AgGrid로 테이블 표시
@@ -46,9 +90,10 @@ def main():
         )
 
     with tabs[1]:
-        st.header("📈 그래프 페이지")
-        
-        sql_executor = SQLExecutor()
+        st.header("📈 시뮬레이션 그래프")
+
+        # 화면을 2개의 열로 나누기 for selectbox
+        col1, col2 = st.columns(2)
 
         query = """
             SELECT 종목코드, 종목이름 FROM fsts.kospi200 ORDER BY 종목이름;
@@ -70,9 +115,14 @@ def main():
             value = stock['종목코드']  # 'b' 값을 값으로
             symbol_options[key] = value  # 딕셔너리에 추가
 
+        trading_logic_options = ["윗꼬리_아랫꼬리", "관통형"]
+            
         # Dropdown 메뉴 생성
-        selected_symbol = st.selectbox("주식 종목을 선택하세요:", list(symbol_options.keys()))
-        symbol = symbol_options[selected_symbol]
+        with col1:
+            selected_trading_logic = st.selectbox("매매 로직을 선택하세요:", trading_logic_options)
+        with col2:
+            selected_symbol = st.selectbox("주식 종목을 선택하세요:", list(symbol_options.keys()))
+            symbol = symbol_options[selected_symbol]
 
         # 그래프 생성
         # fig, ax = plt.subplots(figsize=(16, 9))
