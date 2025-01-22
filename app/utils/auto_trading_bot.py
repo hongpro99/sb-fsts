@@ -6,7 +6,7 @@ import math
 from pykis import PyKis, KisChart, KisStock
 from datetime import date, time
 import mplfinance as mpf
-
+from pytz import timezone
 from app.utils.technical_indicator import TechnicalIndicator
 from app.utils.trading_logic import TradingLogic
 from app.utils.crud_sql import SQLExecutor
@@ -308,6 +308,7 @@ class AutoTradingBot:
             elif trading_logic == 'penetrating':
                 # penetrating 로직
                 
+                
                 buy_yn = logic.penetrating(candle, d_1, d_2)
 
 
@@ -354,7 +355,7 @@ class AutoTradingBot:
 
                 print(f"매도 시점: {timestamp}, 매도가: {close_price} KRW, 매도량: {history['quantity']}")
 
-            else:
+            elif trading_logic == 'penetrating':
                 # 2순위: 익절 및 손절 조건 처리
                 for position in positions:
                     if position['quantity'] > 0 and trading_history['total_quantity'] > 0:  # 매도 가능한 포지션만 처리
@@ -458,7 +459,7 @@ class AutoTradingBot:
             return result
 
     # 실시간 매매 함수
-    def trade(self, symbol, symbol_name, start_date, end_date, target_trade_value_krw):
+    def trade(self, trading_bot_name, trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw):
         
         ohlc_data = self._get_ohlc(symbol, start_date, end_date)
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
@@ -494,15 +495,54 @@ class AutoTradingBot:
         # 최근 매매 기준 n% 변동성 미만일 경우 추가 매매 하지 않도로 설정
         # TO-DO
 
+        # Penetrating 로직 체크
+        penetrating_signal = False
+        if trading_logic == "penetrating":
+            d_1 = ohlc_data[-2]  # 직전 봉
+            d_2 = ohlc_data[-3]  # 전전 봉
+            penetrating_signal = logic.penetrating(candle, d_1, d_2)
         # 매매 구현 (모든 로직이 true 일 경우)
         if lower_wick:  # 아랫꼬리일 경우 매수 (추가 매수 가능)
             pass
             # 매수 함수 구현
-            self.send_discord_webhook(f"{symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW", "trading")
-        elif upper_wick:  # 윗꼬리일 경우 매도 (매수한 횟수의 1/n 만큼 매도)
+            self.send_discord_webhook(f"[{trading_logic}]{symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW", "trading")
+
+            # trade history 에 추가
+            position = 'BUY'
+            quantity = 1 # 임시
+            try:
+                self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
+            except Exception as e:  # 모든 예외를 포착
+                # 예외 메시지를 로그로 출력하거나 처리
+                print(f"An error occurred while inserting trading history: {e}")
+                
+        elif penetrating_signal:  # Penetrating 신호일 경우 매수
+            self.send_discord_webhook(
+            f"[{trading_logic}] {symbol_name} 매수가 완료되었습니다. 신호: Penetrating Signal, 매수금액 : {int(close_price)} KRW",
+            "trading"
+        )
+        print(f"[{trading_logic}] Penetrating Signal 매수 신호 발생: {timestamp}, 매수가: {close_price} KRW")
+
+        # Trade history 추가
+        position = 'BUY'
+        quantity = 1  # 임시
+        try:
+            self._insert_trading_history(trading_logic, position, trading_bot_name, close_price, quantity, symbol, symbol_name)
+        except Exception as e:
+            print(f"An error occurred while inserting trading history: {e}")
+
+        if upper_wick:  # 윗꼬리일 경우 매도 (매수한 횟수의 1/n 만큼 매도)
             pass
             # 매수 함수 구현
             self.send_discord_webhook(f"{symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
+            # trade history 에 추가
+            position = 'SELL'
+            quantity = 1 # 임시
+            try:
+                self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
+            except Exception as e:  # 모든 예외를 포착
+                # 예외 메시지를 로그로 출력하거나 처리
+                print(f"An error occurred while inserting trading history: {e}")
         
         # result = self.calculate_pnl(trading_history, close_price)
         # print(f"총 비용: {result['total_cost']}KRW, 총 보유량: {result['total_quantity']}주, 평균 단가: {result['average_price']}KRW, 실현 손익 (Realized PnL): {result['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {result['unrealized_pnl']}KRW")
@@ -573,8 +613,39 @@ class AutoTradingBot:
                 self.send_discord_webhook(f"{symbol_name} 매도가 완료되었습니다. 매도가격 : {int(close_price)}KRW, 매도량 : {sell_quantity}, 이유: {sell_reason}", "trading")
                 print(f"매도: {symbol_name} | 가격: {close_price} | 수량: {sell_quantity} | 이유: {sell_reason}")
 
-
         return None
+    
+    def _insert_trading_history(self, trading_logic, position, trading_bot_name, price, quantity, symbol, symbol_name):
+
+        sql_executor = SQLExecutor()
+
+        # 한국 시간대
+        kst = timezone("Asia/Seoul")
+
+        # 현재 시간을 KST로 변환
+        current_time = datetime.now(kst)
+
+        # 동적 쿼리 생성
+        query = """
+            INSERT INTO fsts.trading_history
+            (trading_logic, "position", trading_bot_name, price, quantity, symbol, symbol_name, trade_date)
+            VALUES (:trading_logic, :position, :trading_bot_name, :price, :quantity, :symbol, :symbol_name, :trade_date)
+            RETURNING *;
+        """
+        params = {
+            "trading_logic": trading_logic,
+            "position": position,
+            "trading_bot_name": trading_bot_name,
+            "price": price,
+            "quantity": quantity,
+            "symbol": symbol,
+            "symbol_name": symbol_name,
+            "trade_date": current_time
+        }
+
+        with get_db_session() as db:
+            result = sql_executor.execute_upsert(db, query, params)
+
     # 컷 로스 (손절)
     def cut_loss(self, target_trade_value_usdt):
         pass
