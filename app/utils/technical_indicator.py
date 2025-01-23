@@ -89,12 +89,12 @@ class TechnicalIndicator:
         gains = [max(delta, 0) for delta in deltas]
         losses = [-min(delta, 0) for delta in deltas]
 
-        # 초기 평균 상승/하락폭 계산
+        # 초기화
         avg_gain = [0] * len(closes)
         avg_loss = [0] * len(closes)
         rsi = [None] * len(closes)
 
-        # `window`보다 작은 날 계산 (단순 평균 사용(SMA))
+        # `window`보다 작은 날 계산 (단순 평균 사용)
         for i in range(1, min(window, len(closes))):
             avg_gain[i] = sum(gains[:i]) / i
             avg_loss[i] = sum(losses[:i]) / i
@@ -104,17 +104,24 @@ class TechnicalIndicator:
                 rs = avg_gain[i] / avg_loss[i]
             rsi[i] = 100 - (100 / (1 + rs))
 
-        # `window` 이상인 날 계산 (EMA 방식 사용)
-        avg_gain[window - 1] = sum(gains[:window]) / window
-        avg_loss[window - 1] = sum(losses[:window]) / window
-        for i in range(window, len(closes)):
-            avg_gain[i] = (avg_gain[i - 1] * (window - 1) + gains[i - 1]) / window
-            avg_loss[i] = (avg_loss[i - 1] * (window - 1) + losses[i - 1]) / window
-
-            if avg_loss[i] == 0:
-                rs = 0
+        # `window` 이상의 날 계산 (EMA 방식 사용)
+        if len(closes) >= window:
+            avg_gain[window - 1] = sum(gains[:window]) / window
+            avg_loss[window - 1] = sum(losses[:window]) / window
+            if avg_loss[window - 1] == 0:
+                rsi[window - 1] = 100
             else:
-                rs = avg_gain[i] / avg_loss[i]
-            rsi[i] = 100 - (100 / (1 + rs))
+                rs = avg_gain[window - 1] / avg_loss[window - 1]
+                rsi[window - 1] = 100 - (100 / (1 + rs))
+
+            for i in range(window, len(closes)):
+                avg_gain[i] = (avg_gain[i - 1] * (window - 1) + gains[i - 1]) / window
+                avg_loss[i] = (avg_loss[i - 1] * (window - 1) + losses[i - 1]) / window
+
+                if avg_loss[i] == 0:
+                    rsi[i] = 100
+                else:
+                    rs = avg_gain[i] / avg_loss[i]
+                    rsi[i] = 100 - (100 / (1 + rs))
 
         return rsi
