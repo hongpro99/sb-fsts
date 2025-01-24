@@ -190,12 +190,13 @@ class AutoTradingBot:
         sell_count = 0  # 총 매도 횟수
         buy_dates = []  # 매수 날짜 목록
         sell_dates = []  # 매도 날짜 목록
-
+        investment_cost = 0
         # 포지션별 계산
         for trade in trading_history['history']:
             
             if trade['position'] == 'BUY':  # 매수일 경우
                 total_cost += trade['price'] * trade['quantity']  # 비용 증가
+                investment_cost += trade['price'] * trade['quantity']
                 total_quantity += trade['quantity']  # 수량 증가
                 buy_count += 1  # 매수 횟수 증가
                 buy_dates.append(trade['time'])  # 매수 날짜 추가
@@ -232,12 +233,17 @@ class AutoTradingBot:
 
         # 미실현 손익 계산
         unrealized_pnl = (current_price - average_price) * total_quantity if total_quantity > 0 else 0
+        
+        realized_roi = (total_realized_pnl/investment_cost)*100 if investment_cost > 0 else 0
+        unrealized_roi = ((total_realized_pnl + unrealized_pnl)/investment_cost)*100 if investment_cost > 0 else 0
 
         # 결과 저장
         trading_history.update({
             'average_price': average_price,  # 평균 매수 가격
             'realized_pnl': total_realized_pnl,  # 실현 손익
             'unrealized_pnl': unrealized_pnl,  # 미실현 손익
+            'realized_roi' : realized_roi,
+            'unrealized_roi' : unrealized_roi,
             'total_cost': total_cost,  # 총 매수 비용
             'total_quantity': total_quantity,  # 총 보유 수량
             'buy_count': buy_count,  # 매수 횟수
@@ -245,6 +251,8 @@ class AutoTradingBot:
             'buy_dates': buy_dates,  # 매수 날짜 목록
             'sell_dates': sell_dates  # 매도 날짜 목록
         })
+        
+        print(f"투자비용: {investment_cost}")
         return trading_history
     
 
@@ -260,6 +268,8 @@ class AutoTradingBot:
             'average_price': 0,  # 평단가
             'realized_pnl': 0,  # 실현 손익
             'unrealized_pnl': 0,  # 미실현 손익
+            'realized_roi' : 0,
+            'unrealized_roi' : 0,
             'total_cost': 0,  # 총 비용
             'total_quantity': 0,  # 총 수량
             'buy_count': 0,  # 총 매수 횟수
@@ -475,11 +485,11 @@ class AutoTradingBot:
         
         query = """
             INSERT INTO fsts.simulation_history (
-                trading_logic, symbol, average_price, realized_pnl, unrealized_pnl, 
+                trading_logic, symbol, average_price, realized_pnl, unrealized_pnl, realized_roi, unrealized_roi,
                 total_cost, total_quantity, buy_count, sell_count, 
                 buy_dates, sell_dates, history, created_at
             ) VALUES (
-                :trading_logic, :symbol, :average_price, :realized_pnl, :unrealized_pnl, 
+                :trading_logic, :symbol, :average_price, :realized_pnl, :unrealized_pnl, :realized_roi, :unrealized_roi,
                 :total_cost, :total_quantity, :buy_count, :sell_count, 
                 :buy_dates, :sell_dates, :history, NOW()
             ) RETURNING *;
@@ -491,6 +501,8 @@ class AutoTradingBot:
             "average_price": trading_history['average_price'],
             "realized_pnl": trading_history['realized_pnl'],
             "unrealized_pnl": trading_history['unrealized_pnl'],
+            "realized_roi" : trading_history['realized_roi'],
+            "unrealized_roi": trading_history['unrealized_roi'],
             "total_cost": trading_history['total_cost'],
             "total_quantity": trading_history['total_quantity'],
             "buy_count": trading_history['buy_count'],

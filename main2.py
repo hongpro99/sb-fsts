@@ -112,10 +112,16 @@ if st.sidebar.button("Run Simulation"):
             history_df = pd.DataFrame(result)
             # 순서대로 컬럼 정렬 (없는 컬럼은 무시)
             
+            # 실현 손익 관련 컬럼에 % 추가
+            if "realized_roi" in history_df.columns:
+                history_df["realized_roi"] = history_df["realized_roi"].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
+
+            if "unrealized_roi" in history_df.columns:
+                history_df["unrealized_roi"] = history_df["unrealized_roi"].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)            
             # 원하는 컬럼 순서 지정
             reorder_columns = [
                 "symbol", "trading_logic", "average_price",
-                "realized_pnl", "unrealized_pnl", "total_cost",
+                "realized_pnl", "unrealized_pnl", "realized_roi", "unrealized_roi", "total_cost",
                 "buy_count", "sell_count", "buy_dates", "sell_dates", "total_quantity","history", "created_at"
             ]
             history_df = history_df[[col for col in reorder_columns if col in history_df.columns]]
