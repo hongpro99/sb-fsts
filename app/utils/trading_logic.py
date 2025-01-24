@@ -167,7 +167,7 @@ class TradingLogic:
         )
 
         # 매수 신호
-        buy_signal = candle.close > d_1.high and  candle.close> d_2.high
+        buy_signal = candle.close > d_1.high or candle.close> d_2.high
         all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition
         # 손절 신호와 익절 신호는 `simulate_trading`에서 판단
         return all_conditions_met and buy_signal
@@ -187,7 +187,7 @@ class TradingLogic:
         d_1_condition = d_1.close < d_1.open
 
         # 매수 신호 조건: 현재 캔들의 시가 < D-1 최저가 AND 현재 캔들의 종가 > D-1 최고가
-        buy_signal = candle.open < d_1.low and candle.close > d_1.high
+        buy_signal = candle.open < d_1.low or candle.close > d_1.high
 
         # 모든 조건 충족 확인
         return d_1_condition and buy_signal
@@ -269,5 +269,33 @@ class TradingLogic:
         buy_signal = candle.close > d_2.high
         all_conditions_met = d_2_condition and d_1_condition
         
+        return all_conditions_met and buy_signal
+    
+    def morning_star(self, candle, d_1, d_2):
+        """
+        샛별형 로직으로 매수/매도 신호를 판단.
+        :param candle: 현재 캔들 데이터
+        :param d_1: D-1 캔들 데이터
+        :param d_2: D-2 캔들 데이터
+        :return: 매수 신호, 손절 신호, 익절 신호
+        """
+        if not d_1 or not d_2:
+            # D-1 또는 D-2 데이터가 없으면 신호 없음
+            return False
+
+        # D-2 조건: 큰 음봉
+        d_2_condition = d_2.close < d_2.open #D-2음봉
+        d_2_long_bear = abs(d_2.close - d_2.open) >= (float(d_2.open) * 0.03) #장대음봉
+
+        # D-1 조건
+        d_1_condition = (
+            d_2.close > d_1.close > d_1.open  # D-2 종가 > D-1 종가 > D-1 시초가
+        )
+        # 당일 조건: 장 양봉
+        candle_long_bear = (candle.close > candle.open) and abs(candle.close - candle.open) >= (float(candle.open) * 0.03) #장대양봉
+        # 매수 신호
+        buy_signal =  candle.low > d_1.close or candle.close> d_2.high #buy_signal 연결 or
+        all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition and candle_long_bear
+        # 손절 신호와 익절 신호는 `simulate_trading`에서 판단
         return all_conditions_met and buy_signal
 

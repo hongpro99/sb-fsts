@@ -95,7 +95,8 @@ def main():
             "상승반격형": "counterattack",
             "상승잉태형": "harami",
             "상승도지스타": "doji_star",
-            "rsi 확인": "rsi_trading"
+            "rsi 확인": "rsi_trading",
+            "샛별형": "morning_star"
         }
 
         selected_trading_logic = st.sidebar.selectbox("select the trading logic:", list(trading_logic_options.keys()))

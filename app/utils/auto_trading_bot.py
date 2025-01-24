@@ -268,8 +268,8 @@ class AutoTradingBot:
             'average_price': 0,  # 평단가
             'realized_pnl': 0,  # 실현 손익
             'unrealized_pnl': 0,  # 미실현 손익
-            'realized_roi' : 0,
-            'unrealized_roi' : 0,
+            'realized_roi' : 0, #실현 수익률
+            'unrealized_roi' : 0, # 총 수익률
             'total_cost': 0,  # 총 비용
             'total_quantity': 0,  # 총 수량
             'buy_count': 0,  # 총 매수 횟수
@@ -351,8 +351,11 @@ class AutoTradingBot:
                 
             elif trading_logic == 'harami':
                 buy_yn = logic.harami(candle, d_1, d_2)
+                
+            elif trading_logic == 'morning_star':
+                buy_yn = logic.morning_star(candle, d_1, d_2)                
         
-            if buy_yn:  # 매수
+            if buy_yn and d_2.volume < d_1.volume:  # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가
                 stop_loss_price = d_1.low if d_1 else None
                 float_stop_loss_price = float(stop_loss_price)
                 target_price = close_price + 2*(close_price - float_stop_loss_price) if float_stop_loss_price else None
@@ -570,6 +573,8 @@ class AutoTradingBot:
             buy_yn = logic.harami(candle, d_1, d_2)
         elif trading_logic == "doji_star":
             buy_yn = logic.doji_star(candle, d_1, d_2)
+        elif trading_logic == "morning_star":
+            buy_yn = logic.morning_star(candle, d_1, d_2)
 
                                                             
         # 매매 구현 (모든 로직이 true 일 경우)
