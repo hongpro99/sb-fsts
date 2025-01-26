@@ -19,20 +19,64 @@ import json
 
 def main():
     
+    # for DB
+    sql_executor = SQLExecutor()
+
     st.set_page_config(layout="wide")
 
     # 탭 생성
-    tabs = st.tabs(["🏠 Home", "📈 Graph Page", "📊 Data Analysis Page"])
+    tabs = st.tabs(["🏠 거래 내역", "📈 시뮬레이션 그래프", "📊 Data Analysis Page"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
-        st.header("🏠 홈 페이지")
-        # 데이터 생성
+        st.header("🏠 트레이딩 봇 거래 내역")
+        
         data = {
-            "Name": ["Alice", "Bob", "Charlie"],
-            "Age": [25, 30, 35],
-            "City": ["New York", "San Francisco", "Los Angeles"]
+            "Trading Bot Name": [],
+            "Trading Logic": [],
+            "Trade Date": [],
+            "Symbol Name": [],
+            "Symbol": [],
+            "Position": [],
+            "Price": [],
+            "Quantity": []
         }
+
+        query = """
+            select
+                trading_bot_name,
+                trading_logic,
+                trade_date,
+                symbol_name,
+                symbol,
+                position,
+                price,
+                quantity
+            from fsts.trading_history
+            order by trading_logic, trade_date, symbol_name;
+        """
+
+        params = {}
+
+        with get_db_session() as db:
+            result = sql_executor.execute_select(db, query, params)
+
+        for row in result:
+            data["Trading Bot Name"].append(row['trading_bot_name'])
+            data["Trading Logic"].append(row['trading_logic'])
+            data["Trade Date"].append(row['trade_date'])
+            data["Symbol Name"].append(row['symbol_name'])
+            data["Symbol"].append(row['symbol'])
+            data["Position"].append(row['position'])
+            data["Price"].append(row['price'])
+            data["Quantity"].append(row['quantity'])
+
+        # 데이터 생성
+        # data = {
+        #     "Name": ["Alice", "Bob", "Charlie"],
+        #     "Age": [25, 30, 35],
+        #     "City": ["New York", "San Francisco", "Los Angeles"]
+        # }
         df = pd.DataFrame(data)
         
         # AgGrid로 테이블 표시
@@ -47,6 +91,7 @@ def main():
         )
 
     with tabs[1]:
+
         st.header("📈 시뮬레이션 페이지")
         
         sql_executor = SQLExecutor()
@@ -64,7 +109,6 @@ def main():
         start_date = st.sidebar.date_input("Start Date", value=date(2023, 1, 1))
         end_date = st.sidebar.date_input("End Date", value=date(2024, 12, 1))
         target_trade_value_krw = st.sidebar.number_input("Target Trade Value (KRW)", value=1000000, step=100000)
-
 
         query = """
                 SELECT 종목코드, 종목이름 FROM fsts.kospi200 ORDER BY 종목이름 COLLATE "ko_KR";

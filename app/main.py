@@ -46,7 +46,9 @@ async def trade():
     end_date = date.today()
     start_date = end_date - timedelta(days=365)
     target_trade_value_krw = 1000000  # 매수 목표 거래 금액
-
+    trading_bot_name = 'test_bot'
+    trading_logic = 'check_wick' 
+    
     for stock in result:
         symbol = stock['종목코드']
         symbol_name = stock['종목이름']
@@ -58,7 +60,7 @@ async def trade():
 
         while retries < max_retries:
             try:
-                trading_bot.trade(symbol, symbol_name, start_date, end_date, target_trade_value_krw)
+                trading_bot.trade(trading_bot_name, trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw)
                 break
             except Exception as e:
                 retries += 1
