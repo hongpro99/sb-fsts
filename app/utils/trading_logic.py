@@ -1,3 +1,7 @@
+from app.utils.technical_indicator import TechnicalIndicator
+
+# 보조지표 클래스 선언
+indicator = TechnicalIndicator()
 class TradingLogic:
 
     # 체결 강도 기준 매매 대상인지 확인
@@ -81,13 +85,6 @@ class TradingLogic:
 
         return has_upper_wick, has_lower_wick
 
-    # def __init__(self, ohlc):
-    #     """
-    #     초기화 메소드.
-    #     :param ohlc: 날짜별 OHLC 데이터 (KisDomesticDailyChartBar 객체 리스트)
-    #     """
-    #     self.ohlc = ohlc
-
     def rsi_trading(self, rsi_values):
         """
         RSI를 기반으로 매수/매도 신호를 계산하는 함수.
@@ -107,10 +104,10 @@ class TradingLogic:
             return False, False
 
             # 매수 신호: RSI가 40 아래에서 40 위로 돌파
-        buy_signal = previous_rsi < 35 <= current_rsi
+        buy_signal = previous_rsi < 33 <= current_rsi
 
             # 매도 신호: RSI가 70 위에서 70 아래로 하락
-        sell_signal = previous_rsi > 70 >= current_rsi
+        sell_signal = previous_rsi > 66 >= current_rsi
             
         return buy_signal, sell_signal
 
@@ -144,7 +141,7 @@ class TradingLogic:
         # 매수 신호 반환
         return all_conditions_met and buy_signal
 
-    def penetrating(self, candle, d_1, d_2):
+    def penetrating(self, candle, d_1, d_2, closes):
         """
         관통형 로직으로 매수/매도 신호를 판단.
         :param candle: 현재 캔들 데이터
@@ -165,10 +162,18 @@ class TradingLogic:
             d_1.open < d_2.low and
             d_1.close > d_2.close + (d_2.open - d_2.close) / 2
         )
-
+        #하락 추세 조건
+        sma_20 = indicator.cal_ma(closes, 20)
+        print(sma_20)
+        if sma_20 is not None: 
+            downward_condition = candle.close < sma_20[-1] and candle.close < sma_20[-2]
+        else:
+            downward_condition = True
+        
+        
         # 매수 신호
         buy_signal = candle.close > d_1.high or candle.close> d_2.high
-        all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition
+        all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition and downward_condition
         # 손절 신호와 익절 신호는 `simulate_trading`에서 판단
         return all_conditions_met and buy_signal
 
@@ -265,7 +270,7 @@ class TradingLogic:
                 d_1.close == d_1.open and  # 도지 조건
                 d_1.open < d_2.low         # D-1 시초가 < D-2 최저가
             )
-            # 매수 조건건: 당일 종가 > D-2 최고가
+            # 매수 조건: 당일 종가 > D-2 최고가
         buy_signal = candle.close > d_2.high
         all_conditions_met = d_2_condition and d_1_condition
         
@@ -292,10 +297,199 @@ class TradingLogic:
             d_2.close > d_1.close > d_1.open  # D-2 종가 > D-1 종가 > D-1 시초가
         )
         # 당일 조건: 장 양봉
-        candle_long_bear = (candle.close > candle.open) and abs(candle.close - candle.open) >= (float(candle.open) * 0.03) #장대양봉
+        d_day_condition = (candle.close > candle.open) and abs(candle.close - candle.open) >= (float(candle.open) * 0.03) #장대양봉
+        
         # 매수 신호
         buy_signal =  candle.low > d_1.close or candle.close> d_2.high #buy_signal 연결 or
-        all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition and candle_long_bear
+        all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition and d_day_condition
         # 손절 신호와 익절 신호는 `simulate_trading`에서 판단
         return all_conditions_met and buy_signal
 
+    def down_engulfing(self, candle, d_1, d_2):
+        """
+        하락장악형 매매 로직.
+        :return: 매수 성공 목록과 개별 신호
+        """
+        if not d_1 or not d_2:
+            # D-1 또는 D-2 데이터가 없으면 신호 없음
+            return False
+
+            # D-2 조건: D-2 종가 > D-2 시초가 (음봉)
+        d_2_condition = d_2.close > d_2.open
+        # D-1 조건
+        d_1_condition = (
+            d_1.open > d_2.high and d_1.close < d_2.low
+
+            )
+            # 매수 조건건: 당일 종가 > D-2 최고가
+        sell_signal = candle.close < d_1.low
+        all_conditions_met = d_2_condition and d_1_condition
+        
+        return all_conditions_met and sell_signal
+    
+    def down_engulfing2(self, candle, d_1):
+        """
+        하락장악형2 매매 로직.
+        :return: 매수 성공 목록과 개별 신호
+        """
+        if not d_1:
+            # D-1 또는 D-2 데이터가 없으면 신호 없음
+            return False
+
+        # D-1 조건
+        d_1_condition = (
+            d_1.close > d_1.open
+
+            )
+            # 매수 조건: 당일 종가 > D-2 최고가
+        sell_signal = candle.close < d_1.low or candle.open < d_1.low
+        all_conditions_met = d_1_condition
+        
+        return all_conditions_met and sell_signal
+    
+    def down_counterattack(self, candle, d_1, d_2):
+        """
+        하락반격형 매매 로직.
+        :return: 매수 성공 목록과 개별 신호
+        """
+        if not d_1 or not d_2:
+            # D-1 또는 D-2 데이터가 없으면 신호 없음
+            return False
+
+            # D-2 조건: D-2 종가 > D-2 시초가 (음봉)
+        d_2_condition = d_2.close > d_2.open
+        # D-1 조건
+        d_1_condition = (
+            d_1.open > d_2.high
+            and d_2.close >= d_1.close >= d_2.open + (d_2.close-d_2.open) / 2
+
+            )
+            # 매수 조건건: 당일 종가 > D-2 최고가
+        sell_signal = candle.close < d_2.low
+        all_conditions_met = d_2_condition and d_1_condition
+        
+        return all_conditions_met and sell_signal
+    
+    def down_harami(self, candle, d_1, d_2):
+        """
+        하락잉태형 매매 로직.
+        :return: 매수 성공 목록과 개별 신호
+        """
+        if not d_1 or not d_2:
+            # D-1 또는 D-2 데이터가 없으면 신호 없음
+            return False
+
+            # D-2 조건: D-2 종가 > D-2 시초가 (음봉)
+        d_2_condition = d_2.close > d_2.open
+        # D-1 조건
+        d_1_condition = (
+            d_1.open >= d_1.close
+            and d_1.high < d_2.close
+            and d_1.low > d_2.open
+
+            )
+            # 매수 조건건: 당일 종가 > D-2 최고가
+        sell_signal = candle.close < d_2.low
+        all_conditions_met = d_2_condition and d_1_condition
+        
+        return all_conditions_met and sell_signal
+    
+    def down_doji_star(self, candle, d_1, d_2):
+        """
+        하락도지스타 매매 로직.
+        :return: 매수 성공 목록과 개별 신호
+        """
+        if not d_1 or not d_2:
+            # D-1 또는 D-2 데이터가 없으면 신호 없음
+            return False
+
+            # D-2 조건: D-2 종가 > D-2 시초가 (음봉)
+        d_2_condition = d_2.close > d_2.open
+        # D-1 조건
+        d_1_condition = (
+            d_1.open > d_2.high
+            and d_1.close == d_1.open
+        )
+        
+        # 매수 조건: 당일 종가 > D-2 최고가
+        sell_signal = candle.close < d_2.low
+        all_conditions_met = d_2_condition and d_1_condition
+        
+        return all_conditions_met and sell_signal
+    
+    def evening_star(self, candle, d_1, d_2):
+        """
+        석별형 매도 로직.
+        
+        Args:
+            d_2: D-2일 캔들 데이터 (open, high, low, close 속성 포함).
+            d_1: D-1일 캔들 데이터 (open, high, low, close 속성 포함).
+            current_candle: 현재 캔들 데이터 (open, high, low, close 속성 포함).
+        
+        Returns:
+            bool: 매도 신호 (sell_signal).
+        """
+        if not d_1 or not d_2:
+            # D-1 또는 D-2 데이터가 없으면 신호 없음
+            return False
+        # D-2 조건: D-2 종가 > D-2 시가 (장대양봉, +2% 이상 상승)
+        d_2_condition = (
+            d_2.close > d_2.open and  # 양봉
+            abs(d_2.close - d_2.open) >= (float(d_2.open) * 0.02)  # 2% 이상 상승
+        )
+        
+        # D-1 조건: D-1 종가 < D-1 시가, D-1 종가 > D-2 종가
+        d_1_condition = (
+            d_1.close < d_1.open and  # D-1 종가 < D-1 시가
+            d_1.close > d_2.close    # D-1 종가 > D-2 종가
+        )
+        
+        # 당일 조건: 장 음봉
+        d_day_condition = (candle.close < candle.open) and abs(candle.close - candle.open) >= (float(candle.open) * 0.02) #장대음봉 #2%이상 하락      
+        # 매매 시점 조건
+        sell_signal = (candle.high < d_1.close 
+        or candle.close < candle.low)  # 현재 종가 < 현재 저가
+        
+        # 최종 매도 신호
+        all_conditions_met = d_2_condition and d_1_condition and d_day_condition
+        
+        return all_conditions_met and sell_signal
+
+
+    def dark_cloud(self, candle, d_1, d_2):
+        """
+        흑운형 매도 로직.
+        
+        Args:
+            d_2: D-2일 캔들 데이터 (open, high, low, close 속성 포함).
+            d_1: D-1일 캔들 데이터 (open, high, low, close 속성 포함).
+            current_candle: 현재 캔들 데이터 (open, high, low, close 속성 포함).
+        
+        Returns:
+            bool: 매도 신호 (sell_signal).
+        """
+        if not d_1 or not d_2:
+            # D-1 또는 D-2 데이터가 없으면 신호 없음
+            return False
+        # D-2 조건: D-2 종가 > D-2 시가 (장대양봉, +2% 이상 상승)
+        d_2_condition = (
+            d_2.close > d_2.open and  # 양봉
+            abs(d_2.close - d_2.open) >= (float(d_2.open) * 0.02)  # 2% 이상 상승
+        )
+        
+        # D-1 조건: D-1 시가 > D-2 고가, D-1 종가 범위: D-1 종가 <= D-1 시가 + (D-2 종가 - D-2 시가) / 2
+        midpoint = d_2.open + (d_2.close - d_2.open) / 2
+        d_1_condition = (
+            d_1.open > d_2.high and
+            d_1.close <= midpoint
+        )
+        
+        # 매매 시점: 현재 캔들의 종가 < D-1 저가 또는 현재 캔들의 종가 < D-1 저가
+        sell_signal = candle.close < d_1.low or candle.close < candle.low
+        
+        # 모든 조건 충족 여부
+        all_conditions_met = d_2_condition and d_1_condition
+        
+        return all_conditions_met and sell_signal
+    
+    

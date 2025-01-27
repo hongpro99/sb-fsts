@@ -57,11 +57,48 @@ trading_logic_options = {
     "샛별형": "morning_star"
 }
 
-selected_trading_logic = st.sidebar.selectbox("select the trading logic:", list(trading_logic_options.keys()))
+#selected_trading_logic = st.sidebar.selectbox("select the trading logic:", list(trading_logic_options.keys()))
 selected_stock = st.sidebar.selectbox("Select a Stock", list(symbol_options.keys()))
 symbol = symbol_options[selected_stock]
-trading_logic = trading_logic_options[selected_trading_logic]
+#trading_logic = trading_logic_options[selected_trading_logic]
+# 매수/매도 로직 설정
+available_buy_logic = {"rsi 확인": 'rsi_trading',
+                    "관통형": 'penetrating',
+                    '상승장악형1': 'engulfing',
+                    "상승장악형2": "engulfing2",
+                    "상승반격형": "counterattack",
+                    "상승잉태형": "harami",
+                    "상승도지스타": "doji_star",
+                    "샛별형": "morning_star",
+                    "꼬리 확인": "check_wick"
+                    }
+                    
+                    
+                    #'penetrating', 'engulfing', 'engulfing2', 'morning_star','check_wick', 'counterattack', 'harami', 'doji_star']
+#available_sell_logic = ['dark_cloud', 'evening_star', 'down_engulfing', 'down_engulfing2', 'down_harami','down_counterattack', 'down_doji_star', 'rsi_trading', 'check_wick']
 
+available_sell_logic = {
+                    "rsi 확인": 'rsi_trading',
+                    "흑운형": 'dark_cloud',
+                    '하락장악형1': 'down_engulfing',
+                    "하락장악형2": "down_engulfing2",
+                    "하락반격형": "down_counterattack",
+                    "하락잉태형": "down_harami",
+                    "하락도지스타": "down_doji_star",
+                    "석별형": "evening_star",
+                    "꼬리 확인": "check_wick"
+
+}
+selected_buy_logic = st.sidebar.multiselect("Select Buy Logic(s):", list(available_buy_logic.keys()))
+selected_sell_logic = st.sidebar.multiselect("Select Sell Logic(s):", list(available_sell_logic.keys()))
+# selected_buyTrading_logic = available_buy_logic[selected_buy_logic]
+# selected_sellTrading_logic = available_sell_logic[selected_sell_logic]
+# 선택된 로직 처리
+if selected_buy_logic:
+    selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic if logic in available_buy_logic]
+    # 선택된 로직 처리
+if selected_sell_logic:
+    selected_sellTrading_logic = [available_sell_logic[logic] for logic in selected_sell_logic if logic in available_sell_logic]
 # AutoTradingBot 및 SQLExecutor 객체 생성
 auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=True)
 
@@ -77,7 +114,8 @@ if st.sidebar.button("Run Simulation"):
             start_date=start_date,
             end_date=end_date,
             target_trade_value_krw=target_trade_value_krw,
-            trading_logic=trading_logic
+            buy_trading_logic = selected_buyTrading_logic,
+            sell_trading_logic = selected_sellTrading_logic
         )
         
         fig, ax = simulation_plot

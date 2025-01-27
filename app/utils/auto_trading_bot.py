@@ -192,6 +192,7 @@ class AutoTradingBot:
         buy_dates = []  # 매수 날짜 목록
         sell_dates = []  # 매도 날짜 목록
         investment_cost = 0
+        
         # 포지션별 계산
         for trade in trading_history['history']:
             
@@ -257,11 +258,11 @@ class AutoTradingBot:
         return trading_history
     
 
-    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, trading_logic):
+    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None):
         ohlc_data = self._get_ohlc(symbol, start_date, end_date)
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
         position_count = 0  # 현재 포지션 수량
-        positions = []
+        positions = [] #손절 포지션
         previous_closes = []  # 이전 종가들을 저장
         closes = []
         
@@ -290,6 +291,7 @@ class AutoTradingBot:
         i = 0  # 인덱스 초기화
         d_1 = None
         d_2 = None
+        d_3 = None 
 
         while i < len(ohlc_data):
             candle = ohlc_data[i]
@@ -299,70 +301,165 @@ class AutoTradingBot:
             close_price = float(candle.close)
             volume = float(candle.volume)
             timestamp = candle.time
-
             timestamps.append(timestamp)
+            closes.append(close_price) #rsi
             
             # timestamp 변수를 ISO 8601 문자열로 변환
             timestamp_iso = timestamp.isoformat()
             
             ohlc.append([open_price, high_price, low_price, close_price, volume])
             previous_closes.append(close_price)
-
+            
+            if len(ohlc_data[:i]) >= 21:
+                recent_20_days_volume = [float(c.volume) for c in ohlc_data[i - 20:i]]
+                    # 데이터 유효성 검사: 20일 거래량 데이터가 비어 있거나 모두 0인 경우 처리
+            else:
+                recent_20_days_volume = []
+            print(f"거래량 : {recent_20_days_volume}")
+            
+            # 평균 거래량 계산 (거래량 데이터가 비어 있으면 0 반환)
+            if len(recent_20_days_volume) > 0:
+                avg_volume_20_days = sum(recent_20_days_volume) / len(recent_20_days_volume)
+            else:
+                avg_volume_20_days = 0
             
             buy_yn = False
             sell_yn = False
             sell_reason = None
-            
-            if trading_logic == 'check_wick':
-        
-                # 볼린저 밴드 계산
-                bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                sma = indicator.cal_ma(previous_closes, 5)
+            used_buy_logic = None
+            used_sell_logic = None
+            # 매수형 로직 처리
+            if buy_trading_logic:
+                for trading_logic in buy_trading_logic:
+                    if trading_logic == 'check_wick':            
+                        # 볼린저 밴드 계산
+                        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
+                        sma = indicator.cal_ma(previous_closes, 5)
 
-                upper_wick, lower_wick = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                        _, lower_wick = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
 
-                buy_yn = lower_wick # 아랫꼬리일 경우 매수 (추가 매수 가능)
-                sell_yn = upper_wick and position_count > 0 # 윗꼬리일 때 매도.(공매도하지 않도록)
-                
-            elif trading_logic == 'rsi_trading':
-                closes.append(close_price)
-                print(closes)
-                rsi_values = indicator.calculate_rsi(closes, 14)
-                print(rsi_values)
-                buy_signal, sell_signal = logic.rsi_trading(rsi_values)
-                
-                buy_yn = buy_signal
-                sell_yn = sell_signal and trading_history['total_quantity'] > 0
-                
-            elif trading_logic == 'penetrating':
-                # penetrating 로직
-                buy_yn = logic.penetrating(candle, d_1, d_2)
-                
-            elif trading_logic == 'engulfing':
-                buy_yn = logic.engulfing(candle, d_1, d_2)
-                
-            elif trading_logic == 'engulfing2':
-                buy_yn = logic.engulfing2(candle, d_1)
+                        buy_yn = lower_wick # 아랫꼬리일 경우 매수 (추가 매수 가능)
+                        if buy_yn:
+                            used_buy_logic = trading_logic
+                            break                        
 
-            elif trading_logic == 'counterattack':
-                buy_yn = logic.counterattack(candle, d_1, d_2)
                 
-            elif trading_logic == 'doji_star':
-                buy_yn = logic.doji_star(candle, d_1, d_2)
+                    elif trading_logic == 'rsi_trading':
+
+                        rsi_values = indicator.calculate_rsi(closes, 14)
+                        print(rsi_values)
+                        buy_yn, _ = logic.rsi_trading(rsi_values)
+                        
+                        if buy_yn:
+                            used_buy_logic = trading_logic
+                            break
+                            
                 
-            elif trading_logic == 'harami':
-                buy_yn = logic.harami(candle, d_1, d_2)
-                
-            elif trading_logic == 'morning_star':
-                buy_yn = logic.morning_star(candle, d_1, d_2)                
-        
-            if buy_yn and d_2.volume < d_1.volume:  # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가
+                    elif trading_logic == 'penetrating':
+                        # penetrating 로직
+                        buy_yn = logic.penetrating(candle, d_1, d_2, closes)
+                        if buy_yn:
+                            used_buy_logic = trading_logic
+                            break
+                    elif trading_logic == 'engulfing':
+                        buy_yn = logic.engulfing(candle, d_1, d_2)
+                        if buy_yn:
+                            used_buy_logic = trading_logic
+                            break
+                    elif trading_logic == 'engulfing2':
+                        buy_yn = logic.engulfing2(candle, d_1)
+                        if buy_yn:
+                            used_buy_logic = trading_logic                        
+                            break
+                    elif trading_logic == 'counterattack':
+                        buy_yn = logic.counterattack(candle, d_1, d_2)
+                        if buy_yn:
+                            used_buy_logic = trading_logic                        
+                            break
+                    elif trading_logic == 'doji_star':
+                        buy_yn = logic.doji_star(candle, d_1, d_2)
+                        if buy_yn:
+                            used_buy_logic = trading_logic                        
+                            break
+                    elif trading_logic == 'harami':
+                        buy_yn = logic.harami(candle, d_1, d_2)
+                        if buy_yn:
+                            used_buy_logic = trading_logic                        
+                            break
+                    elif trading_logic == 'morning_star':
+                        buy_yn = logic.morning_star(candle, d_1, d_2)
+                        if buy_yn:
+                            used_buy_logic = trading_logic                        
+                            break
+            # 매도형 로직 처리
+            if sell_trading_logic:
+                for trading_logic in sell_trading_logic:
+                                            
+                        #매도 시그널 로직: down_engulfing, down_engulfing2, down_counterattack, down_doji_star, down_harami, evening_star, dark_cloud
+                    if trading_logic == 'down_engulfing':
+                        sell_yn = logic.down_engulfing(candle, d_1, d_2)
+                        if sell_yn:
+                            used_sell_logic = trading_logic                        
+                            break
+                    elif trading_logic == 'down_engulfing2':
+                        sell_yn = logic.down_engulfing2(candle, d_1)
+                        if sell_yn:
+                            used_sell_logic = trading_logic                        
+                            break
+                    elif trading_logic == 'down_counterattack':
+                        sell_yn = logic.down_counterattack(candle, d_1, d_2)
+                        if sell_yn:
+                            used_sell_logic = trading_logic                        
+                            break
+                    elif trading_logic == 'down_doji_star':
+                        sell_yn = logic.down_doji_star(candle, d_1, d_2)
+                        if sell_yn:
+                            used_sell_logic = trading_logic                        
+                            break
+                    elif trading_logic == 'down_harami':
+                        sell_yn = logic.down_harami(candle, d_1, d_2)
+                        if sell_yn:
+                            used_sell_logic = trading_logic                        
+                            break
+                    elif trading_logic == 'evening_star':
+                        sell_yn = logic.evening_star(candle, d_1, d_2)
+                        if sell_yn:
+                            used_sell_logic = trading_logic                        
+                            break
+                    elif trading_logic == 'dark_cloud':
+                        sell_yn = logic.dark_cloud(candle, d_1, d_2)
+                        if sell_yn:
+                            used_sell_logic = trading_logic                        
+                            break
+                        
+                    elif trading_logic == 'rsi_trading':
+                        
+                        rsi_values = indicator.calculate_rsi(closes, 14)
+                        print(rsi_values)
+                        _, sell_yn = logic.rsi_trading(rsi_values)
+                        if sell_yn:
+                            used_sell_logic = trading_logic                        
+                            break
+                        
+                    elif trading_logic == 'check_wick':            
+                        # 볼린저 밴드 계산
+                        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
+                        sma = indicator.cal_ma(previous_closes, 5)
+
+                        upper_wick, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+
+                        sell_yn = upper_wick and position_count > 0 # 윗꼬리일 때 매도.(공매도하지 않도록)
+                        if sell_yn:
+                            used_sell_logic = trading_logic                                                                                                                                                                                          
+                            break
+                        
+            if buy_yn and d_1.volume > avg_volume_20_days and d_1.volume > d_2.volume:  # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가
                 stop_loss_price = d_1.low if d_1 else None
                 float_stop_loss_price = float(stop_loss_price)
                 target_price = close_price + 2*(close_price - float_stop_loss_price) if float_stop_loss_price else None
                 buy_quantity = math.floor(trade_amount / close_price)
 
-                # 새로운 포지션 추가
+                #새로운 포지션 추가
                 positions.append({
                     'position': 'BUY',
                     'price': close_price,
@@ -371,9 +468,10 @@ class AutoTradingBot:
                     'stop_loss_price': float_stop_loss_price,
                     'time': timestamp_iso
                 })
-                # 매수 기록
+                #매수 기록
                 trading_history['history'].append({
                     'position': 'BUY',
+                    'trading_logic': used_buy_logic,
                     'price': close_price,
                     'quantity': buy_quantity,
                     'target_price': target_price,
@@ -382,11 +480,12 @@ class AutoTradingBot:
                 })
 
                 buy_signals.append((timestamp, close_price))
-                print(f"매수 시점: {timestamp_iso}, 매수가: {close_price} KRW, 매수량: {buy_quantity}, 손절가격: {stop_loss_price}, 익절 가격: {target_price}")
+                #print(f"매수 시점: {timestamp_iso}, 매수가: {close_price} KRW, 매수량: {buy_quantity}, 손절가격: {stop_loss_price}, 익절 가격: {target_price}")
                 
 
-            if trading_logic == 'rsi_trading' or trading_logic =='check_wick':
-                if sell_yn:
+            #if trading_logic == 'rsi_trading' or trading_logic =='check_wick':
+            if sell_yn:
+                if trading_history['total_quantity'] > 0:
                     # 매도 로직
                     sell_quantity = (
                     trading_history['total_quantity']  # 보유 수량만큼만 매도
@@ -398,51 +497,90 @@ class AutoTradingBot:
                     
                     trading_history['history'].append({
                         'position': 'SELL',
+                        'trading_logic': used_sell_logic,
                         'price': close_price,
                         'quantity': sell_quantity,
                         'time': timestamp_iso,
                         'realized_pnl' : realized_pnl 
                     })
                     sell_signals.append((timestamp, close_price))
-
-                    print(f"매도 시점: {timestamp_iso}, 매도가: {close_price} KRW, 매도량: {sell_quantity}")
-
-            else:
-                # 2순위: 익절 및 손절 조건 처리
-                for position in positions:
-                    if position['quantity'] > 0 and trading_history['total_quantity'] > 0:  # 매도 가능한 포지션만 처리
-                        if close_price >= position['target_price']:
-                            # 익절절 계산
-                            realized_pnl = (close_price - position['price']) * position['quantity']
-                            sell_reason = "익절"
-                            trading_history['history'].append({
-                                'position': 'SELL',
-                                'price': close_price,
-                                'quantity': position['quantity'],  # 포지션의 보유 수량만큼 매도
-                                'reason': sell_reason,
-                                'time': timestamp_iso,
-                                'realized_pnl': realized_pnl
-                            })
                     
-                            sell_signals.append((timestamp, close_price))
-                            print(f"익절 매도: {timestamp_iso}, 매도가: {close_price}, 매도량: {position['quantity']}")
-                            position['quantity'] = 0  # 포지션 소진
-                        elif close_price <= position['stop_loss_price']:
-                            # 손절 계산
-                            realized_pnl = (close_price - position['price']) * position['quantity']
-                            sell_reason = "손절"
-                            trading_history['history'].append({
-                                'position': 'SELL',
-                                'price': close_price,
-                                'quantity': position['quantity'],  # 포지션의 보유 수량만큼 매도
-                                'reason': sell_reason,
-                                'time': timestamp_iso,
-                                'realized_pnl': realized_pnl
-                            })                 
-                            # 매도 날짜와 이유 저장
-                            sell_signals.append((timestamp, close_price))
-                            print(f"손절 매도: {timestamp_iso}, 매도가: {close_price}, 매도량: {position['quantity']}")
-                            position['quantity'] = 0  # 포지션 소진
+
+                    #print(f"매도 시점: {timestamp_iso}, 매도가: {close_price} KRW, 매도량: {sell_quantity}")
+                    # 포지션에서 수량 감소 처리
+                    remaining_quantity = sell_quantity
+                    for position in positions:
+                        if remaining_quantity <= 0:
+                            break
+                        if position['quantity'] > 0:
+                            if position['quantity'] >= remaining_quantity:
+                                position['quantity'] -= remaining_quantity
+                                remaining_quantity = 0
+                            else:
+                                remaining_quantity -= position['quantity']
+                                position['quantity'] = 0
+
+            # 손절 로직
+            for position in positions:
+                if position['quantity'] > 0 and close_price <= position['stop_loss_price']:
+                    # 손절 계산
+                    realized_pnl = (close_price - position['price']) * position['quantity']
+                    sell_reason = "손절"
+
+                    # 손절 내역 기록
+                    trading_history['history'].append({
+                        'position': 'SELL',
+                        'price': close_price,
+                        'quantity': position['quantity'],  # 포지션의 보유 수량만큼 매도
+                        'reason': sell_reason,
+                        'time': timestamp_iso,
+                        'realized_pnl': realized_pnl
+                    })
+
+                    # 매도 신호 기록
+                    sell_signals.append((timestamp, close_price))
+                    print(f"손절 매도: {timestamp_iso}, 매도가: {close_price}, 매도량: {position['quantity']}")
+
+                    # 포지션 소진
+                    position['quantity'] = 0
+                    
+            # else:
+            #     # 2순위: 익절 및 손절 조건 처리
+            #     for position in positions:
+            #         if position['quantity'] > 0 and trading_history['total_quantity'] > 0:  # 매도 가능한 포지션만 처리
+            #             if close_price >= position['target_price']:
+            #                 # 익절 계산
+            #                 realized_pnl = (close_price - position['price']) * position['quantity']
+            #                 sell_reason = "익절"
+            #                 trading_history['history'].append({
+            #                     'position': 'SELL',
+            #                     'price': close_price,
+            #                     'quantity': position['quantity'],  # 포지션의 보유 수량만큼 매도
+            #                     'reason': sell_reason,
+            #                     'time': timestamp_iso,
+            #                     'realized_pnl': realized_pnl
+            #                 })
+                    
+            #                 sell_signals.append((timestamp, close_price))
+            #                 print(f"익절 매도: {timestamp_iso}, 매도가: {close_price}, 매도량: {position['quantity']}")
+            #                 position['quantity'] = 0  # 포지션 소진
+            
+            #             elif close_price <= position['stop_loss_price']:
+            #                 # 손절 계산
+            #                 realized_pnl = (close_price - position['price']) * position['quantity']
+            #                 sell_reason = "손절"
+            #                 trading_history['history'].append({
+            #                     'position': 'SELL',
+            #                     'price': close_price,
+            #                     'quantity': position['quantity'],  # 포지션의 보유 수량만큼 매도
+            #                     'reason': sell_reason,
+            #                     'time': timestamp_iso,
+            #                     'realized_pnl': realized_pnl
+            #                 })                 
+            #                 # 매도 날짜와 이유 저장
+            #                 sell_signals.append((timestamp, close_price))
+            #                 print(f"손절 매도: {timestamp_iso}, 매도가: {close_price}, 매도량: {position['quantity']}")
+            #                 position['quantity'] = 0  # 포지션 소진
             # 손익 및 매매 횟수 계산
             trading_history = self.calculate_pnl(trading_history, close_price)
 
@@ -453,6 +591,7 @@ class AutoTradingBot:
             position_count = trading_history['total_quantity']
             
             # D-2, D-1 업데이트
+            d_3 = d_2
             d_2 = d_1
             d_1 = candle
             i += 1
