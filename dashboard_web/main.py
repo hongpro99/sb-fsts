@@ -11,7 +11,6 @@ from datetime import datetime, date, timedelta
 from streamlit_lightweight_charts import renderLightweightCharts
 import json
 import numpy as np
-import yfinance as yf
 
 # 프로젝트 루트를 PYTHONPATH에 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -482,7 +481,7 @@ def main():
 
             for _, row in sell_signal_df.iterrows():
                 marker = {
-                    "time": row['Time'],  # 'date' 열을 'time' 키로 변환
+                    "time": row['time'],  # 'date' 열을 'time' 키로 변환
                     "position": "aboveBar",  # 'position_type' 열을 'position' 키로 변환
                     "color": "rgba(0, 0, 0, 1)",  # 'marker_color' 열을 'color' 키로 변환
                     "shape": "arrowDown",  # 'marker_shape' 열을 'shape' 키로 변환
@@ -491,6 +490,8 @@ def main():
                 }
                 markers.append(marker)
 
+            markers.sort(key=lambda marker: marker['time'])
+            
             chartMultipaneOptions = [
                 {
                     "width": 1000,

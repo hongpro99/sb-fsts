@@ -16,3 +16,4 @@ lightweight-charts
 streamlit
 seaborn
 streamlit-aggrid
+streamlit-lightweight-charts
