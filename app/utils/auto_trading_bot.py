@@ -532,7 +532,7 @@ class AutoTradingBot:
                                 position['quantity'] = 0
 
             # 손절 로직
-            if used_buy_logic != 'rsi_trading' and used_buy_logic !='check_wick':
+            if trading_logic != 'rsi_trading' and trading_logic !='check_wick':
                 for position in positions:
                     if position['quantity'] > 0 and close_price <= position['stop_loss_price']:
                         # 손절 계산
