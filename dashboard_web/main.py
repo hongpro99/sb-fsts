@@ -125,25 +125,34 @@ def main():
             # "대한항공": "003490",
         }
 
-        for stock in result:
-            key = stock['종목이름']  # 'a' 값을 키로
-            value = stock['종목코드']  # 'b' 값을 값으로
-            symbol_options[key] = value  # 딕셔너리에 추가
-    # 종목 선택
-    trading_logic_options = {
-        "꼬리 확인": "check_wick",
-        "관통형": "penetrating",
-        "상승장악형1": "engulfing",
-        "상승장악형2": "engulfing2",
-        "상승반격형": "counterattack",
-        "상승잉태형": "harami",
-        "상승도지스타": "doji_star",
-        "rsi 확인": "rsi_trading",
-        "샛별형": "morning_star"
-    }
+            for stock in result:
+                key = stock['종목이름']  # 'a' 값을 키로
+                value = stock['종목코드']  # 'b' 값을 값으로
+                symbol_options[key] = value  # 딕셔너리에 추가
+                
+        # 종목 선택
+        trading_logic_options = {
+            "꼬리 확인": "check_wick",
+            "관통형": "penetrating",
+            "상승장악형1": "engulfing",
+            "상승장악형2": "engulfing2",
+            "상승반격형": "counterattack",
+            "상승잉태형": "harami",
+            "상승도지스타": "doji_star",
+            "rsi 확인": "rsi_trading",
+            "샛별형": "morning_star"
+        }
+
+        # interval 설정
+        interval_options = {
+            "DAY": "day",
+            "WEEK": "week",
+            "MONTH": "month",
+        }
 
     #selected_trading_logic = st.sidebar.selectbox("select the trading logic:", list(trading_logic_options.keys()))
     selected_stock = st.sidebar.selectbox("Select a Stock", list(symbol_options.keys()))
+    selected_interval = st.sidebar.selectbox("Select Chart Interval", list(interval_options.keys()))
     symbol = symbol_options[selected_stock]
     #trading_logic = trading_logic_options[selected_trading_logic]
     # 매수/매도 로직 설정
@@ -178,6 +187,9 @@ def main():
     selected_sell_logic = st.sidebar.multiselect("Select Sell Logic(s):", list(available_sell_logic.keys()))
     # selected_buyTrading_logic = available_buy_logic[selected_buy_logic]
     # selected_sellTrading_logic = available_sell_logic[selected_sell_logic]
+
+    interval = interval_options[selected_interval]
+
     # 선택된 로직 처리
     if selected_buy_logic:
         selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic if logic in available_buy_logic]
@@ -200,7 +212,8 @@ def main():
                 end_date=end_date,
                 target_trade_value_krw=target_trade_value_krw,
                 buy_trading_logic = selected_buyTrading_logic,
-                sell_trading_logic = selected_sellTrading_logic
+                sell_trading_logic = selected_sellTrading_logic,
+                interval=interval
                 )
                 
             fig, ax = simulation_plot
