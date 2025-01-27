@@ -4,7 +4,8 @@ import pandas as pd
 import requests
 import math
 from pykis import PyKis, KisChart, KisStock
-from datetime import date, time
+from datetime import datetime, date, time
+from pytz import timezone
 import mplfinance as mpf
 from pytz import timezone
 from app.utils.technical_indicator import TechnicalIndicator
@@ -720,6 +721,7 @@ class AutoTradingBot:
         if lower_wick:  # 아랫꼬리일 경우 매수 (추가 매수 가능)
             pass
             # 매수 함수 구현
+
             self.send_discord_webhook(f"[{trading_logic}]{symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW", "trading")
 
             # trade history 에 추가
@@ -746,18 +748,18 @@ class AutoTradingBot:
         except Exception as e:
             print(f"An error occurred while inserting trading history: {e}")
 
-        if upper_wick:  # 윗꼬리일 경우 매도 (매수한 횟수의 1/n 만큼 매도)
-            pass
-            # 매수 함수 구현
-            self.send_discord_webhook(f"{symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
-            # trade history 에 추가
-            position = 'SELL'
-            quantity = 1 # 임시
-            try:
-                self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
-            except Exception as e:  # 모든 예외를 포착
-                # 예외 메시지를 로그로 출력하거나 처리
-                print(f"An error occurred while inserting trading history: {e}")
+#         if upper_wick:  # 윗꼬리일 경우 매도 (매수한 횟수의 1/n 만큼 매도)
+#             pass
+#             # 매수 함수 구현
+#             self.send_discord_webhook(f"{symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
+#             # trade history 에 추가
+#             position = 'SELL'
+#             quantity = 1 # 임시
+#             try:
+#                 self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
+#             except Exception as e:  # 모든 예외를 포착
+#                 # 예외 메시지를 로그로 출력하거나 처리
+#                 print(f"An error occurred while inserting trading history: {e}")
         
         # result = self.calculate_pnl(trading_history, close_price)
         # print(f"총 비용: {result['total_cost']}KRW, 총 보유량: {result['total_quantity']}주, 평균 단가: {result['average_price']}KRW, 실현 손익 (Realized PnL): {result['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {result['unrealized_pnl']}KRW")
@@ -830,6 +832,7 @@ class AutoTradingBot:
 
         return None
     
+
     def _insert_trading_history(self, trading_logic, position, trading_bot_name, price, quantity, symbol, symbol_name):
 
         sql_executor = SQLExecutor()
@@ -856,11 +859,13 @@ class AutoTradingBot:
             "symbol": symbol,
             "symbol_name": symbol_name,
             "trade_date": current_time
-            
         }
 
         with get_db_session() as db:
             result = sql_executor.execute_upsert(db, query, params)
+
+        return result
+
 
     # 컷 로스 (손절)
     def cut_loss(self, target_trade_value_usdt):
