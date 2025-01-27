@@ -110,11 +110,12 @@ class AutoTradingBot:
 
 
     # 봉 데이터를 가져오는 함수
-    def _get_ohlc(self, symbol, start_date, end_date, mode="default"):
+    def _get_ohlc(self, symbol, start_date, end_date, interval='day', mode="default"):
         symbol_stock: KisStock = self.kis.stock(symbol)  # SK하이닉스 (코스피)
         chart: KisChart = symbol_stock.chart(
             start=start_date,
             end=end_date,
+            period=interval
         ) # 2023년 1월 1일부터 2023년 12월 31일까지의 일봉입니다.
         klines = chart.bars
 
@@ -138,11 +139,16 @@ class AutoTradingBot:
         df['Lower'] = df['Middle'] - (df['Close'].rolling(window=20).std() * 2)
 
         # MA 계산
+        df['SMA_60'] = np.nan
+        df['SMA_120'] = np.nan
+        df['SMA_200'] = np.nan
+
         df['SMA_5'] = df['Close'].rolling(window=5).mean()
-        df['SMA_13'] = df['Close'].rolling(window=13).mean()
         df['SMA_60'] = df['Close'].rolling(window=60).mean()
         df['SMA_120'] = df['Close'].rolling(window=120).mean()
         df['SMA_200'] = df['Close'].rolling(window=200).mean()
+
+        print(f"df['SMA_200'] = {df['SMA_200']}")
 
         # 매수 및 매도 시그널 표시를 위한 추가 데이터 (x와 y의 길이 맞추기 위해 NaN 사용)
         df['Buy_Signal'] = np.nan
@@ -161,11 +167,15 @@ class AutoTradingBot:
             mpf.make_addplot(df['Lower'], color='blue', linestyle='-', label='Lower Band'),
             mpf.make_addplot(df['Middle'], color='blue', linestyle='-', label='Middle Band'),
             mpf.make_addplot(df['SMA_5'], color='black', linestyle='-', label='SMA 5'),
-            mpf.make_addplot(df['SMA_13'], color='red', linestyle='-', label='SMA 13'),
-            mpf.make_addplot(df['SMA_60'], color='green', linestyle='-', label='SMA 60'),
-            mpf.make_addplot(df['SMA_120'], color='purple', linestyle='-', label='SMA 120'),
-            mpf.make_addplot(df['SMA_200'], color='gray', linestyle='-', label='SMA 200'),
         ]
+
+        # MA 를 그릴 수 있는 경우에만
+        if df['SMA_60'].notna().any():
+            add_plot.append(mpf.make_addplot(df['SMA_60'], color='red', linestyle='-', label='SMA 60'))
+        if df['SMA_120'].notna().any():
+            add_plot.append(mpf.make_addplot(df['SMA_120'], color='purple', linestyle='-', label='SMA 120'))
+        if df['SMA_200'].notna().any():
+            add_plot.append(mpf.make_addplot(df['SMA_200'], color='gray', linestyle='-', label='SMA 200'))
 
         # signal이 존재할 때만 가능
         if len(buy_signals) > 0:
@@ -258,8 +268,8 @@ class AutoTradingBot:
         return trading_history
     
 
-    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None):
-        ohlc_data = self._get_ohlc(symbol, start_date, end_date)
+    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None, interval='day'):
+        ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
         position_count = 0  # 현재 포지션 수량
         positions = [] #손절 포지션
@@ -661,9 +671,9 @@ class AutoTradingBot:
             return result
 
     # 실시간 매매 함수
-    def trade(self, trading_bot_name, trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw):
+    def trade(self, trading_bot_name, trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw, interval='day'):
         
-        ohlc_data = self._get_ohlc(symbol, start_date, end_date)
+        ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
 
         previous_closes = [float(candle.close) for candle in ohlc_data[:-2]]  # 마지막 봉을 제외한 종가들
