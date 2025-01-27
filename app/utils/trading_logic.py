@@ -133,7 +133,7 @@ class TradingLogic:
         )
 
         # 매수 신호: 현재 캔들이 D-1의 고가를 돌파
-        buy_signal = candle.close > d_1.high
+        buy_signal = candle.close > d_1.high 
 
         # 60일 이동평균 계산
         sma_60 = indicator.cal_ma(closes, 60)  # 현재 60일 이동평균
@@ -183,7 +183,7 @@ class TradingLogic:
         
         
         # 매수 신호
-        buy_signal = candle.close > d_1.high or candle.close> d_2.high
+        buy_signal = candle.close > d_1.high and candle.close> d_2.high
         all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition and downward_condition
         # 손절 신호와 익절 신호는 `simulate_trading`에서 판단
         return all_conditions_met and buy_signal
@@ -213,7 +213,7 @@ class TradingLogic:
             downward_condition = False
 
         # 매수 신호 조건: 현재 캔들의 시가 < D-1 최저가 AND 현재 캔들의 종가 > D-1 최고가
-        buy_signal = candle.open < d_1.low or candle.close > d_1.high
+        buy_signal = candle.open < d_1.low and candle.close > d_1.high
 
         # 모든 조건 충족 확인
         return d_1_condition and buy_signal and downward_condition
@@ -354,7 +354,7 @@ class TradingLogic:
         else:
             downward_condition = False        
         # 매수 신호
-        buy_signal =  candle.low > d_1.close or candle.close> d_2.high #buy_signal 연결 or
+        buy_signal =  candle.low > d_1.close and candle.close> d_2.high #buy_signal 연결 or
         all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition and d_day_condition and downward_condition
         # 손절 신호와 익절 신호는 `simulate_trading`에서 판단
         return all_conditions_met and buy_signal
@@ -396,7 +396,7 @@ class TradingLogic:
 
             )
             # 매수 조건: 당일 종가 > D-2 최고가
-        sell_signal = candle.close < d_1.low or candle.open < d_1.low
+        sell_signal = candle.close < d_1.low and candle.open < d_1.low
         all_conditions_met = d_1_condition
         
         return all_conditions_met and sell_signal
@@ -502,7 +502,7 @@ class TradingLogic:
         d_day_condition = (candle.close < candle.open) and abs(candle.close - candle.open) >= (float(candle.open) * 0.02) #장대음봉 #2%이상 하락      
         # 매매 시점 조건
         sell_signal = (candle.high < d_1.close 
-        or candle.close < candle.low)  # 현재 종가 < 현재 저가
+        and candle.close < candle.low)  # 현재 종가 < 현재 저가
         
         # 최종 매도 신호
         all_conditions_met = d_2_condition and d_1_condition and d_day_condition
@@ -539,7 +539,7 @@ class TradingLogic:
         )
         
         # 매매 시점: 현재 캔들의 종가 < D-1 저가 또는 현재 캔들의 종가 < D-1 저가
-        sell_signal = candle.close < d_1.low or candle.close < candle.low
+        sell_signal = candle.close < d_1.low and candle.close < candle.low
         
         # 모든 조건 충족 여부
         all_conditions_met = d_2_condition and d_1_condition
