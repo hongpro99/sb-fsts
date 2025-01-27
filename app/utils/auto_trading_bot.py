@@ -453,7 +453,7 @@ class AutoTradingBot:
                             used_sell_logic = trading_logic                                                                                                                                                                                          
                             break
                         
-            if buy_yn and d_1.volume > avg_volume_20_days and d_1.volume > d_2.volume:  # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가
+            if buy_yn and candle.volume > avg_volume_20_days and d_1.volume > d_2.volume:  # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가
                 stop_loss_price = d_1.low if d_1 else None
                 float_stop_loss_price = float(stop_loss_price)
                 target_price = close_price + 2*(close_price - float_stop_loss_price) if float_stop_loss_price else None
