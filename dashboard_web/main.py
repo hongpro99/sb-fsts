@@ -6,7 +6,8 @@ from io import BytesIO
 import seaborn as sns
 from st_aggrid import AgGrid
 import pandas as pd
-from datetime import datetime, date, timedelta 
+from datetime import datetime, date, timedelta
+import pytz
 
 from streamlit_lightweight_charts import renderLightweightCharts
 import json
@@ -107,10 +108,12 @@ def main():
         # 사이드바 설정
         st.sidebar.header("Simulation Settings")
 
+        current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
+
         # 사용자 입력
         user_name = st.sidebar.text_input("User Name", value="홍석문")
         start_date = st.sidebar.date_input("Start Date", value=date(2023, 1, 1))
-        end_date = st.sidebar.date_input("End Date", value=date(2024, 12, 1))
+        end_date = st.sidebar.date_input("End Date", value=current_date_kst)
         target_trade_value_krw = st.sidebar.number_input("Target Trade Value (KRW)", value=1000000, step=100000)
 
         query = """
@@ -491,10 +494,10 @@ def main():
                 markers.append(marker)
 
             markers.sort(key=lambda marker: marker['time'])
-            
+
             chartMultipaneOptions = [
                 {
-                    "width": 1000,
+                    "width": 1100,
                     "height": 400,
                     "layout": {
                         "background": {
@@ -529,8 +532,8 @@ def main():
                     },
                 },
                 {
-                    "width": 980,
-                    "height": 200,
+                    "width": 110,
+                    "height": 100,
                     "layout": {
                         "background": {
                             "type": "solid",
