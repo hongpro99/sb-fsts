@@ -131,7 +131,7 @@ class AutoTradingBot:
     def _draw_chart(self, symbol, ohlc, timestamps, buy_signals, sell_signals):
 
         # 캔들 차트 데이터프레임 생성
-        df = pd.DataFrame(ohlc, columns=['Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
+        df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
 
         # 볼린저 밴드 계산
         df['Middle'] = df['Close'].rolling(window=20).mean()
@@ -185,7 +185,7 @@ class AutoTradingBot:
 
         simulation_plot = mpf.plot(df, type='candle', style='charles', title=f'{symbol}', addplot=add_plot, volume=True, ylabel_lower='Volume', ylabel='Price(KRW)', figsize=(20, 9), returnfig=True)
 
-        return simulation_plot
+        return df, simulation_plot
 
 
     def calculate_pnl(self, trading_history, current_price):
@@ -316,8 +316,9 @@ class AutoTradingBot:
             
             # timestamp 변수를 ISO 8601 문자열로 변환
             timestamp_iso = timestamp.isoformat()
+            timestamp_str = timestamp.date().isoformat()
             
-            ohlc.append([open_price, high_price, low_price, close_price, volume])
+            ohlc.append([timestamp_str, open_price, high_price, low_price, close_price, volume])
             previous_closes.append(close_price)
             
             if len(ohlc_data[:i]) >= 21:
@@ -607,7 +608,7 @@ class AutoTradingBot:
             i += 1
 
         # 캔들 차트 데이터프레임 생성
-        simulation_plot = self._draw_chart(symbol, ohlc, timestamps, buy_signals, sell_signals)
+        result_data, simulation_plot = self._draw_chart(symbol, ohlc, timestamps, buy_signals, sell_signals)
 
         # 매매 내역 요약 출력
         print("\n=== 매매 요약 ===")
@@ -622,7 +623,7 @@ class AutoTradingBot:
         # 결과를 DB에 저장
         self.save_trading_history_to_db_with_executor(trading_history, symbol, sql_executor, trading_logic)
         
-        return simulation_plot
+        return result_data, simulation_plot
 
 
     def save_trading_history_to_db_with_executor(self, trading_history, symbol, sql_executor, trading_logic):
