@@ -104,14 +104,14 @@ class TradingLogic:
             return False, False
 
             # 매수 신호: RSI가 40 아래에서 40 위로 돌파
-        buy_signal = previous_rsi < 33 <= current_rsi
+        buy_signal = previous_rsi < 40 <= current_rsi
 
             # 매도 신호: RSI가 70 위에서 70 아래로 하락
-        sell_signal = previous_rsi > 66 >= current_rsi
+        sell_signal = previous_rsi > 70 >= current_rsi
             
         return buy_signal, sell_signal
 
-    def engulfing(self, candle, d_1, d_2):
+    def engulfing(self, candle, d_1, d_2, closes):
         """
         상승장악형1 매매 로직.
         :param candle: 현재 캔들 데이터
@@ -135,8 +135,17 @@ class TradingLogic:
         # 매수 신호: 현재 캔들이 D-1의 고가를 돌파
         buy_signal = candle.close > d_1.high
 
+        # 60일 이동평균 계산
+        sma_60 = indicator.cal_ma(closes, 60)  # 현재 60일 이동평균
+        sma_60_prev = indicator.cal_ma(closes[:-1], 60)  # 이전 60일 이동평균 (현재 종가 제외)
+        sma_120 = indicator.cal_ma(closes, 120) #120일 이동평균균
+
+        if sma_60 is not None and sma_60_prev is not None and sma_120 is not None: 
+            downward_condition = sma_60 <= sma_60_prev and sma_60 <= sma_120
+        else:
+            downward_condition = False
         # 모든 조건 충족 여부 확인
-        all_conditions_met = d_2_condition and d_1_condition
+        all_conditions_met = d_2_condition and d_1_condition and downward_condition
 
         # 매수 신호 반환
         return all_conditions_met and buy_signal
@@ -162,13 +171,15 @@ class TradingLogic:
             d_1.open < d_2.low and
             d_1.close > d_2.close + (d_2.open - d_2.close) / 2
         )
-        #하락 추세 조건
-        sma_20 = indicator.cal_ma(closes, 20)
-        print(sma_20)
-        if sma_20 is not None: 
-            downward_condition = candle.close < sma_20[-1] and candle.close < sma_20[-2]
+        # 60일 이동평균 계산
+        sma_60 = indicator.cal_ma(closes, 60)  # 현재 60일 이동평균
+        sma_60_prev = indicator.cal_ma(closes[:-1], 60)  # 이전 60일 이동평균 (현재 종가 제외)
+        sma_120 = indicator.cal_ma(closes, 120) #120일 이동평균균
+
+        if sma_60 is not None and sma_60_prev is not None and sma_120 is not None: 
+            downward_condition = sma_60 <= sma_60_prev and sma_60 <= sma_120
         else:
-            downward_condition = True
+            downward_condition = False
         
         
         # 매수 신호
@@ -177,7 +188,7 @@ class TradingLogic:
         # 손절 신호와 익절 신호는 `simulate_trading`에서 판단
         return all_conditions_met and buy_signal
 
-    def engulfing2(self, candle, d_1):
+    def engulfing2(self, candle, d_1, closes):
         """
         상승장악형2 매매 로직.
         :param candle: 현재 캔들 데이터
@@ -190,14 +201,24 @@ class TradingLogic:
 
         # D-1 조건: 음봉 (종가 < 시가)
         d_1_condition = d_1.close < d_1.open
+        
+                # 60일 이동평균 계산
+        sma_60 = indicator.cal_ma(closes, 60)  # 현재 60일 이동평균
+        sma_60_prev = indicator.cal_ma(closes[:-1], 60)  # 이전 60일 이동평균 (현재 종가 제외)
+        sma_120 = indicator.cal_ma(closes, 120) #120일 이동평균균
+
+        if sma_60 is not None and sma_60_prev is not None and sma_120 is not None: 
+            downward_condition = sma_60 <= sma_60_prev and sma_60 <= sma_120 
+        else:
+            downward_condition = False
 
         # 매수 신호 조건: 현재 캔들의 시가 < D-1 최저가 AND 현재 캔들의 종가 > D-1 최고가
         buy_signal = candle.open < d_1.low or candle.close > d_1.high
 
         # 모든 조건 충족 확인
-        return d_1_condition and buy_signal
+        return d_1_condition and buy_signal and downward_condition
     
-    def counterattack(self, candle, d_1, d_2):
+    def counterattack(self, candle, d_1, d_2, closes):
         """
         상승 반격형 매매 로직.
         :param candle: 현재 캔들 데이터
@@ -218,15 +239,23 @@ class TradingLogic:
             d_1.open < d_2.low and  # D-1 시가가 D-2 저가보다 낮음
             d_1.close >= midpoint   # D-1 종가가 D-2 종가와 midpoint 이상
         )
+        # 60일 이동평균 계산
+        sma_60 = indicator.cal_ma(closes, 60)  # 현재 60일 이동평균
+        sma_60_prev = indicator.cal_ma(closes[:-1], 60)  # 이전 60일 이동평균 (현재 종가 제외)
+        sma_120 = indicator.cal_ma(closes, 120) #120일 이동평균균
 
+        if sma_60 is not None and sma_60_prev is not None and sma_120 is not None: 
+            downward_condition = sma_60 <= sma_60_prev and sma_60 <= sma_120
+        else:
+            downward_condition = False
         # 매수 신호: 현재 캔들의 종가가 D-2의 고가를 돌파
         buy_signal = candle.close > d_2.high
-        all_conditions_met = d_2_condition and d_1_condition
+        all_conditions_met = d_2_condition and d_1_condition and downward_condition
         # 모든 조건 충족 여부 확인
         return all_conditions_met and buy_signal
 
 
-    def harami(self, candle, d_1, d_2):
+    def harami(self, candle, d_1, d_2, closes):
         """
         상승 잉태형 매매 로직.
         :param candle: 현재 캔들 데이터
@@ -247,14 +276,22 @@ class TradingLogic:
             d_1.high < d_2.open and  # D-1 고가가 D-2 시가보다 낮음
             d_1.low > d_2.close     # D-1 저가가 D-2 종가보다 높음
         )
+        # 60일 이동평균 계산
+        sma_60 = indicator.cal_ma(closes, 60)  # 현재 60일 이동평균
+        sma_60_prev = indicator.cal_ma(closes[:-1], 60)  # 이전 60일 이동평균 (현재 종가 제외)
+        sma_120 = indicator.cal_ma(closes, 120) #120일 이동평균균
 
+        if sma_60 is not None and sma_60_prev is not None and sma_120 is not None: 
+            downward_condition = sma_60 <= sma_60_prev and sma_60 <= sma_120
+        else:
+            downward_condition = False
         # 매수 신호 조건: 현재 캔들의 종가가 D-2의 고가를 돌파
         buy_signal = candle.close > d_2.high
-        all_conditions_met = d_2_condition and d_1_condition
+        all_conditions_met = d_2_condition and d_1_condition and downward_condition
         # 모든 조건 충족 여부 확인
         return all_conditions_met and buy_signal
 
-    def doji_star(self, candle, d_1, d_2):
+    def doji_star(self, candle, d_1, d_2, closes):
         """
         상승 도지 스타 매매 로직.
         :return: 매수 성공 목록과 개별 신호
@@ -271,12 +308,21 @@ class TradingLogic:
                 d_1.open < d_2.low         # D-1 시초가 < D-2 최저가
             )
             # 매수 조건: 당일 종가 > D-2 최고가
+        # 60일 이동평균 계산
+        sma_60 = indicator.cal_ma(closes, 60)  # 현재 60일 이동평균
+        sma_60_prev = indicator.cal_ma(closes[:-1], 60)  # 이전 60일 이동평균 (현재 종가 제외)
+        sma_120 = indicator.cal_ma(closes, 120) #120일 이동평균균
+
+        if sma_60 is not None and sma_60_prev is not None and sma_120 is not None: 
+            downward_condition = sma_60 <= sma_60_prev and sma_60 <= sma_120
+        else:
+            downward_condition = False            
         buy_signal = candle.close > d_2.high
-        all_conditions_met = d_2_condition and d_1_condition
+        all_conditions_met = d_2_condition and d_1_condition and downward_condition
         
         return all_conditions_met and buy_signal
     
-    def morning_star(self, candle, d_1, d_2):
+    def morning_star(self, candle, d_1, d_2, closes):
         """
         샛별형 로직으로 매수/매도 신호를 판단.
         :param candle: 현재 캔들 데이터
@@ -298,10 +344,18 @@ class TradingLogic:
         )
         # 당일 조건: 장 양봉
         d_day_condition = (candle.close > candle.open) and abs(candle.close - candle.open) >= (float(candle.open) * 0.03) #장대양봉
-        
+        # 60일 이동평균 계산
+        sma_60 = indicator.cal_ma(closes, 60)  # 현재 60일 이동평균
+        sma_60_prev = indicator.cal_ma(closes[:-1], 60)  # 이전 60일 이동평균 (현재 종가 제외)
+        sma_120 = indicator.cal_ma(closes, 120) #120일 이동평균균
+
+        if sma_60 is not None and sma_60_prev is not None and sma_120 is not None: 
+            downward_condition = sma_60 <= sma_60_prev and sma_60 <= sma_120
+        else:
+            downward_condition = False        
         # 매수 신호
         buy_signal =  candle.low > d_1.close or candle.close> d_2.high #buy_signal 연결 or
-        all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition and d_day_condition
+        all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition and d_day_condition and downward_condition
         # 손절 신호와 익절 신호는 `simulate_trading`에서 판단
         return all_conditions_met and buy_signal
 
