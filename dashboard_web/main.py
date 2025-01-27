@@ -125,10 +125,10 @@ def main():
             # "대한항공": "003490",
         }
 
-            for stock in result:
-                key = stock['종목이름']  # 'a' 값을 키로
-                value = stock['종목코드']  # 'b' 값을 값으로
-                symbol_options[key] = value  # 딕셔너리에 추가
+        for stock in result:
+            key = stock['종목이름']  # 'a' 값을 키로
+            value = stock['종목코드']  # 'b' 값을 값으로
+            symbol_options[key] = value  # 딕셔너리에 추가
                 
         # 종목 선택
         trading_logic_options = {
