@@ -532,7 +532,7 @@ def main():
                     },
                 },
                 {
-                    "width": 110,
+                    "width": 1100,
                     "height": 100,
                     "layout": {
                         "background": {
