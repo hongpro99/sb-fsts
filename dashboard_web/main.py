@@ -355,29 +355,14 @@ def main():
         }
 
         # 매수/매도 로직 설정
-        available_buy_logic = {
-            "rsi 확인": 'rsi_trading',
-            "관통형": 'penetrating',
-            '상승장악형1': 'engulfing',
-            "상승장악형2": "engulfing2",
-            "상승반격형": "counterattack",
-            "상승잉태형": "harami",
-            "상승도지스타": "doji_star",
-            "샛별형": "morning_star",
-            "꼬리 확인": "check_wick"
-        }
+        # JSON 파일 읽기
+        file_path = "./dashboard_web/trading_logic.json"
+        with open(file_path, "r", encoding="utf-8") as file:
+            trading_logic = json.load(file)
 
-        available_sell_logic = {
-            "rsi 확인": 'rsi_trading',
-            "흑운형": 'dark_cloud',
-            '하락장악형1': 'down_engulfing',
-            "하락장악형2": "down_engulfing2",
-            "하락반격형": "down_counterattack",
-            "하락잉태형": "down_harami",
-            "하락도지스타": "down_doji_star",
-            "석별형": "evening_star",
-            "꼬리 확인": "check_wick"
-        }
+        # 사용 예시
+        available_buy_logic = trading_logic["available_buy_logic"]
+        available_sell_logic = trading_logic["available_sell_logic"]
 
         selected_stock = st.sidebar.selectbox("Select a Stock", list(symbol_options.keys()))
         selected_interval = st.sidebar.selectbox("Select Chart Interval", list(interval_options.keys()))
