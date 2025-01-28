@@ -33,6 +33,14 @@ class TechnicalIndicator:
         return sma_last
     
     
+    # volume 평균 계산 (20일 등등 파라미터로 받아서)
+    def cal_volume_avg(self, period):
+        
+        volume_avg = None
+
+        return volume_avg
+    
+    
     def calculate_rsi(self, closes, window=14):
         """
         RSI 계산
