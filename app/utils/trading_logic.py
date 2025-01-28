@@ -103,8 +103,8 @@ class TradingLogic:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
             return False, False
 
-            # 매수 신호: RSI가 40 아래에서 40 위로 돌파
-        buy_signal = previous_rsi < 40 <= current_rsi
+            # 매수 신호: RSI가 35 아래에서 35 위로 돌파
+        buy_signal = previous_rsi < 35 <= current_rsi
 
             # 매도 신호: RSI가 70 위에서 70 아래로 하락
         sell_signal = previous_rsi > 70 >= current_rsi
@@ -164,7 +164,7 @@ class TradingLogic:
 
         # D-2 조건: 큰 음봉
         d_2_condition = d_2.close < d_2.open
-        d_2_long_bear = abs(d_2.close - d_2.open) >= (float(d_2.open) * 0.03)
+        d_2_long_bear = abs(d_2.close - d_2.open) >= (float(d_2.open) * 0.02)
 
         # D-1 조건: 상승 반전
         d_1_condition = (
@@ -336,14 +336,14 @@ class TradingLogic:
 
         # D-2 조건: 큰 음봉
         d_2_condition = d_2.close < d_2.open #D-2음봉
-        d_2_long_bear = abs(d_2.close - d_2.open) >= (float(d_2.open) * 0.03) #장대음봉
+        d_2_long_bear = abs(d_2.close - d_2.open) >= (float(d_2.open) * 0.02) #장대음봉
 
         # D-1 조건
         d_1_condition = (
             d_2.close > d_1.close > d_1.open  # D-2 종가 > D-1 종가 > D-1 시초가
         )
         # 당일 조건: 장 양봉
-        d_day_condition = (candle.close > candle.open) and abs(candle.close - candle.open) >= (float(candle.open) * 0.03) #장대양봉
+        d_day_condition = (candle.close > candle.open) and abs(candle.close - candle.open) >= (float(candle.open) * 0.02) #장대양봉
         # 60일 이동평균 계산
         sma_60 = indicator.cal_ma(closes, 60)  # 현재 60일 이동평균
         sma_60_prev = indicator.cal_ma(closes[:-1], 60)  # 이전 60일 이동평균 (현재 종가 제외)
