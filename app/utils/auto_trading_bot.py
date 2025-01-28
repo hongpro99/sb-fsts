@@ -402,6 +402,8 @@ class AutoTradingBot:
                         if buy_yn:
                             used_buy_logic = trading_logic                        
                             break
+                        
+                    
             # 매도형 로직 처리
             if sell_trading_logic:
                 for trading_logic in sell_trading_logic:
@@ -477,6 +479,7 @@ class AutoTradingBot:
                     'quantity': buy_quantity,
                     'target_price': target_price,
                     'stop_loss_price': float_stop_loss_price,
+                    'used_buy_logic': used_buy_logic,
                     'time': timestamp_iso
                 })
                 #매수 기록
@@ -532,8 +535,10 @@ class AutoTradingBot:
                                 position['quantity'] = 0
 
             # 손절 로직
-            if trading_logic != 'rsi_trading' and trading_logic !='check_wick':
-                for position in positions:
+            
+            for position in positions:
+                if position['used_buy_logic'] == 'rsi_trading' or position['used_buy_logic'] == 'check_wick':
+                    
                     if position['quantity'] > 0 and close_price <= position['stop_loss_price']:
                         # 손절 계산
                         realized_pnl = (close_price - position['price']) * position['quantity']
