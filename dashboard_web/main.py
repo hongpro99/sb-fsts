@@ -235,7 +235,41 @@ def draw_lightweight_chart(data_df):
         
     ], 'multipane')
 
-
+def rename_tradingLogic(trade_history):
+    for entry in trade_history:
+        if entry.get('trading_logic') == 'rsi_trading':  # history에 있는 로직 이름 변경
+            entry['trading_logic'] = 'rsi 확인'
+        elif entry.get('trading_logic') == 'check_wick':
+            entry['trading_logic'] = '꼬리 확인'
+        elif entry.get('trading_logic') == 'penetrating':
+            entry['trading_logic'] = '관통형'
+        elif entry.get('trading_logic') == 'morning_star':
+            entry['trading_logic'] = '샛별형'
+        elif entry.get('trading_logic') == 'doji_star':
+            entry['trading_logic'] = '상승도지스타'
+        elif entry.get('trading_logic') == 'harami':
+            entry['trading_logic'] = '상승잉태형'
+        elif entry.get('trading_logic') == 'engulfing':
+            entry['trading_logic'] = '상승장악형'
+        elif entry.get('trading_logic') == 'engulfing2':
+            entry['trading_logic'] = '상승장악형2'
+        elif entry.get('trading_logic') == 'counterattack':
+            entry['trading_logic'] = '상승반격형'
+        elif entry.get('trading_logic') == 'down_engulfing':
+            entry['trading_logic'] = '하락장악형'
+        elif entry.get('trading_logic') == 'down_engulfing2':
+            entry['trading_logic'] = '하락장악형2'    
+        elif entry.get('trading_logic') == 'down_counterattack':
+            entry['trading_logic'] = '하락반격형'
+        elif entry.get('trading_logic') == 'down_harami':
+            entry['trading_logic'] = '하락잉태형'
+        elif entry.get('trading_logic') == 'down_doji_star':
+            entry['trading_logic'] = '하락도지스타'
+        elif entry.get('trading_logic') == 'evening_star':
+            entry['trading_logic'] = '석별형'
+        elif entry.get('trading_logic') == 'dark_cloud':
+            entry['trading_logic'] = '흑운형'
+            
 def main():
     
     # for DB
@@ -452,41 +486,7 @@ def main():
                             
                             # trade_history가 리스트인지 확인 후 DataFrame으로 변환
                             if isinstance(trade_history, list):
-                                for entry in trade_history:
-                                    if entry.get('trading_logic') == 'rsi_trading':  # history에 있는 로직 이름 변경
-                                        entry['trading_logic'] = 'rsi 확인'
-                                    elif entry.get('trading_logic') == 'check_wick':
-                                        entry['trading_logic'] = '꼬리 확인'
-                                    elif entry.get('trading_logic') == 'penetrating':
-                                        entry['trading_logic'] = '관통형'
-                                    elif entry.get('trading_logic') == 'morning_star':
-                                        entry['trading_logic'] = '샛별형'
-                                    elif entry.get('trading_logic') == 'doji_star':
-                                        entry['trading_logic'] = '상승도지스타'
-                                    elif entry.get('trading_logic') == 'harami':
-                                        entry['trading_logic'] = '상승잉태형'
-                                    elif entry.get('trading_logic') == 'engulfing':
-                                        entry['trading_logic'] = '상승장악형'
-                                    elif entry.get('trading_logic') == 'engulfing2':
-                                        entry['trading_logic'] = '상승장악형2'
-                                    elif entry.get('trading_logic') == 'counterattack':
-                                        entry['trading_logic'] = '상승반격형'
-                                    elif entry.get('trading_logic') == 'down_engulfing':
-                                        entry['trading_logic'] = '하락장악형'
-                                    elif entry.get('trading_logic') == 'down_engulfing2':
-                                        entry['trading_logic'] = '하락장악형2'    
-                                    elif entry.get('trading_logic') == 'down_counterattack':
-                                        entry['trading_logic'] = '하락반격형'
-                                    elif entry.get('trading_logic') == 'down_harami':
-                                        entry['trading_logic'] = '하락잉태형'
-                                    elif entry.get('trading_logic') == 'down_doji_star':
-                                        entry['trading_logic'] = '하락도지스타'
-                                    elif entry.get('trading_logic') == 'evening_star':
-                                        entry['trading_logic'] = '석별형'
-                                    elif entry.get('trading_logic') == 'dark_cloud':
-                                        entry['trading_logic'] = '흑운형'
-                                
-
+                                rename_tradingLogic(trade_history)
                                 trade_history_df = pd.DataFrame(trade_history)
                             
                                 # Streamlit 테이블로 표시
