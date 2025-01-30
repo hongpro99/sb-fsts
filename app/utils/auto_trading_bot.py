@@ -269,14 +269,14 @@ class AutoTradingBot:
         return trading_history
     
 
-    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None, interval='day'):
-        ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
+    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None, interval='day', buy_percentage = None):
+        ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval) #클래스 객체, .사용
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
         position_count = 0  # 현재 포지션 수량
         positions = [] #손절 포지션
         previous_closes = []  # 이전 종가들을 저장
         closes = []
-        
+        mfi_recent_data = []
         trading_history = {
             'average_price': 0,  # 평단가
             'realized_pnl': 0,  # 실현 손익
@@ -304,6 +304,11 @@ class AutoTradingBot:
         d_2 = None
         d_3 = None 
 
+        recent_buy_prices = {
+            'price' : 0,
+            'timestamp' : None
+        }  # 최근 매수가격 기록
+        
         while i < len(ohlc_data):
             candle = ohlc_data[i]
             open_price = float(candle.open)
@@ -327,7 +332,7 @@ class AutoTradingBot:
                     # 데이터 유효성 검사: 20일 거래량 데이터가 비어 있거나 모두 0인 경우 처리
             else:
                 recent_20_days_volume = []
-            print(f"거래량 : {recent_20_days_volume}")
+            
             
             # 평균 거래량 계산 (거래량 데이터가 비어 있으면 0 반환)
             if len(recent_20_days_volume) > 0:
@@ -371,9 +376,35 @@ class AutoTradingBot:
 
                     elif trading_logic == 'morning_star':
                         buy_yn = logic.morning_star(candle, d_1, d_2, closes)
+                        
+                    elif trading_logic == 'mfi_trading':
+                        mfi_values = indicator.calculate_mfi(candle, d_1, 14)
+                        
+                        # ✅ None 체크 추가
+                        if mfi_values is None:
+                            mfi_values = []  # 빈 리스트로 처리
+                            
+                        buy_yn, _ = logic.mfi_trading(mfi_values)    
                     
-                        # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가  
-                    if buy_yn and d_1.volume > avg_volume_20_days and volume > d_1.volume:
+                        # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
+                    if buy_yn and volume > d_1.volume and d_1.volume > avg_volume_20_days:
+                                                # 3% 매수 제한 조건 확인
+                        if buy_percentage is not None:
+                            #첫 매수는 항상 허용
+                            if recent_buy_prices['price'] == 0:
+                                can_buy = True
+                            else:
+                                price_range = recent_buy_prices['price'] * buy_percentage / 100
+                                price_lower = recent_buy_prices['price'] - price_range
+                                price_upper = recent_buy_prices['price'] + price_range
+                                
+                                can_buy = not(price_lower <= close_price <= price_upper and timestamp_iso != recent_buy_prices['timestamp'])
+                            
+                            # 최근 매수가격이 설정된 범위 내에 있으면 매수하지 않음
+                            if not can_buy:
+                                print(f"🚫 매수 조건 충족했지만, {buy_percentage}% 범위 내 기존 매수가 존재하여 매수하지 않음 ({close_price}KRW)")
+                                continue
+                            
                         stop_loss_price = d_1.low if d_1 else None
                         float_stop_loss_price = float(stop_loss_price)
                         target_price = close_price + 2*(close_price - float_stop_loss_price) if float_stop_loss_price else None
@@ -401,6 +432,11 @@ class AutoTradingBot:
                         })
 
                         buy_signals.append((timestamp, close_price))
+                        recent_buy_prices.update({
+                            'price' : close_price,
+                            'timestamp' : timestamp_iso
+                        
+                        })
                         print(f"매수 시점: {timestamp_iso}, 매수가: {close_price} KRW, 매수량: {buy_quantity}, 손절가격: {stop_loss_price}, 익절 가격: {target_price}")        
             
                     # 손익 및 매매 횟수 계산
@@ -441,6 +477,10 @@ class AutoTradingBot:
                         # 볼린저 밴드 계산
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
                         sell_yn, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                        
+                    elif trading_logic == 'mfi_trading':
+                        mfi_values = indicator.calculate_mfi(candle, d_1, 14)
+                        _, sell_yn = logic.mfi_trading(mfi_values)    
                 #매도 사인이 2개 이상일 때 quantity 조건에 충족되지 않은 조건은 history에 추가되지 않는다는 문제 해결 필요
                 # 매도
                 if sell_yn:
@@ -525,14 +565,14 @@ class AutoTradingBot:
         print(f"총 실현손익: {trading_history['realized_pnl']}KRW")
         print(f"미실현 손익 (Unrealized PnL): {trading_history['unrealized_pnl']}KRW")
         
-        sql_executor = SQLExecutor()
+        #sql_executor = SQLExecutor()
         # 결과를 DB에 저장
-        self.save_trading_history_to_db_with_executor(trading_history, symbol, sql_executor, trading_logic)
+        #self.save_trading_history_to_db_with_executor(trading_history, symbol, sql_executor)
         
-        return result_data, simulation_plot
+        return result_data, trading_history
 
 
-    def save_trading_history_to_db_with_executor(self, trading_history, symbol, sql_executor, trading_logic):
+    def save_trading_history_to_db_with_executor(self, trading_history, symbol, sql_executor):
         """
         trading_history 데이터를 DB에 저장하는 함수 (sql_executor 사용)
         
@@ -544,18 +584,17 @@ class AutoTradingBot:
     
         query = """
             INSERT INTO fsts.simulation_history (
-                trading_logic, symbol, average_price, realized_pnl, unrealized_pnl, realized_roi, unrealized_roi,
+                symbol, average_price, realized_pnl, unrealized_pnl, realized_roi, unrealized_roi,
                 total_cost, total_quantity, buy_count, sell_count, 
                 buy_dates, sell_dates, history, created_at
             ) VALUES (
-                :trading_logic, :symbol, :average_price, :realized_pnl, :unrealized_pnl, :realized_roi, :unrealized_roi,
+                :symbol, :average_price, :realized_pnl, :unrealized_pnl, :realized_roi, :unrealized_roi,
                 :total_cost, :total_quantity, :buy_count, :sell_count, 
                 :buy_dates, :sell_dates, :history, NOW()
             ) RETURNING *;
         """
 
         params = {
-            "trading_logic" : trading_logic,
             "symbol": symbol,
             "average_price": trading_history['average_price'],
             "realized_pnl": trading_history['realized_pnl'],
