@@ -149,7 +149,12 @@ class AutoTradingBot:
         df['SMA_120'] = df['Close'].rolling(window=120).mean()
         df['SMA_200'] = df['Close'].rolling(window=200).mean()
 
-        print(f"df['SMA_200'] = {df['SMA_200']}")
+        #rsi
+        df = indicator.cal_rsi_df(df)
+        df = indicator.cal_macd_df(df)
+        df = indicator.cal_stochastic_df(df)
+
+        print(f'df = {df}')
 
         # 매수 및 매도 시그널 표시를 위한 추가 데이터 (x와 y의 길이 맞추기 위해 NaN 사용)
         df['Buy_Signal'] = np.nan

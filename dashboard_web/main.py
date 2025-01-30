@@ -35,20 +35,17 @@ def draw_lightweight_chart(data_df):
     sell_signal_df = data_df[data_df['sell_signal'].notna()]
 
     # export to JSON format
-    temp_df = data_df
-    candles = json.loads(temp_df.to_json(orient = "records"))
+    candles = json.loads(data_df.to_json(orient = "records"))
 
-    temp_df = data_df
-    temp_df = temp_df.dropna(subset=['upper'])
-    bollinger_band_upper = json.loads(temp_df.rename(columns={"upper": "value",}).to_json(orient = "records"))
-
-    temp_df = data_df
-    temp_df = temp_df.dropna(subset=['middle'])
-    bollinger_band_middle = json.loads(temp_df.rename(columns={"middle": "value",}).to_json(orient = "records"))
-
-    temp_df = data_df
-    temp_df = temp_df.dropna(subset=['lower'])
-    bollinger_band_lower = json.loads(temp_df.rename(columns={"lower": "value",}).to_json(orient = "records"))
+    bollinger_band_upper = json.loads(data_df.dropna(subset=['upper']).rename(columns={"upper": "value",}).to_json(orient = "records"))
+    bollinger_band_middle = json.loads(data_df.dropna(subset=['middle']).rename(columns={"middle": "value",}).to_json(orient = "records"))
+    bollinger_band_lower = json.loads(data_df.dropna(subset=['lower']).rename(columns={"lower": "value",}).to_json(orient = "records"))
+    rsi = json.loads(data_df.dropna(subset=['rsi']).rename(columns={"rsi": "value"}).to_json(orient="records"))
+    macd = json.loads(data_df.dropna(subset=['macd']).rename(columns={"macd": "value"}).to_json(orient="records"))
+    macd_signal = json.loads(data_df.dropna(subset=['macd_signal']).rename(columns={"macd_signal": "value"}).to_json(orient="records"))
+    macd_histogram = json.loads(data_df.dropna(subset=['macd_histogram']).rename(columns={"macd_histogram": "value"}).to_json(orient="records"))
+    stochastic_k = json.loads(data_df.dropna(subset=['stochastic_k']).rename(columns={"stochastic_k": "value"}).to_json(orient="records"))
+    stochastic_d = json.loads(data_df.dropna(subset=['stochastic_d']).rename(columns={"stochastic_d": "value"}).to_json(orient="records"))
 
     temp_df = data_df
     temp_df['color'] = np.where(temp_df['open'] > temp_df['close'], COLOR_BEAR, COLOR_BULL)  # bull or bear
@@ -149,8 +146,92 @@ def draw_lightweight_chart(data_df):
                 "fontSize": 15,
                 "horzAlign": 'left',
                 "vertAlign": 'top',
-                "color": 'rgba(171, 71, 188, 0.7)',
+                "color": 'rgba(255, 99, 132, 0.7)',
                 "text": 'Volume',
+            }
+        },
+        {
+            "height": 150,  # RSI 차트 높이 설정
+            "layout": {
+                "background": {"type": "solid", "color": 'white'},
+                "textColor": "black"
+            },
+            "grid": {
+                "vertLines": {"color": "rgba(197, 203, 206, 0.5)"},
+                "horzLines": {"color": "rgba(197, 203, 206, 0.5)"}
+            },
+            "crosshair": {"mode": 0},
+            "priceScale": {"borderColor": "rgba(197, 203, 206, 0.8)"},
+            "timeScale": {
+                "borderColor": "rgba(197, 203, 206, 0.8)",
+                "barSpacing": 15,
+                "fixLeftEdge": True,
+                "fixRightEdge": True,
+                "visible": True
+            },
+            "watermark": {
+                "visible": True,
+                "fontSize": 15,
+                "horzAlign": 'left',
+                "vertAlign": 'top',
+                "color": 'rgba(255, 99, 132, 0.7)',
+                "text": 'RSI',
+            }
+        },
+        {
+            "height": 150,  # RSI 차트 높이 설정
+            "layout": {
+                "background": {"type": "solid", "color": 'white'},
+                "textColor": "black"
+            },
+            "grid": {
+                "vertLines": {"color": "rgba(197, 203, 206, 0.5)"},
+                "horzLines": {"color": "rgba(197, 203, 206, 0.5)"}
+            },
+            "crosshair": {"mode": 0},
+            "priceScale": {"borderColor": "rgba(197, 203, 206, 0.8)"},
+            "timeScale": {
+                "borderColor": "rgba(197, 203, 206, 0.8)",
+                "barSpacing": 15,
+                "fixLeftEdge": True,
+                "fixRightEdge": True,
+                "visible": True
+            },
+            "watermark": {
+                "visible": True,
+                "fontSize": 15,
+                "horzAlign": 'left',
+                "vertAlign": 'top',
+                "color": 'rgba(255, 99, 132, 0.7)',
+                "text": 'MACD',
+            }
+        },
+        {
+            "height": 150,  # RSI 차트 높이 설정
+            "layout": {
+                "background": {"type": "solid", "color": 'white'},
+                "textColor": "black"
+            },
+            "grid": {
+                "vertLines": {"color": "rgba(197, 203, 206, 0.5)"},
+                "horzLines": {"color": "rgba(197, 203, 206, 0.5)"}
+            },
+            "crosshair": {"mode": 0},
+            "priceScale": {"borderColor": "rgba(197, 203, 206, 0.8)"},
+            "timeScale": {
+                "borderColor": "rgba(197, 203, 206, 0.8)",
+                "barSpacing": 15,
+                "fixLeftEdge": True,
+                "fixRightEdge": True,
+                "visible": True
+            },
+            "watermark": {
+                "visible": True,
+                "fontSize": 15,
+                "horzAlign": 'left',
+                "vertAlign": 'top',
+                "color": 'rgba(255, 99, 132, 0.7)',
+                "text": 'Stocastic',
             }
         }
     ]
@@ -211,7 +292,8 @@ def draw_lightweight_chart(data_df):
                 "priceFormat": {
                     "type": 'volume',
                 },
-                "priceScaleId": "" # set as an overlay setting,
+                "priceScaleId": "", # set as an overlay setting,
+                "priceLineVisible": False,
             },
             "priceScale": {
                 "scaleMargins": {
@@ -223,6 +305,92 @@ def draw_lightweight_chart(data_df):
         }
     ]
 
+    # RSI 차트 시리즈 추가
+    seriesRsiChart = [
+        {
+            "type": 'Line',
+            "data": rsi,
+            "options": {
+                "color": 'rgba(0, 0, 0, 1)',
+                "lineWidth": 1.5,
+                "priceScaleId": "right",
+                "lastValueVisible": True,
+                "priceLineVisible": False,
+            },
+        },
+        {
+            "type": 'Line',
+            "data": [{"time": row["time"], "value": 70} for row in rsi],  # 과매수 라인
+            "options": {
+                "color": 'rgba(200, 0, 0, 0.5)',  # 빨간색
+                "lineWidth": 2,
+                "priceScaleId": "right",
+                "lastValueVisible": True,
+                "priceLineVisible": False,
+            },
+        },
+        {
+            "type": 'Line',
+            "data": [{"time": row["time"], "value": 30} for row in rsi],  # 과매도 라인
+            "options": {
+                "color": 'rgba(200, 0, 0, 0.5)',  # 빨간색
+                "lineWidth": 2,
+                "priceScaleId": "right",
+                "lastValueVisible": True,
+                "priceLineVisible": False,
+            },
+        },
+    ]
+
+    seriesMACDChart = [
+        {
+            "type": 'Line',
+            "data": macd,
+            "options": {
+                "color": 'rgba(0, 150, 255, 1)',
+                "lineWidth": 1.5,
+                "priceLineVisible": False,
+            }
+        },
+        {
+            "type": 'Line',
+            "data": macd_signal, 
+            "options": {
+                "color": 'rgba(255, 0, 0, 1)', 
+                "lineWidth": 1.5,
+                "priceLineVisible": False,
+            }
+        },
+        {
+            "type": 'Histogram',
+            "data": macd_histogram,
+            "options": {
+                "priceLineVisible": False,
+            }
+        }
+    ]
+
+    seriesStochasticChart = [
+        {
+            "type": 'Line', 
+            "data": stochastic_k, 
+            "options": {
+                "color": 'rgba(0, 150, 255, 1)', 
+                "lineWidth": 1.5,
+                "priceLineVisible": False,
+            }
+        },
+        {
+            "type": 'Line', 
+            "data": stochastic_d, 
+            "options": {
+                "color": 'rgba(255, 0, 0, 1)', 
+                "lineWidth": 1.5,
+                "priceLineVisible": False,
+            }
+        },
+    ]
+
     renderLightweightCharts([
         {
             "chart": chartMultipaneOptions[0],
@@ -232,7 +400,18 @@ def draw_lightweight_chart(data_df):
             "chart": chartMultipaneOptions[1],
             "series": seriesVolumeChart
         },
-        
+        {
+            "chart": chartMultipaneOptions[2],
+            "series": seriesRsiChart
+        },
+        {
+            "chart": chartMultipaneOptions[3],
+            "series": seriesMACDChart
+        },
+        {
+            "chart": chartMultipaneOptions[4],
+            "series": seriesStochasticChart
+        },
     ], 'multipane')
 
 
