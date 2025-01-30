@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 
 class TechnicalIndicator:
@@ -102,6 +103,7 @@ class TechnicalIndicator:
 
         return rsi
 
+
     def calculate_mfi(self, candle, d_1, period=14): 
         """
         새로운 캔들을 받아 MFI를 계산
@@ -154,4 +156,58 @@ class TechnicalIndicator:
         mfi_values = self.mfi_values
         self.mfi_values.append(mfi)
         return mfi_values
+
+
+    
+
+    def cal_rsi_df(self, df, window=14):
+
+        delta = df['Close'].diff(1)  # 종가 차이 계산
+
+        gain = np.where(delta > 0, delta, 0)  # 상승분만 추출
+        loss = np.where(delta < 0, -delta, 0)  # 하락분만 추출
+
+        avg_gain = pd.Series(gain, index=df.index).rolling(window=window, min_periods=1).mean()
+        avg_loss = pd.Series(loss, index=df.index).rolling(window=window, min_periods=1).mean()
+
+        rs = avg_gain / (avg_loss + 1e-10)  # 0으로 나누는 오류 방지
+        rsi = 100 - (100 / (1 + rs))
+
+        df['rsi'] = rsi
+
+        return df
+    
+
+    def cal_macd_df(self, df, short_window=12, long_window=26, signal_window=9):
+        """
+        	•	MACD (Moving Average Convergence Divergence)는 단기(12) EMA와 장기(26) EMA의 차이를 나타냄.
+            •	MACD Line = 12-day EMA - 26-day EMA
+            •	Signal Line = 9-day EMA of MACD Line (MACD의 9일 이동 평균)
+            •	MACD와 Signal의 차이를 히스토그램으로 표현함.
+        """
+
+        df['ema_short'] = df['Close'].ewm(span=short_window, adjust=False).mean()
+        df['ema_long'] = df['Close'].ewm(span=long_window, adjust=False).mean()
+
+        df['macd'] = df['ema_short'] - df['ema_long']
+        df['macd_signal'] = df['macd'].ewm(span=signal_window, adjust=False).mean()
+        df['macd_histogram'] = df['macd'] - df['macd_signal']  # MACD 히스토그램
+
+        return df
+    
+
+    def cal_stochastic_df(self, df, k_window=14, d_window=3):
+        """
+        	•	현재 종가가 최근 N일 동안의 고점과 저점 사이에서 어디쯤 위치하는지를 나타내는 지표.
+            •	K% = (현재 종가 - 최저가) / (최고가 - 최저가) * 100
+            •	D% = K%의 3일 이동 평균
+        """
+
+        df['low_min'] = df['Close'].rolling(window=k_window).min()
+        df['high_max'] = df['Close'].rolling(window=k_window).max()
+
+        df['stochastic_k'] = 100 * ((df['Close'] - df['low_min']) / (df['high_max'] - df['low_min'] + 1e-10))
+        df['stochastic_d'] = df['stochastic_k'].rolling(window=d_window).mean()  # 3일 이동 평균
+
+        return df
 
