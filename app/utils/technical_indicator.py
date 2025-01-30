@@ -3,6 +3,11 @@ import pandas as pd
 
 
 class TechnicalIndicator:
+    
+    def __init__(self):
+        self.recent_data = []  # ✅ recent_data를 인스턴스 변수로 유지하여 초기화 방지
+        self.mfi_values = []
+        
     # 볼린저밴드 계산
     def cal_bollinger_band(self, previous_closes, close_price):
         if len(previous_closes) >= 20:
@@ -97,6 +102,62 @@ class TechnicalIndicator:
                     rsi[i] = 100 - (100 / (1 + rs))
 
         return rsi
+
+
+    def calculate_mfi(self, candle, d_1, period=14): 
+        """
+        새로운 캔들을 받아 MFI를 계산
+        :param candle: 현재 캔들 데이터 (딕셔너리 또는 클래스 객체)
+        :param d_1: 전일 캔들 데이터 (딕셔너리 또는 클래스 객체)
+        :return: 계산된 MFI 값 (단일 float 값)
+        기본 period = 14
+        """
+        if not d_1:  # 전일 데이터가 없으면 MFI 계산 불가
+            return None
+        
+        
+        # 전일 TP 계산
+        prev_tp = (d_1.high + d_1.low + d_1.close) / 3
+
+        # 1️⃣ 현재 Typical Price (TP) 계산
+        tp = (candle.high + candle.low + candle.close) / 3
+
+        # 2️⃣ Raw Money Flow 계산
+        raw_money_flow = tp * candle.volume
+
+        # 3️⃣ Positive / Negative Money Flow 계산
+        if tp > prev_tp:
+            positive_money_flow = raw_money_flow
+            negative_money_flow = 0
+        elif tp < prev_tp:
+            positive_money_flow = 0
+            negative_money_flow = raw_money_flow
+        else:
+            positive_money_flow = 0
+            negative_money_flow = 0
+
+        # 4️⃣ 최근 period 개의 데이터를 저장 (rolling 기능을 구현)
+        self.recent_data.append({"positive": positive_money_flow, "negative": negative_money_flow})
+
+        # 5️⃣ MFI 계산 (기간 내 데이터가 충분한 경우)
+        if len(self.recent_data) > period:
+            self.recent_data.pop(0)  # 가장 오래된 데이터 삭제
+
+        if len(self.recent_data) < period:
+            return None  # 데이터가 부족하면 MFI 계산 불가
+
+        positive_sum = sum(d["positive"] for d in self.recent_data)
+        negative_sum = sum(d["negative"] for d in self.recent_data)
+
+        # 6️⃣ Money Ratio 및 MFI 계산
+        money_ratio = positive_sum / (negative_sum if negative_sum > 0 else 1)  # 0 나누기 방지
+        mfi = 100 - (100 / (1 + money_ratio))
+        
+        mfi_values = self.mfi_values
+        self.mfi_values.append(mfi)
+        return mfi_values
+
+
     
 
     def cal_rsi_df(self, df, window=14):
@@ -149,3 +210,4 @@ class TechnicalIndicator:
         df['stochastic_d'] = df['stochastic_k'].rolling(window=d_window).mean()  # 3일 이동 평균
 
         return df
+

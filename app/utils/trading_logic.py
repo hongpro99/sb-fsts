@@ -546,4 +546,29 @@ class TradingLogic:
         
         return all_conditions_met and sell_signal
     
+    def mfi_trading(self, mfi_values):
+        """
+        MFI를 기반으로 매수/매도 신호를 계산하는 함수.
+        """
+        # ✅ MFI 값이 None이면 기본값으로 빈 리스트 처리
+        if mfi_values is None or not isinstance(mfi_values, list):
+            return False, False  # 매수/매도 없음
+        
+        current_mfi = mfi_values[-1] 
+        previous_mfi = mfi_values[-2] if len(mfi_values) > 1 else None
+        
+        if len(mfi_values) < 0 or current_mfi is None or previous_mfi is None:
+            # D-1 또는 D-2 데이터가 없으면 신호 없음
+            return False, False
+
+            # 매수 신호: mfi가 20 이하일때 매수
+        buy_signal = previous_mfi < 20 <= current_mfi
+
+            # 매도 신호: mfi가 80 이상일때 매도
+        sell_signal = previous_mfi > 80 >= current_mfi
+            
+        return buy_signal, sell_signal
+        
+        
+        
     
