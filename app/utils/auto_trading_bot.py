@@ -269,8 +269,8 @@ class AutoTradingBot:
         return trading_history
     
 
-    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None, interval='day', buy_percentage = None):
-        ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval) #클래스 객체, .사용
+    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None, interval='day', buy_percentage = None, ohlc_mode = 'default'):
+        ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval, ohlc_mode) #클래스 객체, .사용
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
         position_count = 0  # 현재 포지션 수량
         positions = [] #손절 포지션

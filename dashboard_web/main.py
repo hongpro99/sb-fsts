@@ -350,7 +350,10 @@ def setup_sidebar(sql_executer):
     selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic] if selected_buy_logic else []
     selected_sellTrading_logic = [available_sell_logic[logic] for logic in selected_sell_logic] if selected_sell_logic else []
 
-
+    #mode
+    ohlc_mode_checkbox = st.sidebar.checkbox("차트 연결 모드")  # True / False 반환
+    ohlc_mode = "continuous" if ohlc_mode_checkbox else "default"
+    
     # ✅ 설정 값을 딕셔너리 형태로 반환
     return {
         "user_name": user_name,
@@ -364,6 +367,7 @@ def setup_sidebar(sql_executer):
         "sell_trading_logic": selected_sellTrading_logic,
         "buy_condition_yn": buy_condition_yn,
         "buy_percentage": buy_percentage,
+        "ohlc_mode": ohlc_mode
     }
             
 def main():
@@ -460,7 +464,8 @@ def main():
                     buy_trading_logic=sidebar_settings["buy_trading_logic"],
                     sell_trading_logic=sidebar_settings["sell_trading_logic"],
                     interval=sidebar_settings["interval"],
-                    buy_percentage=sidebar_settings["buy_percentage"]
+                    buy_percentage=sidebar_settings["buy_percentage"],
+                    ohlc_mode = sidebar_settings["ohlc_mode"]
                 )
         
                 # tradingview chart draw
@@ -568,7 +573,8 @@ def main():
                             buy_trading_logic=sidebar_settings["buy_trading_logic"],
                             sell_trading_logic=sidebar_settings["sell_trading_logic"],
                             interval="day",
-                            buy_percentage=sidebar_settings["buy_percentage"]
+                            buy_percentage=sidebar_settings["buy_percentage"],
+                            ohlc_mode = sidebar_settings["ohlc_mode"]
                         )
 
                         if trading_history:
