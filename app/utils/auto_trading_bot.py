@@ -280,7 +280,7 @@ class AutoTradingBot:
         return trading_history
     
 
-    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None, interval='day', buy_percentage = None, ohlc_mode = 'default'):
+    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None, interval='day', buy_percentage = None, ohlc_mode = 'default',rsi_buy_threshold = 30, rsi_sell_threshold = 70):
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval, ohlc_mode) #클래스 객체, .사용
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
         position_count = 0  # 현재 포지션 수량
@@ -365,7 +365,7 @@ class AutoTradingBot:
                         
                     elif trading_logic == 'rsi_trading':
                         rsi_values = indicator.cal_rsi(closes, 14)
-                        buy_yn, _ = logic.rsi_trading(rsi_values)
+                        buy_yn, _ = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
 
                     elif trading_logic == 'penetrating':
                         buy_yn = logic.penetrating(candle, d_1, d_2, closes)
@@ -482,7 +482,7 @@ class AutoTradingBot:
                         
                     elif trading_logic == 'rsi_trading':
                         rsi_values = indicator.cal_rsi(closes, 14)
-                        _, sell_yn = logic.rsi_trading(rsi_values)
+                        _, sell_yn = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
                         
                     elif trading_logic == 'check_wick':            
                         # 볼린저 밴드 계산
