@@ -19,7 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.crud_sql import SQLExecutor
 from app.utils.database import get_db, get_db_session
-from app.utils.trading_logic import TradingLogic
+
 
 def draw_lightweight_chart(data_df):
 
@@ -542,6 +542,7 @@ def setup_sidebar(sql_executer):
         "target_trade_value_krw": target_trade_value_krw,
         "kospi200": symbol_options,
         "symbol": symbol,
+        "selected_stock": selected_stock,
         "interval": interval,
         "buy_trading_logic": selected_buyTrading_logic,
         "sell_trading_logic": selected_sellTrading_logic,
@@ -557,7 +558,7 @@ def setup_my_page(sql_executor):
     st.header("🛠 마이페이지 설정")
 
     # AutoTradingBot, trading_logic 및 SQLExecutor 객체 생성
-    tradingLogic = TradingLogic()
+    
     sql_executor = SQLExecutor()
     user_name = "홍석문"  # 사용자 이름 (고정값)
     auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=True)
@@ -630,8 +631,6 @@ def setup_my_page(sql_executor):
     rsi_buy_threshold = st.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=30, step=1, key="rsi_buy_threshold")
     rsi_sell_threshold = st.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1, key="rsi_sell_threshold")
 
-
-    tradingLogic.rsi_trading(rsi_buy_threshold,rsi_sell_threshold)
     # ✅ 설정 저장 버튼
     if st.button("✅ 설정 저장"):
         st.session_state["my_page_settings"] = {
@@ -639,8 +638,8 @@ def setup_my_page(sql_executor):
             "start_date": start_date,
             "end_date": end_date,
             "target_trade_value_krw": target_trade_value_krw,
-            "selected_stocks": selected_stocks,
-            "selected_symbols": selected_symbols,
+            "selected_stocks": selected_stocks, #이름만
+            "selected_symbols": selected_symbols, #이름+코드(key,value)
             "interval": interval,
             "selected_buyTrading_logic": selected_buyTrading_logic,
             "selected_sellTrading_logic": selected_sellTrading_logic,
@@ -738,9 +737,10 @@ def main():
         
         if st.sidebar.button("개별 종목 시뮬레이션 실행", key = 'simulation_button'):
             auto_trading_stock = AutoTradingBot(user_name=sidebar_settings["user_name"], virtual=True)
-
+            
+            my_page_settings = st.session_state["my_page_settings"]
             with st.container():
-                st.write(f"📊 {sidebar_settings['symbol']} 시뮬레이션 실행 중...")
+                st.write(f"📊 {sidebar_settings['selected_stock']} 시뮬레이션 실행 중...")
                 
                 #시뮬레이션 실행
                 data_df, trading_history = auto_trading_stock.simulate_trading(
@@ -752,7 +752,10 @@ def main():
                     sell_trading_logic=sidebar_settings["sell_trading_logic"],
                     interval=sidebar_settings["interval"],
                     buy_percentage=sidebar_settings["buy_percentage"],
-                    ohlc_mode = sidebar_settings["ohlc_mode"]
+                    ohlc_mode = sidebar_settings["ohlc_mode"],
+                    rsi_buy_threshold = my_page_settings['rsi_buy_threshold'],
+                    rsi_sell_threshold = my_page_settings['rsi_sell_threshold']
+                    
                 )
         
                 # tradingview chart draw
@@ -784,7 +787,7 @@ def main():
                         history_df[column] = history_df[column].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
                         
                 # 🎯 trading_history에 symbol 변수 추가
-                stock_name = next((company for company, code in st.session_state.items() if code == sidebar_settings["symbol"]), "해당 종목 없음")
+                stock_name = next((company for company, code in st.session_state.items() if code == sidebar_settings["symbol"]), "해당 종목 없음") #수정 필요!
                 history_df["symbol"] = stock_name
                 # 원하는 컬럼 순서 지정
                 reorder_columns = [
@@ -864,7 +867,8 @@ def main():
                             sell_trading_logic=my_page_settings["selected_sellTrading_logic"],
                             interval=my_page_settings["interval"],
                             buy_percentage=my_page_settings["buy_percentage"],
-                            
+                            rsi_buy_threshold = my_page_settings['rsi_buy_threshold'],
+                            rsi_sell_threshold = my_page_settings['rsi_sell_threshold']
                         )
 
                         if trading_history:
