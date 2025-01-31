@@ -39,6 +39,9 @@ class AutoTradingBot:
 
         with get_db_session() as db:
             result = sql_executor.execute_select(db, query, params)
+            
+        if not result:
+            raise ValueError(f"사용자 {user_name}에 대한 정보를 찾을 수 없습니다.")    
 
         self.kis_id = result[0]['kis_id']
         self.app_key = result[0]['app_key']
@@ -51,8 +54,8 @@ class AutoTradingBot:
         self.virtual_account = result[0]['virtual_account']
 
         # 임의로 app_key 및 secret_key 넣고 싶을 경우
-        if app_key is not None and secret_key is not None and account is not None:
-            if virtual is True:
+        if app_key and secret_key and account:
+            if virtual:
                 self.virual_app_key = app_key
                 self.virual_secret_key = secret_key
                 self.virual_account = account
@@ -61,6 +64,11 @@ class AutoTradingBot:
                 self.secret_key = secret_key
                 self.account = account
 
+        # PyKis 객체 생성
+        self.create_kis_object()    
+
+    def create_kis_object(self):
+        """한 번 발급받은 토큰을 유지하면서 PyKis 객체 생성"""
         # 모의투자용 PyKis 객체 생성
         if self.virtual:
             if not all([self.kis_id, self.app_key, self.secret_key, 
@@ -86,10 +94,9 @@ class AutoTradingBot:
                 account=self.account, # 계좌번호 (예: "12345678-01")
                 keep_token=True           # 토큰 자동 갱신 여부
             )
-                            
+
         print(f"{'모의투자' if self.virtual else '실전투자'} API 객체가 성공적으로 생성되었습니다.")
-
-
+        
     def send_discord_webhook(self, message, bot_type):
         if bot_type == 'trading':
             webhook_url = 'https://discord.com/api/webhooks/1324331095583363122/wbpm4ZYV4gRZhaSywRp28ZWQrp_hJf8iiitISJrNYtAyt5NmBccYWAeYgcGd5pzh4jRK'  # 복사한 Discord 웹훅 URL로 변경
@@ -251,7 +258,6 @@ class AutoTradingBot:
 
         # 미실현 손익 계산
         unrealized_pnl = (current_price - average_price) * total_quantity if total_quantity > 0 else 0
-        
         realized_roi = (total_realized_pnl/investment_cost)*100 if investment_cost > 0 else 0
         unrealized_roi = ((total_realized_pnl + unrealized_pnl)/investment_cost)*100 if investment_cost > 0 else 0
 
@@ -358,7 +364,7 @@ class AutoTradingBot:
                         _, buy_yn = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         
                     elif trading_logic == 'rsi_trading':
-                        rsi_values = indicator.calculate_rsi(closes, 14)
+                        rsi_values = indicator.cal_rsi(closes, 14)
                         buy_yn, _ = logic.rsi_trading(rsi_values)
 
                     elif trading_logic == 'penetrating':
@@ -383,7 +389,7 @@ class AutoTradingBot:
                         buy_yn = logic.morning_star(candle, d_1, d_2, closes)
                         
                     elif trading_logic == 'mfi_trading':
-                        mfi_values = indicator.calculate_mfi(candle, d_1, 14)
+                        mfi_values = indicator.cal_mfi(candle, d_1, 14)
                         
                         # ✅ None 체크 추가
                         if mfi_values is None:
@@ -475,7 +481,7 @@ class AutoTradingBot:
                         sell_yn = logic.dark_cloud(candle, d_1, d_2)
                         
                     elif trading_logic == 'rsi_trading':
-                        rsi_values = indicator.calculate_rsi(closes, 14)
+                        rsi_values = indicator.cal_rsi(closes, 14)
                         _, sell_yn = logic.rsi_trading(rsi_values)
                         
                     elif trading_logic == 'check_wick':            
@@ -484,7 +490,7 @@ class AutoTradingBot:
                         sell_yn, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         
                     elif trading_logic == 'mfi_trading':
-                        mfi_values = indicator.calculate_mfi(candle, d_1, 14)
+                        mfi_values = indicator.cal_mfi(candle, d_1, 14)
                         _, sell_yn = logic.mfi_trading(mfi_values)    
                 #매도 사인이 2개 이상일 때 quantity 조건에 충족되지 않은 조건은 history에 추가되지 않는다는 문제 해결 필요
                 # 매도

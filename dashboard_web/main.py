@@ -19,7 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.crud_sql import SQLExecutor
 from app.utils.database import get_db, get_db_session
-
+from app.utils.trading_logic import TradingLogic
 
 def draw_lightweight_chart(data_df):
 
@@ -463,6 +463,7 @@ def setup_sidebar(sql_executer):
     # AutoTradingBot 및 SQLExecutor 객체 생성
     sql_executor = SQLExecutor()
     auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=True)
+    
     current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
     
     # 사용자 입력
@@ -548,6 +549,113 @@ def setup_sidebar(sql_executer):
         "buy_percentage": buy_percentage,
         "ohlc_mode": ohlc_mode
     }
+    
+def setup_my_page(sql_executor):
+    """
+    마이페이지 설정 탭: 사용자 맞춤 설정 저장
+    """
+    st.header("🛠 마이페이지 설정")
+
+    # AutoTradingBot, trading_logic 및 SQLExecutor 객체 생성
+    tradingLogic = TradingLogic()
+    sql_executor = SQLExecutor()
+    user_name = "홍석문"  # 사용자 이름 (고정값)
+    auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=True)
+    
+    current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
+
+    start_date = st.date_input("📅 Start Date", value=date(2023, 1, 1))
+    end_date = st.date_input("📅 End Date", value=current_date_kst)
+    target_trade_value_krw = st.number_input("💰 Target Trade Value (KRW)", value=1000000, step=100000)
+
+    # ✅ DB에서 종목 리스트 가져오기
+    query = """
+            SELECT 종목코드, 종목이름 FROM fsts.kospi200 ORDER BY 종목이름 COLLATE "ko_KR";
+            """
+            
+    params = {}
+
+    with get_db_session() as db:
+        kospi200_result = sql_executor.execute_select(db, query, params)
+
+    symbol_options = {row['종목이름']: row['종목코드'] for row in kospi200_result}
+    stock_names = list(symbol_options.keys())
+    
+    # ✅ "전체 선택" 및 "선택 해제" 버튼 추가
+    col1, col2 = st.columns([1, 6])
+    
+    with col1:
+        if st.button("✅ 종목 전체 선택"):
+            st.session_state["selected_stocks"] = stock_names
+
+    with col2:
+        if st.button("❌ 종목 선택 해제"):
+            st.session_state["selected_stocks"] = []
+            
+    # ✅ 사용자가 원하는 종목 선택 (다중 선택 가능)
+    selected_stocks = st.multiselect("📌 원하는 종목 선택", list(symbol_options.keys()), key="selected_stocks")
+    selected_symbols = {stock: symbol_options[stock] for stock in selected_stocks}
+
+    # ✅ 차트 간격 (interval) 설정
+    interval_options = {"DAY": "day", "WEEK": "week", "MONTH": "month"}
+    selected_interval = st.selectbox("⏳ 차트 간격 선택", list(interval_options.keys()), key="selected_interval")
+    interval = interval_options[selected_interval]
+
+    # ✅ 매수/매도 로직 설정
+    file_path = "./dashboard_web/trading_logic.json"
+    with open(file_path, "r", encoding="utf-8") as file:
+        trading_logic = json.load(file)
+
+    available_buy_logic = trading_logic["available_buy_logic"]
+    available_sell_logic = trading_logic["available_sell_logic"]
+
+    # ✅ 매수/매도 전략 선택
+    selected_buy_logic = st.multiselect("📈 매수 로직 선택", list(available_buy_logic.keys()), key="selected_buy_logic")
+    selected_sell_logic = st.multiselect("📉 매도 로직 선택", list(available_sell_logic.keys()), key="selected_sell_logic")
+
+    selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic] if selected_buy_logic else []
+    selected_sellTrading_logic = [available_sell_logic[logic] for logic in selected_sell_logic] if selected_sell_logic else []
+
+    # ✅ 3% 매수 조건 체크박스
+    buy_condition_enabled = st.checkbox("💰 매수 제약 조건 활성화", key="buy_condition_enabled")
+    buy_condition_yn = "Y" if buy_condition_enabled else "N"
+
+    # ✅ 매수 퍼센트 입력
+    buy_percentage = None
+    if buy_condition_yn == "Y":
+        buy_percentage = st.number_input("💵 퍼센트 (%) 입력", min_value=0.0, max_value=100.0, value=3.0, step=0.1, key="buy_percentage")
+
+    # ✅ rsi 조건값 입력
+    st.subheader("🎯 RSI 조건값 설정")
+    rsi_buy_threshold = st.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=30, step=1, key="rsi_buy_threshold")
+    rsi_sell_threshold = st.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1, key="rsi_sell_threshold")
+
+
+    tradingLogic.rsi_trading(rsi_buy_threshold,rsi_sell_threshold)
+    # ✅ 설정 저장 버튼
+    if st.button("✅ 설정 저장"):
+        st.session_state["my_page_settings"] = {
+            "user_name": user_name,
+            "start_date": start_date,
+            "end_date": end_date,
+            "target_trade_value_krw": target_trade_value_krw,
+            "selected_stocks": selected_stocks,
+            "selected_symbols": selected_symbols,
+            "interval": interval,
+            "selected_buyTrading_logic": selected_buyTrading_logic,
+            "selected_sellTrading_logic": selected_sellTrading_logic,
+            "buy_condition_yn": buy_condition_yn,
+            "buy_percentage": buy_percentage,
+            "rsi_buy_threshold": rsi_buy_threshold,
+            "rsi_sell_threshold": rsi_sell_threshold
+        }
+        st.success("✅ 설정이 저장되었습니다!")
+
+    # ✅ 저장된 설정 확인
+    if "my_page_settings" in st.session_state:
+        st.subheader("📌 저장된 설정값")
+        st.write(st.session_state["my_page_settings"])
+
             
 def main():
     
@@ -560,7 +668,7 @@ def main():
     sidebar_settings = setup_sidebar(sql_executor)
     
     # 탭 생성
-    tabs = st.tabs(["🏠 거래 내역", "📈 시뮬레이션 그래프", "📊 Data Analysis Page", "📊 KOSPI200 Simulation"])
+    tabs = st.tabs(["🏠 거래 내역", "📈 시뮬레이션 그래프", "📊 Data Analysis Page", "📊 KOSPI200 Simulation", "🛠 마이페이지 설정"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
@@ -725,11 +833,14 @@ def main():
         
         #새로 추가된 코스피 200 시뮬레이션 탭
     with tabs[3]:
-        st.header("📊 코스피 200 종목 시뮬레이션 결과")
+        st.header("📊 선택한 종목 시뮬레이션 결과")
 
         # ✅ 시뮬레이션 실행 버튼
-        if st.sidebar.button("코스피 200 시뮬레이션 실행"):
-            st.write("🔄 코스피 200 전체 종목에 대해 시뮬레이션을 실행합니다.")
+        if st.sidebar.button("선택 종목 시뮬레이션 실행"):
+            
+            my_page_settings = st.session_state["my_page_settings"]
+            
+            st.write("🔄 선택한 종목에 대해 시뮬레이션을 실행합니다.")
 
             # ✅ 진행률 바 추가
             progress_bar = st.progress(0)
@@ -737,23 +848,23 @@ def main():
 
             all_trading_results = []
             failed_stocks = []
-            total_stocks = len(sidebar_settings["kospi200"])
+            total_stocks = len(my_page_settings["selected_symbols"])
             
-            for i, (stock_name, symbol) in enumerate(sidebar_settings["kospi200"].items()):
+            for i, (stock_name, symbol) in enumerate(my_page_settings["selected_symbols"].items()):
                 try:
                     with st.spinner(f"📊 {stock_name} ({i+1}/{total_stocks}) 시뮬레이션 실행 중..."):
-                        auto_trading_stock = AutoTradingBot(user_name=sidebar_settings["user_name"], virtual=True)
+                        auto_trading_stock = AutoTradingBot(user_name=my_page_settings["user_name"], virtual=True)
 
                         _, trading_history = auto_trading_stock.simulate_trading(
                             symbol=symbol,
-                            start_date=sidebar_settings["start_date"],
-                            end_date=sidebar_settings["end_date"],
-                            target_trade_value_krw=sidebar_settings["target_trade_value_krw"],
-                            buy_trading_logic=sidebar_settings["buy_trading_logic"],
-                            sell_trading_logic=sidebar_settings["sell_trading_logic"],
-                            interval="day",
-                            buy_percentage=sidebar_settings["buy_percentage"],
-                            ohlc_mode = sidebar_settings["ohlc_mode"]
+                            start_date=my_page_settings["start_date"],
+                            end_date=my_page_settings["end_date"],
+                            target_trade_value_krw=my_page_settings["target_trade_value_krw"],
+                            buy_trading_logic=my_page_settings["selected_buyTrading_logic"],
+                            sell_trading_logic=my_page_settings["selected_sellTrading_logic"],
+                            interval=my_page_settings["interval"],
+                            buy_percentage=my_page_settings["buy_percentage"],
+                            
                         )
 
                         if trading_history:
@@ -771,26 +882,42 @@ def main():
 
             st.success("✅ 코스피 200 시뮬레이션 완료!")
             
-            # ✅ 시뮬레이션 결과를 `st.session_state`에 저장!
+            # ✅ 시뮬레이션 결과를 `st.session_state`에 저장!(페이지 리셋해도 계속 저장하기 위함)
             st.session_state["kospi200_trading_results"] = all_trading_results
 
             # ✅ 시뮬레이션 결과를 `st.session_state`에서 가져와 사용
-            if "kospi200_trading_results" in st.session_state and st.session_state["kospi200_trading_results"]:
+            if st.session_state["kospi200_trading_results"]:
                 df_results = pd.DataFrame(st.session_state["kospi200_trading_results"])
+                
+                # 원하는 컬럼 순서 지정
+                reorder_columns = [
+                    "symbol", "average_price",
+                    "realized_pnl", "unrealized_pnl", "realized_roi", "unrealized_roi", "total_cost",
+                    "buy_count", "sell_count", "buy_dates", "sell_dates", "total_quantity", "history", "created_at"
+                ]
+                
+                # ✅ 데이터가 있는 컬럼만 유지
+                df_results = df_results[[col for col in reorder_columns if col in df_results.columns]]
 
                 # 수익률 컬럼이 존재하면 % 형식 변환
                 for col in ["realized_roi", "unrealized_roi"]:
                     if col in df_results.columns:
                         df_results[col] = df_results[col].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
 
-                # ✅ 평균 수익률 계산
-                avg_realized_pnl = df_results["realized_pnl"].mean()
-                avg_unrealized_pnl = df_results["unrealized_pnl"].mean()
+                # ✅ 전체 합계 계산(총 실현 손익/미실현 손익)
+                total_realized_pnl = df_results["realized_pnl"].sum()
+                total_unrealized_pnl = df_results["unrealized_pnl"].sum()
+                
+                # ✅ 평균 실현 손익률 & 평균 미실현 손익률 (빈 값 제외)
+                avg_realized_roi = df_results["realized_roi"].replace("%", "", regex=True).astype(float).mean()
+                avg_unrealized_roi = df_results["unrealized_roi"].replace("%", "", regex=True).astype(float).mean()
 
-                # ✅ 평균 수익률 요약 표시
-                st.subheader("📊 전체 종목 평균 수익률")
-                st.write(f"**💰 평균 실현 손익:** {avg_realized_pnl:,.2f} KRW")
-                st.write(f"**📈 평균 미실현 손익:** {avg_unrealized_pnl:,.2f} KRW")
+                # ✅ 손익 요약 정보 표시
+                st.subheader("📊 전체 종목 손익 요약")
+                st.write(f"**💰 총 실현 손익:** {total_realized_pnl:,.2f} KRW")
+                st.write(f"**📈 총 미실현 손익:** {total_unrealized_pnl:,.2f} KRW")
+                st.write(f"**📊 평균 실현 손익률:** {avg_realized_roi:.2f}% KRW")
+                st.write(f"**📉 평균 총 손익률:** {avg_unrealized_roi:.2f}% KRW")
 
                 # ✅ 개별 종목별 결과 표시
                 st.subheader("📋 종목별 시뮬레이션 결과")
@@ -810,6 +937,9 @@ def main():
 
             else:
                 st.write("⚠️ 시뮬레이션 결과가 없습니다.")
+                
+    with tabs[4]:  # 🛠 마이페이지 설정
+        setup_my_page(sql_executor)            
     
 
 if __name__ == "__main__":

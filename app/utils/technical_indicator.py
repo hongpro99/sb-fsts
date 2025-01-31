@@ -47,7 +47,7 @@ class TechnicalIndicator:
         return volume_avg
     
     
-    def calculate_rsi(self, closes, window=14):
+    def cal_rsi(self, closes, window=14):
         """
         RSI 계산
         Args:
@@ -104,7 +104,7 @@ class TechnicalIndicator:
         return rsi
 
 
-    def calculate_mfi(self, candle, d_1, period=14): 
+    def cal_mfi(self, candle, d_1, period=14): 
         """
         새로운 캔들을 받아 MFI를 계산
         :param candle: 현재 캔들 데이터 (딕셔너리 또는 클래스 객체)
