@@ -85,7 +85,7 @@ class TradingLogic:
 
         return has_upper_wick, has_lower_wick
 
-    def rsi_trading(self, rsi_values, buy_threshold= 30, sell_threshold= 70):
+    def rsi_trading(self, rsi_values, buy_threshold= 35, sell_threshold= 70):
         """
         RSI를 기반으로 매수/매도 신호를 계산하는 함수.
         

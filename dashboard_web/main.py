@@ -530,6 +530,11 @@ def setup_sidebar(sql_executer):
     selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic] if selected_buy_logic else []
     selected_sellTrading_logic = [available_sell_logic[logic] for logic in selected_sell_logic] if selected_sell_logic else []
 
+    # ✅ rsi 조건값 입력
+    
+    rsi_buy_threshold = st.sidebar.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=30, step=1)
+    rsi_sell_threshold = st.sidebar.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1)
+    
     #mode
     ohlc_mode_checkbox = st.sidebar.checkbox("차트 연결 모드")  # True / False 반환
     ohlc_mode = "continuous" if ohlc_mode_checkbox else "default"
@@ -548,7 +553,9 @@ def setup_sidebar(sql_executer):
         "sell_trading_logic": selected_sellTrading_logic,
         "buy_condition_yn": buy_condition_yn,
         "buy_percentage": buy_percentage,
-        "ohlc_mode": ohlc_mode
+        "ohlc_mode": ohlc_mode,
+        "rsi_buy_threshold" : rsi_buy_threshold,
+        "rsi_sell_threshold" : rsi_sell_threshold
     }
     
 def setup_my_page(sql_executor):
@@ -628,7 +635,7 @@ def setup_my_page(sql_executor):
 
     # ✅ rsi 조건값 입력
     st.subheader("🎯 RSI 조건값 설정")
-    rsi_buy_threshold = st.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=30, step=1, key="rsi_buy_threshold")
+    rsi_buy_threshold = st.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1, key="rsi_buy_threshold")
     rsi_sell_threshold = st.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1, key="rsi_sell_threshold")
 
     # ✅ 설정 저장 버튼
@@ -738,7 +745,7 @@ def main():
         if st.sidebar.button("개별 종목 시뮬레이션 실행", key = 'simulation_button'):
             auto_trading_stock = AutoTradingBot(user_name=sidebar_settings["user_name"], virtual=True)
             
-            my_page_settings = st.session_state["my_page_settings"]
+            
             with st.container():
                 st.write(f"📊 {sidebar_settings['selected_stock']} 시뮬레이션 실행 중...")
                 
@@ -753,8 +760,8 @@ def main():
                     interval=sidebar_settings["interval"],
                     buy_percentage=sidebar_settings["buy_percentage"],
                     ohlc_mode = sidebar_settings["ohlc_mode"],
-                    rsi_buy_threshold = my_page_settings['rsi_buy_threshold'],
-                    rsi_sell_threshold = my_page_settings['rsi_sell_threshold']
+                    rsi_buy_threshold = sidebar_settings['rsi_buy_threshold'],
+                    rsi_sell_threshold = sidebar_settings['rsi_sell_threshold']
                     
                 )
         
@@ -839,7 +846,7 @@ def main():
         st.header("📊 선택한 종목 시뮬레이션 결과")
 
         # ✅ 시뮬레이션 실행 버튼
-        if st.sidebar.button("선택 종목 시뮬레이션 실행"):
+        if st.button("선택 종목 시뮬레이션 실행"):
             
             my_page_settings = st.session_state["my_page_settings"]
             
