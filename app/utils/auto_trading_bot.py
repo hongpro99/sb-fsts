@@ -338,18 +338,12 @@ class AutoTradingBot:
             ohlc.append([timestamp_str, open_price, high_price, low_price, close_price, volume])
             previous_closes.append(close_price)
             
+            recent_20_days_volume = []
+            avg_volume_20_days = 0
+
             if len(ohlc_data[:i]) >= 21:
                 recent_20_days_volume = [float(c.volume) for c in ohlc_data[i - 20:i]]
-                    # 데이터 유효성 검사: 20일 거래량 데이터가 비어 있거나 모두 0인 경우 처리
-            else:
-                recent_20_days_volume = []
-            
-            
-            # 평균 거래량 계산 (거래량 데이터가 비어 있으면 0 반환)
-            if len(recent_20_days_volume) > 0:
                 avg_volume_20_days = sum(recent_20_days_volume) / len(recent_20_days_volume)
-            else:
-                avg_volume_20_days = 0
             
             sell_reason = None
 
@@ -628,11 +622,12 @@ class AutoTradingBot:
 
 
     # 실시간 매매 함수
-    def trade(self, trading_bot_name, trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw, interval='day'):
+    def trade(self, trading_bot_name, buy_trading_logic, sell_trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw, interval='day'):
         
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
 
+        closes = [float(candle.close) for candle in ohlc_data[:-1]]
         previous_closes = [float(candle.close) for candle in ohlc_data[:-2]]  # 마지막 봉을 제외한 종가들
 
         # 마지막 봉 데이터 (마지막 봉이란 당일)
@@ -641,19 +636,80 @@ class AutoTradingBot:
         high_price = float(candle.high)
         low_price = float(candle.low)
         close_price = float(candle.close)
+        volume = float(candle.volume)
         timestamp = candle.time
 
         # 마지막 직전 봉 데이터
         previous_candle = ohlc_data[-2]
         prev_open_price = float(previous_candle.open)
         prev_close_price = float(previous_candle.close)
+
+        # 이전 캔들
+        d_1 = ohlc_data[-2]  # 직전 봉
+        d_2 = ohlc_data[-3]  # 전전 봉
+
+        recent_20_days_volume = []
+        avg_volume_20_days = 0
+
+        if len(ohlc_data) >= 21:
+            recent_20_days_volume = [float(c.volume) for c in ohlc_data[-20:]]
+            avg_volume_20_days = sum(recent_20_days_volume) / len(recent_20_days_volume)
         
         # 볼린저 밴드 계산
         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
         
-        # 로직 체크 (윗꼬리, 아랫꼬리)
-        # 여기에 원하는 로직 호출
-        upper_wick, lower_wick = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+        # rsi
+        rsi_buy_threshold = 35
+        rsi_sell_threshold = 70
+
+        for trading_logic in buy_trading_logic:
+            buy_yn = False # 각 로직에 대한 매수 신호 초기화
+
+            if trading_logic == 'check_wick':            
+                _, buy_yn = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+            elif trading_logic == 'rsi_trading':
+                rsi_values = indicator.cal_rsi(closes, 14)
+                buy_yn, _ = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
+            
+            print(f'{trading_logic} 로직 buy_signal = {buy_yn}')
+
+            self._trade_kis(
+                buy_yn=buy_yn,
+                sell_yn=False,
+                volume=volume,
+                d_1=d_1,
+                avg_volume_20_days=avg_volume_20_days,
+                trading_logic=trading_logic,
+                symbol=symbol,
+                symbol_name=symbol_name,
+                ohlc_data=ohlc_data,
+                trading_bot_name=trading_bot_name
+            )
+
+        for trading_logic in sell_trading_logic:
+            sell_yn = False
+            
+            if trading_logic == 'check_wick':            
+                # 볼린저 밴드 계산
+                sell_yn, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+            elif trading_logic == 'rsi_trading':
+                rsi_values = indicator.cal_rsi(closes, 14)
+                _, sell_yn = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
+            
+            print(f'{trading_logic} 로직 sell_signal = {sell_yn}')
+
+            self._trade_kis(
+                buy_yn=False,
+                sell_yn=sell_yn,
+                volume=volume,
+                d_1=d_1,
+                avg_volume_20_days=avg_volume_20_days,
+                trading_logic=trading_logic,
+                symbol=symbol,
+                symbol_name=symbol_name,
+                ohlc_data=ohlc_data,
+                trading_bot_name=trading_bot_name
+            )
 
         # 마지막 직전 봉 음봉, 양봉 계산
         is_bearish_prev_candle = prev_close_price < prev_open_price  # 음봉 확인
@@ -661,34 +717,35 @@ class AutoTradingBot:
 
         print(f'마지막 직전 봉 : {prev_close_price - prev_open_price}. 양봉 : {is_bullish_prev_candle}, 음봉 : {is_bearish_prev_candle}')
 
-        # 최근 매매 기준 n% 변동성 미만일 경우 추가 매매 하지 않도로 설정
-        # TO-DO
-        d_1 = ohlc_data[-2]  # 직전 봉
-        d_2 = ohlc_data[-3]  # 전전 봉
-        
-        buy_yn = False
-        
-        if trading_logic == "penetrating":
-            buy_yn = logic.penetrating(candle, d_1, d_2)            
-        elif trading_logic == "engulfing":
-            buy_yn = logic.engulfing(candle, d_1, d_2)            
-        elif trading_logic == "engulfing2":
-            buy_yn = logic.engulfing2(candle, d_1, d_2)            
-        elif trading_logic == "counterattack":
-            buy_yn = logic.counterattack(candle, d_1, d_2)
-        elif trading_logic == "harami":
-            buy_yn = logic.harami(candle, d_1, d_2)
-        elif trading_logic == "doji_star":
-            buy_yn = logic.doji_star(candle, d_1, d_2)
-        elif trading_logic == "morning_star":
-            buy_yn = logic.morning_star(candle, d_1, d_2)
-                                        
-        # 매매 구현 (모든 로직이 true 일 경우)
-        if lower_wick:  # 아랫꼬리일 경우 매수 (추가 매수 가능)
-            pass
-            # 매수 함수 구현
+        # if trading_logic == "penetrating":
+        #     buy_yn = logic.penetrating(candle, d_1, d_2)            
+        # elif trading_logic == "engulfing":
+        #     buy_yn = logic.engulfing(candle, d_1, d_2)            
+        # elif trading_logic == "engulfing2":
+        #     buy_yn = logic.engulfing2(candle, d_1, d_2)            
+        # elif trading_logic == "counterattack":
+        #     buy_yn = logic.counterattack(candle, d_1, d_2)
+        # elif trading_logic == "harami":
+        #     buy_yn = logic.harami(candle, d_1, d_2)
+        # elif trading_logic == "doji_star":
+        #     buy_yn = logic.doji_star(candle, d_1, d_2)
+        # elif trading_logic == "morning_star":
+        #     buy_yn = logic.morning_star(candle, d_1, d_2)
 
-            self.send_discord_webhook(f"[{trading_logic}]{symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW", "trading")
+        # 가격 조회
+        # DB 에서 종목 조회
+        # 체결 강도 로직 조회
+
+        return None
+    
+
+    def _trade_kis(self, buy_yn, sell_yn, volume, d_1, avg_volume_20_days, trading_logic, symbol, symbol_name, ohlc_data, trading_bot_name):
+
+        if buy_yn and volume > d_1.volume and d_1.volume > avg_volume_20_days:                                 
+            # 매수 함수 구현
+            # trade()
+
+            self.send_discord_webhook(f"[{trading_logic}] {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW", "trading")
 
             # trade history 에 추가
             position = 'BUY'
@@ -698,45 +755,19 @@ class AutoTradingBot:
             except Exception as e:  # 모든 예외를 포착
                 # 예외 메시지를 로그로 출력하거나 처리
                 print(f"An error occurred while inserting trading history: {e}")
-                
-        elif buy_yn:  # Penetrating 신호일 경우 매수
-            self.send_discord_webhook(
-            f"[{trading_logic}] {symbol_name} 매수가 완료되었습니다. 신호: Penetrating Signal, 매수금액 : {int(close_price)} KRW",
-            "trading"
-        )
-        print(f"[{trading_logic}] Penetrating Signal 매수 신호 발생: {timestamp}, 매수가: {close_price} KRW")
-
-        # Trade history 추가
-        position = 'BUY'
-        quantity = 1  # 임시
-        try:
-            self._insert_trading_history(trading_logic, position, trading_bot_name, close_price, quantity, symbol, symbol_name)
-        except Exception as e:
-            print(f"An error occurred while inserting trading history: {e}")
-
-#         if upper_wick:  # 윗꼬리일 경우 매도 (매수한 횟수의 1/n 만큼 매도)
-#             pass
-#             # 매수 함수 구현
-#             self.send_discord_webhook(f"{symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
-#             # trade history 에 추가
-#             position = 'SELL'
-#             quantity = 1 # 임시
-#             try:
-#                 self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
-#             except Exception as e:  # 모든 예외를 포착
-#                 # 예외 메시지를 로그로 출력하거나 처리
-#                 print(f"An error occurred while inserting trading history: {e}")
         
-        # result = self.calculate_pnl(trading_history, close_price)
-        # print(f"총 비용: {result['total_cost']}KRW, 총 보유량: {result['total_quantity']}주, 평균 단가: {result['average_price']}KRW, 실현 손익 (Realized PnL): {result['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {result['unrealized_pnl']}KRW")
-    
+        if sell_yn:
+            # 매도 함수 구현
+            self.send_discord_webhook(f"[{trading_logic}] {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
+            # trade history 에 추가
+            position = 'SELL'
+            quantity = 1 # 임시
+            try:
+                self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
+            except Exception as e:  # 모든 예외를 포착
+                # 예외 메시지를 로그로 출력하거나 처리
+                print(f"An error occurred while inserting trading history: {e}")
 
-        # 가격 조회
-        # DB 에서 종목 조회
-        # 체결 강도 로직 조회
-
-        return None
-    
 
     def _insert_trading_history(self, trading_logic, position, trading_bot_name, price, quantity, symbol, symbol_name):
 

@@ -47,20 +47,23 @@ async def trade():
     start_date = end_date - timedelta(days=365)
     target_trade_value_krw = 1000000  # 매수 목표 거래 금액
     trading_bot_name = 'test_bot'
-    trading_logic = 'check_wick' 
-    
+
+    # trading_logic 리스트 설정
+    buy_trading_logic = ['check_wick', 'rsi_trading']
+    sell_trading_logic = ['check_wick', 'rsi_trading']
+
     for stock in result:
         symbol = stock['종목코드']
         symbol_name = stock['종목이름']
 
-        max_retries = 10  # 최대 재시도 횟수
+        max_retries = 5  # 최대 재시도 횟수
         retries = 0  # 재시도 횟수 초기화
 
         print(f'------ {symbol_name} 주식 자동 트레이딩을 시작합니다. ------')
 
         while retries < max_retries:
             try:
-                trading_bot.trade(trading_bot_name, trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw)
+                trading_bot.trade(trading_bot_name, buy_trading_logic, sell_trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw)
                 break
             except Exception as e:
                 retries += 1
