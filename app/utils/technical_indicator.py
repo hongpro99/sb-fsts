@@ -189,6 +189,7 @@ class TechnicalIndicator:
         df['ema_short'] = df['Close'].ewm(span=short_window, adjust=False).mean()
         df['ema_long'] = df['Close'].ewm(span=long_window, adjust=False).mean()
 
+
         df['macd'] = df['ema_short'] - df['ema_long']
         df['macd_signal'] = df['macd'].ewm(span=signal_window, adjust=False).mean()
         df['macd_histogram'] = df['macd'] - df['macd_signal']  # MACD 히스토그램

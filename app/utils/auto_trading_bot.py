@@ -201,10 +201,11 @@ class AutoTradingBot:
         return df, simulation_plot
 
 
-    def calculate_pnl(self, trading_history, current_price):
+    def calculate_pnl(self, trading_history, current_price, initial_capital):
         """Parameters:
         - trading_history: dict, 거래 내역 및 계산 결과 저장
         - current_price: float, 현재 가격
+        -initial_capital: 초기 자본
         """
         
         total_cost = 0  # 총 비용
@@ -220,12 +221,18 @@ class AutoTradingBot:
         for trade in trading_history['history']:
             
             if trade['position'] == 'BUY':  # 매수일 경우
-                total_cost += trade['price'] * trade['quantity']  # 비용 증가
-                investment_cost += trade['price'] * trade['quantity']
-                total_quantity += trade['quantity']  # 수량 증가
+                # 매수수의 실현 손익 계산
+                buy_quantity = trade['quantity']
+                buy_price = trade['price']
+                                
+                total_cost += buy_price * buy_quantity  # 비용 증가
+                investment_cost += buy_price * buy_quantity
+                total_quantity += buy_quantity  # 수량 증가
                 buy_count += 1  # 매수 횟수 증가
                 buy_dates.append(trade['time'])  # 매수 날짜 추가
-
+                if initial_capital is not None:
+                    initial_capital-= buy_price * buy_quantity
+                
             elif trade['position'] == 'SELL':  # 매도일 경우
                 if total_quantity <= 0:
                     raise ValueError("포지션 수량이 없습니다!")
@@ -248,6 +255,10 @@ class AutoTradingBot:
                 
                 sell_count += 1  # 매도 횟수 증가
                 sell_dates.append(trade['time'])  # 매도 날짜 추가
+                
+                #초기 자본 증가
+                if initial_capital is not None:
+                    initial_capital +=sell_price * sell_quantity
             
             # 모든 주식을 매도했을 경우 비용 리셋
             if total_quantity == 0:
@@ -273,15 +284,24 @@ class AutoTradingBot:
             'buy_count': buy_count,  # 매수 횟수
             'sell_count': sell_count,  # 매도 횟수
             'buy_dates': buy_dates,  # 매수 날짜 목록
-            'sell_dates': sell_dates  # 매도 날짜 목록
+            'sell_dates': sell_dates,  # 매도 날짜 목록
+            'initial_capital': initial_capital
         })
         
         print(f"투자비용: {investment_cost}")
         return trading_history
     
 
-    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None, interval='day', buy_percentage = None, ohlc_mode = 'default',rsi_buy_threshold = 35, rsi_sell_threshold = 70):
+    def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None,
+                        interval='day', buy_percentage = None, ohlc_mode = 'default',rsi_buy_threshold = 35, rsi_sell_threshold = 70, initial_capital=None):
+        
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval, ohlc_mode) #클래스 객체, .사용
+        
+        #실제 투자 모드인지 확인
+            # ✅ 실제 투자 모드인지 확인
+        real_trading = initial_capital is not None
+
+        # 기존 변수 초기화    
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)
         position_count = 0  # 현재 포지션 수량
         positions = [] #손절 포지션
@@ -300,7 +320,8 @@ class AutoTradingBot:
             'sell_count': 0,  # 총 매도 횟수
             'buy_dates': [],  # 매수 날짜 목록
             'sell_dates': [],  # 매도 날짜 목록
-            'history': []  # 거래 내역
+            'history': [],  # 거래 내역
+            'initial_capital': initial_capital
         }
 
         # 그래프 그리기 위한 데이터
@@ -330,7 +351,8 @@ class AutoTradingBot:
             timestamp = candle.time
             timestamps.append(timestamp)
             closes.append(close_price) #rsi
-            
+
+
             # timestamp 변수를 ISO 8601 문자열로 변환
             timestamp_iso = timestamp.isoformat()
             timestamp_str = timestamp.date().isoformat()
@@ -338,6 +360,8 @@ class AutoTradingBot:
             ohlc.append([timestamp_str, open_price, high_price, low_price, close_price, volume])
             previous_closes.append(close_price)
             
+            # 캔들 차트 데이터프레임 생성
+            df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))  
             recent_20_days_volume = []
             avg_volume_20_days = 0
 
@@ -382,6 +406,9 @@ class AutoTradingBot:
                     elif trading_logic == 'morning_star':
                         buy_yn = logic.morning_star(candle, d_1, d_2, closes)
                         
+                    elif trading_logic == 'macd_trading':
+                        df = indicator.cal_macd_df(df)
+                        buy_yn = logic.macd_trading(df, timestamp)                        
                     elif trading_logic == 'mfi_trading':
                         mfi_values = indicator.cal_mfi(candle, d_1, 14)
                         
@@ -390,10 +417,20 @@ class AutoTradingBot:
                             mfi_values = []  # 빈 리스트로 처리
                             
                         buy_yn, _ = logic.mfi_trading(mfi_values)    
-                    
+                    #rsi와 check_wick and 조건
+                    elif trading_logic == 'rsi+check_wick':
+                        # 볼린저 밴드 계산
+                        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
+                        _, buy_yn1 = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                        rsi_values = indicator.cal_rsi(closes, 14)
+                        buy_yn2, _ = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
+                        buy_yn = buy_yn1 and buy_yn2
+                        
                         # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
                     if buy_yn and volume > d_1.volume and d_1.volume > avg_volume_20_days:
-                                                # 3% 매수 제한 조건 확인
+                                                
+                        can_buy = True
+                        # 매수 제한 조건 확인                        
                         if buy_percentage is not None:
                             #첫 매수는 항상 허용
                             if recent_buy_prices['price'] == 0:
@@ -403,49 +440,48 @@ class AutoTradingBot:
                                 price_lower = recent_buy_prices['price'] - price_range
                                 price_upper = recent_buy_prices['price'] + price_range
                                 
-                                can_buy = not(price_lower <= close_price <= price_upper and timestamp_iso != recent_buy_prices['timestamp'])
-                            
-                            # 최근 매수가격이 설정된 범위 내에 있으면 매수하지 않음
-                            if not can_buy:
-                                print(f"🚫 매수 조건 충족했지만, {buy_percentage}% 범위 내 기존 매수가 존재하여 매수하지 않음 ({close_price}KRW)")
-                                continue
-                            
-                        stop_loss_price = d_1.low if d_1 else None
-                        float_stop_loss_price = float(stop_loss_price)
-                        target_price = close_price + 2*(close_price - float_stop_loss_price) if float_stop_loss_price else None
-                        buy_quantity = math.floor(trade_amount / close_price)
+                                # 최근 매수가격이 설정된 범위 내에 있으면 매수하지 않음
+                                if price_lower <= close_price <= price_upper and timestamp_iso != recent_buy_prices['timestamp']:
+                                    print(f"🚫 매수 조건 충족했지만, {buy_percentage}% 범위 내 기존 매수가 존재하여 매수하지 않음 ({close_price}KRW)")
+                                    can_buy = False  # 매수를 막음
+                        # ✅ 실제 투자 모드: 현금 확인 후 매수
+                        if real_trading:
+                            if trading_history['initial_capital'] < close_price:
+                                print(f"❌ 현금 부족으로 매수 불가 (잔액: {trading_history['initial_capital']:,.0f} KRW)")
+                                can_buy = False
+                                
+                        if can_buy:
+                            stop_loss_price = d_1.low if d_1 else None
+                            float_stop_loss_price = float(stop_loss_price)
+                            target_price = close_price + 2*(close_price - float_stop_loss_price) if float_stop_loss_price else None
+                            if real_trading:
+                                if trading_history['initial_capital'] > trade_amount:
+                                    buy_quantity = math.floor(trade_amount / close_price)
+                                else:
+                                    buy_quantity = math.floor(trading_history['initial_capital'] / close_price)
+                            else:
+                                buy_quantity = math.floor(trade_amount / close_price)
 
-                        #새로운 포지션 추가
-                        positions.append({
-                            'position': 'BUY',
-                            'price': close_price,
-                            'quantity': buy_quantity,
-                            'target_price': target_price,
-                            'stop_loss_price': float_stop_loss_price,
-                            'used_buy_logic': trading_logic,
-                            'time': timestamp_iso
-                        })
-                        #매수 기록
-                        trading_history['history'].append({
-                            'position': 'BUY',
-                            'trading_logic': trading_logic,
-                            'price': close_price,
-                            'quantity': buy_quantity,
-                            'target_price': target_price,
-                            'stop_loss_price': float_stop_loss_price,
-                            'time': timestamp_iso
-                        })
+                            trading_history['history'].append({
+                                'position': 'BUY',
+                                'trading_logic': trading_logic,
+                                'price': close_price,
+                                'quantity': buy_quantity,
+                                'target_price': target_price,
+                                'stop_loss_price': float_stop_loss_price,
+                                'time': timestamp_iso
+                            })
 
-                        buy_signals.append((timestamp, close_price))
-                        recent_buy_prices.update({
-                            'price' : close_price,
-                            'timestamp' : timestamp_iso
-                        
-                        })
-                        print(f"매수 시점: {timestamp_iso}, 매수가: {close_price} KRW, 매수량: {buy_quantity}, 손절가격: {stop_loss_price}, 익절 가격: {target_price}")        
+                            buy_signals.append((timestamp, close_price))
+                            recent_buy_prices.update({
+                                'price' : close_price,
+                                'timestamp' : timestamp_iso
+                            
+                            })
+                            print(f"매수 시점: {timestamp_iso}, 매수가: {close_price} KRW, 매수량: {buy_quantity}, 손절가격: {stop_loss_price}, 익절 가격: {target_price}")        
             
                     # 손익 및 매매 횟수 계산
-                    trading_history = self.calculate_pnl(trading_history, close_price)
+                    trading_history = self.calculate_pnl(trading_history, close_price, trading_history['initial_capital'])
                 
             # 매도형 로직 처리
             if sell_trading_logic:
@@ -485,7 +521,16 @@ class AutoTradingBot:
                         
                     elif trading_logic == 'mfi_trading':
                         mfi_values = indicator.cal_mfi(candle, d_1, 14)
-                        _, sell_yn = logic.mfi_trading(mfi_values)    
+                        _, sell_yn = logic.mfi_trading(mfi_values)
+                        
+                    #rsi와 check_wick and 조건
+                    elif trading_logic == 'rsi+check_wick':
+                        # 볼린저 밴드 계산
+                        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
+                        sell_yn1, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                        rsi_values = indicator.cal_rsi(closes, 14)
+                        _, sell_yn2 = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
+                        sell_yn = sell_yn1 and sell_yn2                            
                 #매도 사인이 2개 이상일 때 quantity 조건에 충족되지 않은 조건은 history에 추가되지 않는다는 문제 해결 필요
                 # 매도
                 if sell_yn:
@@ -508,46 +553,10 @@ class AutoTradingBot:
                         })
                         sell_signals.append((timestamp, close_price))
                         print(f"매도 시점: {timestamp_iso}, 매도가: {close_price} KRW, 매도량: {sell_quantity}")
-                        
-                        # 포지션에서 수량 감소 처리
-                        for position in positions:
-                            if position['quantity'] > 0:
-                                if position['quantity'] >= sell_quantity:
-                                    position['quantity'] -= sell_quantity
-                                    sell_quantity = 0
-                                    break
-                                else:
-                                    position['quantity'] = 0
-                                    break
+                
                     
                     # 손익 및 매매 횟수 계산
-                    trading_history = self.calculate_pnl(trading_history, close_price)
-                # 손절 로직
-                # for position in positions:
-                #     if position['used_buy_logic'] != 'rsi_trading' and position['used_buy_logic'] != 'check_wick':
-                        
-                #         if position['quantity'] > 0 and close_price <= position['stop_loss_price']:
-                #             # 손절 계산
-                #             realized_pnl = (close_price - position['price']) * position['quantity']
-                #             sell_reason = "손절"
-
-                #             # 손절 내역 기록
-                #             trading_history['history'].append({
-                #                 'position': 'SELL',
-                #                 'price': close_price,
-                #                 'quantity': position['quantity'],  # 포지션의 보유 수량만큼 매도
-                #                 'reason': sell_reason,
-                #                 # 'stop_loss_ref': trading_history_id,
-                #                 'time': timestamp_iso,
-                #                 'realized_pnl': realized_pnl
-                #             })
-
-                #             # 매도 신호 기록
-                #             sell_signals.append((timestamp, close_price))
-                #             print(f"손절 매도: {timestamp_iso}, 매도가: {close_price}, 매도량: {position['quantity']}")
-
-                #             # 포지션 소진
-                #             position['quantity'] = 0
+                    trading_history = self.calculate_pnl(trading_history, close_price, trading_history['initial_capital'])
 
             print(f"총 비용: {trading_history['total_cost']}KRW, 총 보유량: {trading_history['total_quantity']}주, 평균 단가: {trading_history['average_price']}KRW, "
                 f"실현 손익 (Realized PnL): {trading_history['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {trading_history['unrealized_pnl']}KRW")
@@ -569,10 +578,6 @@ class AutoTradingBot:
         print(f"매도 날짜: {trading_history['sell_dates']}")
         print(f"총 실현손익: {trading_history['realized_pnl']}KRW")
         print(f"미실현 손익 (Unrealized PnL): {trading_history['unrealized_pnl']}KRW")
-        
-        #sql_executor = SQLExecutor()
-        # 결과를 DB에 저장
-        #self.save_trading_history_to_db_with_executor(trading_history, symbol, sql_executor)
         
         return result_data, trading_history
 

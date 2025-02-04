@@ -450,6 +450,34 @@ def rename_tradingLogic(trade_history):
             entry['trading_logic'] = '흑운형'
         elif entry.get('trading_logic') == 'mfi_trading':
             entry['trading_logic'] = 'mfi 확인'
+        elif entry.get('trading_logic') == 'rsi+check_wick':
+            entry['trading_logic'] = 'rsi+꼬리'            
+            
+            
+# ✅ 가짜 사용자 데이터베이스 (실제 구현 시 DB 연동 필요)
+USER_CREDENTIALS = {
+    "user1": "password123",
+    "user2": "securepass",
+    "admin": "admin123"
+}
+
+def login_page():
+    """
+    로그인 페이지: 사용자 로그인 및 세션 상태 관리
+    """
+    st.title("🔑 로그인 페이지")
+
+    # 사용자 입력 받기
+    username = st.text_input("아이디", key="username")
+    password = st.text_input("비밀번호", type="password", key="password")
+
+    # 간단한 사용자 검증 (실제 서비스에서는 DB 연동 필요)
+    if st.button("로그인"):
+        if username == "fsts" and password == "1234":
+            st.session_state["authenticated"] = True
+            st.rerun()  # 로그인 후 페이지 새로고침
+        else:
+            st.error("아이디 또는 비밀번호가 올바르지 않습니다.")         
         
 def setup_sidebar(sql_executer):
     """
@@ -475,6 +503,7 @@ def setup_sidebar(sql_executer):
     query = """
             SELECT 종목코드, 종목이름 FROM fsts.kospi200 ORDER BY 종목이름 COLLATE "ko_KR";
         """
+
 
     params = {}
 
@@ -532,7 +561,7 @@ def setup_sidebar(sql_executer):
 
     # ✅ rsi 조건값 입력
     
-    rsi_buy_threshold = st.sidebar.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=30, step=1)
+    rsi_buy_threshold = st.sidebar.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1)
     rsi_sell_threshold = st.sidebar.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1)
     
     #mode
@@ -574,8 +603,16 @@ def setup_my_page(sql_executor):
 
     start_date = st.date_input("📅 Start Date", value=date(2023, 1, 1))
     end_date = st.date_input("📅 End Date", value=current_date_kst)
-    target_trade_value_krw = st.number_input("💰 Target Trade Value (KRW)", value=1000000, step=100000)
+    target_trade_value_krw = st.number_input("💰 Target Trade Value (KRW)", value=1500000, step=100000)
 
+    # ✅ 실제 투자 조건 체크박스
+    real_trading_enabled = st.checkbox("💰 실제 투자자본 설정", key="real_trading_enabled")
+    real_trading_yn = "Y" if real_trading_enabled else "N"
+
+    # ✅ 매수 퍼센트 입력
+    initial_capital = None
+    if real_trading_yn == "Y":
+        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key="initial_capital")
     # ✅ DB에서 종목 리스트 가져오기
     query = """
             SELECT 종목코드, 종목이름 FROM fsts.kospi200 ORDER BY 종목이름 COLLATE "ko_KR";
@@ -653,7 +690,8 @@ def setup_my_page(sql_executor):
             "buy_condition_yn": buy_condition_yn,
             "buy_percentage": buy_percentage,
             "rsi_buy_threshold": rsi_buy_threshold,
-            "rsi_sell_threshold": rsi_sell_threshold
+            "rsi_sell_threshold": rsi_sell_threshold,
+            "initial_capital": initial_capital
         }
         st.success("✅ 설정이 저장되었습니다!")
 
@@ -669,6 +707,12 @@ def main():
     sql_executor = SQLExecutor()
 
     st.set_page_config(layout="wide")
+    
+    st.title("🏠 메인 페이지")
+    
+    if st.button("로그아웃"):
+        st.session_state["authenticated"] = False
+        st.rerun()  # 로그아웃 후 페이지 새로고침
     
     # ✅ 공통 사이드바 설정 함수 실행 후 값 가져오기
     sidebar_settings = setup_sidebar(sql_executor)
@@ -726,6 +770,7 @@ def main():
         #     "Age": [25, 30, 35],
         #     "City": ["New York", "San Francisco", "Los Angeles"]
         # }
+        
         df = pd.DataFrame(data)
         
         # AgGrid로 테이블 표시
@@ -849,7 +894,7 @@ def main():
         if st.button("선택 종목 시뮬레이션 실행"):
             
             my_page_settings = st.session_state["my_page_settings"]
-            
+            initial_capital = my_page_settings['initial_capital']
             st.write("🔄 선택한 종목에 대해 시뮬레이션을 실행합니다.")
 
             # ✅ 진행률 바 추가
@@ -875,7 +920,8 @@ def main():
                             interval=my_page_settings["interval"],
                             buy_percentage=my_page_settings["buy_percentage"],
                             rsi_buy_threshold = my_page_settings['rsi_buy_threshold'],
-                            rsi_sell_threshold = my_page_settings['rsi_sell_threshold']
+                            rsi_sell_threshold = my_page_settings['rsi_sell_threshold'],
+                            initial_capital= my_page_settings['initial_capital']
                         )
 
                         if trading_history:
@@ -891,7 +937,7 @@ def main():
                     st.write(f"⚠️ {stock_name} 시뮬레이션 실패: {str(e)}")
                     failed_stocks.append(stock_name)
 
-            st.success("✅ 코스피 200 시뮬레이션 완료!")
+            st.success("✅ 선택 종목 시뮬레이션 완료!")
             
             # ✅ 시뮬레이션 결과를 `st.session_state`에 저장!(페이지 리셋해도 계속 저장하기 위함)
             st.session_state["kospi200_trading_results"] = all_trading_results
@@ -922,6 +968,14 @@ def main():
                 # ✅ 평균 실현 손익률 & 평균 미실현 손익률 (빈 값 제외)
                 avg_realized_roi = df_results["realized_roi"].replace("%", "", regex=True).astype(float).mean()
                 avg_unrealized_roi = df_results["unrealized_roi"].replace("%", "", regex=True).astype(float).mean()
+                
+                # ✅ 초기 자본 대비 평균 손익률 계산 (초기 자본이 0이 아닐 경우에만 계산)
+                if initial_capital is not None and initial_capital > 0:
+                    avg_realized_roi_per_capital = (total_realized_pnl / initial_capital) * 100
+                    avg_total_roi_per_capital = ((total_realized_pnl + total_unrealized_pnl) / initial_capital) * 100
+                else:
+                    avg_realized_roi_per_capital = None
+                    avg_total_roi_per_capital = None                
 
                 # ✅ 손익 요약 정보 표시
                 st.subheader("📊 전체 종목 손익 요약")
@@ -929,7 +983,10 @@ def main():
                 st.write(f"**📈 총 미실현 손익:** {total_unrealized_pnl:,.2f} KRW")
                 st.write(f"**📊 평균 실현 손익률:** {avg_realized_roi:.2f}% KRW")
                 st.write(f"**📉 평균 총 손익률:** {avg_unrealized_roi:.2f}% KRW")
-
+                # ✅ 초기 자본 대비 평균 손익률 추가 표시
+                if initial_capital is not None:
+                    st.write(f"**📊 초기 자본 대비 평균 실현 손익률:** {avg_realized_roi_per_capital:.2f}%")
+                    st.write(f"**📉 초기 자본 대비 평균 총 손익률:** {avg_total_roi_per_capital:.2f}%")
                 # ✅ 개별 종목별 결과 표시
                 st.subheader("📋 종목별 시뮬레이션 결과")
                 AgGrid(
@@ -954,4 +1011,11 @@ def main():
     
 
 if __name__ == "__main__":
-    main()
+        # Streamlit 실행 시 로그인 여부 확인
+    if "authenticated" not in st.session_state:
+        st.session_state["authenticated"] = False
+
+    if st.session_state["authenticated"]:
+        main()
+    else:
+        login_page()

@@ -8,7 +8,8 @@
         "상승잉태형": "harami",
         "상승도지스타": "doji_star",
         "샛별형": "morning_star",
-        "꼬리 확인": "check_wick"
+        "꼬리 확인": "check_wick",
+        "rsi+꼬리" : "rsi+check_wick"
         
     },
     "available_sell_logic": {
@@ -20,6 +21,7 @@
         "하락잉태형": "down_harami",
         "하락도지스타": "down_doji_star",
         "석별형": "evening_star",
-        "꼬리 확인": "check_wick"        
+        "꼬리 확인": "check_wick",
+        "rsi+꼬리" : "rsi+check_wick"        
     }
 }

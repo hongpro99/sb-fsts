@@ -569,6 +569,41 @@ class TradingLogic:
             
         return buy_signal, sell_signal
         
+    def macd_trading(self, df, current_day):
+        """
+        특정 날짜(current_day)에 대해 MACD 매매 신호를 반환하는 함수.
         
+        :param df: MACD 및 Signal 값이 포함된 데이터프레임
+        :param current_day: 현재 시뮬레이션이 진행 중인 날짜 (index로 지정)
+        :return: 'Buy' 또는 'Sell' 신호 반환 (True/False)
+        """
+        # 현재 날짜 인덱스가 데이터에 존재하는지 확인
+        if current_day not in df.index:
+            return False, False  # 매수, 매도 신호 없음
+
+        # 날짜의 이전 값 확인 (첫 번째 데이터는 신호 없음)
+        idx = df.index.get_loc(current_day)
+        if idx == 0:
+            return False, False
+
+        # MACD & Signal 값 가져오기 (전날과 비교)
+        prev_macd = df['macd'].iloc[idx - 1]
+        prev_signal = df['macd_signal'].iloc[idx - 1]
+        prev_macd_zero = df['macd'].iloc[idx - 1] < 0
+
+        macd = df['macd'].iloc[idx]
+        signal = df['macd_signal'].iloc[idx]
+        macd_zero = df['macd'].iloc[idx] > 0
+
+        # 📌 매수 신호 조건
+        macd_cross_up = prev_macd < prev_signal and macd > signal  # MACD 골든 크로스
+        macd_zero_cross_up = prev_macd_zero and macd_zero  # MACD 0선 상향 돌파
+        buy_signal = macd_cross_up and macd_zero_cross_up
+
+        # 📌 매도 신호 조건
+        macd_cross_down = prev_macd > prev_signal and macd < signal  # MACD 데드 크로스
+        macd_zero_cross_down = not prev_macd_zero and not macd_zero  # MACD 0선 하향 돌파
+        sell_signal = macd_cross_down and macd_zero_cross_down
+        return buy_signal, sell_signal       
         
     
