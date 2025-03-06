@@ -19,6 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.crud_sql import SQLExecutor
 from app.utils.database import get_db, get_db_session
+from app.utils.dynamodb.model.trading_history_model import TradingHistory
 
 
 def draw_lightweight_chart(data_df):
@@ -707,18 +708,30 @@ def main():
 
         params = {}
 
-        with get_db_session() as db:
-            result = sql_executor.execute_select(db, query, params)
+        # with get_db_session() as db:
+        #     result = sql_executor.execute_select(db, query, params)
+
+        # for row in result:
+        #     data["Trading Bot Name"].append(row['trading_bot_name'])
+        #     data["Trading Logic"].append(row['trading_logic'])
+        #     data["Trade Date"].append(row['trade_date'])
+        #     data["Symbol Name"].append(row['symbol_name'])
+        #     data["Symbol"].append(row['symbol'])
+        #     data["Position"].append(row['position'])
+        #     data["Price"].append(row['price'])
+        #     data["Quantity"].append(row['quantity'])
+        
+        result = TradingHistory.scan()
 
         for row in result:
-            data["Trading Bot Name"].append(row['trading_bot_name'])
-            data["Trading Logic"].append(row['trading_logic'])
-            data["Trade Date"].append(row['trade_date'])
-            data["Symbol Name"].append(row['symbol_name'])
-            data["Symbol"].append(row['symbol'])
-            data["Position"].append(row['position'])
-            data["Price"].append(row['price'])
-            data["Quantity"].append(row['quantity'])
+            data["Trading Bot Name"].append(row.trading_bot_name)
+            data["Trading Logic"].append(row.trading_logic)
+            data["Trade Date"].append(row.trade_date)
+            data["Symbol Name"].append(row.symbol_name)
+            data["Symbol"].append(row.symbol)
+            data["Position"].append(row.position)
+            data["Price"].append(row.price)
+            data["Quantity"].append(row.quantity)
 
         # 데이터 생성
         # data = {

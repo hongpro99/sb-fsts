@@ -6,14 +6,14 @@ import math
 import json
 from pykis import PyKis, KisChart, KisStock
 from datetime import datetime, date, time
-from pytz import timezone
 import mplfinance as mpf
 from pytz import timezone
 from app.utils.technical_indicator import TechnicalIndicator
 from app.utils.trading_logic import TradingLogic
 from app.utils.crud_sql import SQLExecutor
+from app.utils.dynamodb.crud import DynamoDBExecutor
 from app.utils.database import get_db, get_db_session
-from sqlalchemy import text
+from app.utils.dynamodb.model.trading_history_model import TradingHistory
 
 
 # 보조지표 클래스 선언
@@ -750,11 +750,8 @@ class AutoTradingBot:
             # trade history 에 추가
             position = 'BUY'
             quantity = 1 # 임시
-            try:
-                self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
-            except Exception as e:  # 모든 예외를 포착
-                # 예외 메시지를 로그로 출력하거나 처리
-                print(f"An error occurred while inserting trading history: {e}")
+
+            self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
         
         if sell_yn:
             # 매도 함수 구현
@@ -762,43 +759,59 @@ class AutoTradingBot:
             # trade history 에 추가
             position = 'SELL'
             quantity = 1 # 임시
-            try:
-                self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
-            except Exception as e:  # 모든 예외를 포착
-                # 예외 메시지를 로그로 출력하거나 처리
-                print(f"An error occurred while inserting trading history: {e}")
+
+            self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
 
 
-    def _insert_trading_history(self, trading_logic, position, trading_bot_name, price, quantity, symbol, symbol_name):
-
-        sql_executor = SQLExecutor()
-
+    def _insert_trading_history(self, trading_logic, position, trading_bot_name, price, quantity, symbol, symbol_name, data_type='test'):
+        
+        dynamodb_executor = DynamoDBExecutor()
         # 한국 시간대
         kst = timezone("Asia/Seoul")
-
         # 현재 시간을 KST로 변환
         current_time = datetime.now(kst)
+        created_at = int(current_time.timestamp() * 1000)  # ✅ 밀리세컨드 단위로 SK 생성
 
+        data_model = TradingHistory(
+            trading_bot_name=trading_bot_name,
+            created_at=created_at,
+            updated_at=None,
+            trading_logic=trading_logic,
+            trade_date=created_at,
+            symbol=symbol,
+            symbol_name=symbol_name,
+            position=position,
+            price=float(price),
+            quantity=float(quantity),
+            data_type=data_type
+        )
+
+        result = dynamodb_executor.execute_save(data_model)
+        print(f'execute_save 결과 = {result}')
+
+        # sql_executor = SQLExecutor()
+        
         # 동적 쿼리 생성
-        query = """
-            INSERT INTO fsts.trading_history
-            (trading_logic, "position", trading_bot_name, price, quantity, symbol, symbol_name, trade_date)
-            VALUES (:trading_logic, :position, :trading_bot_name, :price, :quantity, :symbol, :symbol_name, :trade_date)
-            RETURNING *;
-        """
-        params = {
-            "trading_logic": trading_logic,
-            "position": position,
-            "trading_bot_name": trading_bot_name,
-            "price": price,
-            "quantity": quantity,
-            "symbol": symbol,
-            "symbol_name": symbol_name,
-            "trade_date": current_time
-        }
+        # query = """
+        #     INSERT INTO fsts.trading_history
+        #     (trading_logic, "position", trading_bot_name, price, quantity, symbol, symbol_name, trade_date)
+        #     VALUES (:trading_logic, :position, :trading_bot_name, :price, :quantity, :symbol, :symbol_name, :trade_date)
+        #     RETURNING *;
+        # """
+        
+        # params = {
+        #     "trading_logic": trading_logic,
+        #     "position": position,
+        #     "trading_bot_name": trading_bot_name,
+        #     "price": price,
+        #     "quantity": quantity,
+        #     "symbol": symbol,
+        #     "symbol_name": symbol_name,
+        #     "trade_date": current_time
+        # }
 
-        with get_db_session() as db:
-            result = sql_executor.execute_upsert(db, query, params)
+        # with get_db_session() as db:
+        #     result = sql_executor.execute_upsert(db, query, params)
 
         return result
 
