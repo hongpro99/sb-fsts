@@ -1,15 +1,14 @@
 from app.utils.technical_indicator import TechnicalIndicator
+import pandas as pd
+import io
+import numpy as np
 
 # 보조지표 클래스 선언
 indicator = TechnicalIndicator()
 class TradingLogic:
 
-    # 체결 강도 기준 매매 대상인지 확인
-    def func1(self):
-        # 체결 강도 조건 확인
-        
-        return True / False
-    
+    def __init__(self):
+        self.trade_reasons = []
 
     # 윗꼬리와 아랫꼬리를 체크하는 함수
     def check_wick(self, candle, previous_closes, lower_band, sma, upper_band):
@@ -85,7 +84,7 @@ class TradingLogic:
 
         return has_upper_wick, has_lower_wick
 
-    def rsi_trading(self, rsi_values, buy_threshold= 35, sell_threshold= 70):
+    def rsi_trading(self, candle, rsi_values, buy_threshold= 35, sell_threshold= 70):
         """
         RSI를 기반으로 매수/매도 신호를 계산하는 함수.
         
@@ -96,18 +95,65 @@ class TradingLogic:
         Returns:
             tuple: (buy_signals, sell_signals)
         """
-        current_rsi = rsi_values[-1]
-        previous_rsi = rsi_values[-2] if len(rsi_values) > 1 else None
         
-        if len(rsi_values) < 2 or current_rsi is None or previous_rsi is None:
-            # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False, False
+        # ✅ None 값 제거 (dropna() 대신 직접 필터링)
+        rsi_values = [rsi for rsi in rsi_values if rsi is not None]
 
-            # 매수 신호: RSI가 35 아래에서 35 위로 돌파
-        buy_signal = previous_rsi < buy_threshold <= current_rsi
+        # ✅ NaN 제거 후 데이터 확인
+        print(f"📌 NaN 제거 후 rsi_values 길이: {len(rsi_values)}")
+        if len(rsi_values) < 2:
+            print("🚨 rsi_values 데이터가 부족하여 매매 신호를 계산할 수 없음")
+            return False, False  # 기본값 반환
+        
+        previous_rsi = rsi_values[-2]
+        current_rsi = rsi_values[-1]
+        
+        # ✅ 기본값 설정
+        buy_signal = False
+        sell_signal = False
+        reason = ""
 
-            # 매도 신호: RSI가 70 위에서 70 아래로 하락
-        sell_signal = previous_rsi > sell_threshold >= current_rsi
+        trade_date = candle.time.date()  # 날짜만 추출 (YYYY-MM-DD)
+        # 📌 매수 신호 판단 (Buy)
+        if previous_rsi <= buy_threshold and current_rsi > buy_threshold:
+            buy_signal = True
+            reason = f"RSI {previous_rsi:.2f} → {current_rsi:.2f} (Buy Threshold {buy_threshold} 초과)"
+
+        # 📌 매도 신호 판단 (Sell)
+        elif previous_rsi >= sell_threshold and current_rsi < sell_threshold:
+            sell_signal = True
+            reason = f"RSI {previous_rsi:.2f} → {current_rsi:.2f} (Sell Threshold {sell_threshold} 하락)"
+
+        # 📌 매수/매도 신호가 없는 경우, 이유 저장
+        else:
+            if previous_rsi > buy_threshold and current_rsi > buy_threshold:
+                reason = ("RSI가 이미 매수 임계값 이상, 추가 매수 없음")
+            elif previous_rsi < sell_threshold and current_rsi < sell_threshold:
+                reason = ("RSI가 이미 매도 임계값 이하, 추가 매도 없음")
+            elif previous_rsi > buy_threshold and current_rsi < buy_threshold:
+                reason = ("RSI가 매수 임계값을 초과했으나 다시 하락")
+            elif previous_rsi < sell_threshold and current_rsi > sell_threshold:
+                reason = ("RSI가 매도 임계값 이하였으나 다시 상승")
+            else:
+                reason = ("RSI 기준 충족하지 않음")
+
+        # ✅ 같은 날짜가 이미 trade_reasons 리스트에 있는지 확인(딕셔너리 방식도 가능)
+        if not any(entry["Time"].date() == trade_date for entry in self.trade_reasons):        
+            # trade_reasons 리스트에 데이터 저장        
+            trade_entry = {
+                'Time' : candle.time,
+                'Previous RSI': previous_rsi,
+                'Current RSI': current_rsi,
+                'Buy Signal': buy_signal,
+                'Sell Signal': sell_signal,
+                'Reason': reason
+            }
+            self.trade_reasons.append(trade_entry)           
+                
+        print(f"📌 매수 신호: {buy_signal}, 매도 신호: {sell_signal}, 이유: {reason}")
+            
+        print(f"📌 현재 trade_reasons: {len(self.trade_reasons)} 개")
+        print(f"📌 trade_reasons: {self.trade_reasons}")        
             
         return buy_signal, sell_signal
 
@@ -546,64 +592,94 @@ class TradingLogic:
         
         return all_conditions_met and sell_signal
     
-    def mfi_trading(self, mfi_values):
+    def mfi_trading(self, df, buy_threshold=20, sell_threshold=80):
         """
-        MFI를 기반으로 매수/매도 신호를 계산하는 함수.
+        ✅ MFI 매매 신호 생성
+        - MFI < 20 → 매수
+        - MFI > 80 → 매도
         """
-        # ✅ MFI 값이 None이면 기본값으로 빈 리스트 처리
-        if mfi_values is None or not isinstance(mfi_values, list):
-            return False, False  # 매수/매도 없음
-        
-        current_mfi = mfi_values[-1] 
-        previous_mfi = mfi_values[-2] if len(mfi_values) > 1 else None
-        
-        if len(mfi_values) < 0 or current_mfi is None or previous_mfi is None:
-            # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False, False
 
-            # 매수 신호: mfi가 20 이하일때 매수
-        buy_signal = previous_mfi < 20 <= current_mfi
+        # ✅ 매수 (MFI가 20 이하였다가 20 이상으로 상승)
+        buy_signal = (df['MFI'].shift(1) < buy_threshold) & (df['MFI'] > buy_threshold)
 
-            # 매도 신호: mfi가 80 이상일때 매도
-        sell_signal = previous_mfi > 80 >= current_mfi
-            
+        # ✅ 매도 (MFI가 80 이상이었다가 80 이하로 하락)
+        sell_signal = (df['MFI'].shift(1) > sell_threshold) & (df['MFI'] < sell_threshold)
+
+        print(f"📌 DEBUG: buy_signal - {buy_signal}, sell_signal - {sell_signal}")
+
+        return buy_signal.values[-1], sell_signal.values[-1]
+        
+    def macd_trading(self, candle, df):
+        """
+        ✅ MACD 크로스 & MACD 오실레이터 조합
+        - MACD 크로스 신호 + MACD OSC 방향이 일치할 때만 매매
+        """
+
+        # ✅ 기본값 설정
+        buy_signal = False
+        sell_signal = False
+        reason = ""
+
+        # ✅ MACD 크로스 신호
+        macd_buy = (df['macd'] > df['macd_signal']) & (df['macd'].shift(1) <= df['macd_signal'].shift(1))
+        macd_sell = (df['macd'] < df['macd_signal']) & (df['macd'].shift(1) >= df['macd_signal'].shift(1))
+
+        # ✅ MACD 오실레이터 신호
+        osc_buy = (df['macd_histogram'] > 0) & (df['macd_histogram'].shift(1) <= 0)
+        osc_sell = (df['macd_histogram'] < 0) & (df['macd_histogram'].shift(1) >= 0)
+
+        # ✅ MACD 크로스 & OSC 방향이 일치할 때만 신호 발생
+        buy_signal = macd_buy.values[-1] & osc_buy.values[-1]
+        sell_signal = macd_sell.values[-1] & osc_sell.values[-1]
+        
+        # ✅ 상태 메시지 설정
+        if buy_signal:
+            reason = f"MACD {df['macd'].iloc[-2]:.2f} → {df['macd'].iloc[-1]:.2f} (골든 크로스, 매수 신호)"
+        elif sell_signal:
+            reason = f"MACD {df['macd'].iloc[-2]:.2f} → {df['macd'].iloc[-1]:.2f} (데드 크로스, 매도 신호)"
+        else:
+            reason = f"MACD {df['macd'].iloc[-1]:.2f}, Signal {df['macd_signal'].iloc[-1]:.2f} (추세 유지 중)"
+
+        if reason:
+            self.add_trade_reason(candle, reason, buy_signal, sell_signal)
+
+        print(f"📌 DEBUG: buy_signal - {buy_signal}, sell_signal - {sell_signal}")
+
         return buy_signal, sell_signal
-        
-    def macd_trading(self, df, current_day):
-        """
-        특정 날짜(current_day)에 대해 MACD 매매 신호를 반환하는 함수.
-        
-        :param df: MACD 및 Signal 값이 포함된 데이터프레임
-        :param current_day: 현재 시뮬레이션이 진행 중인 날짜 (index로 지정)
-        :return: 'Buy' 또는 'Sell' 신호 반환 (True/False)
-        """
-        # 현재 날짜 인덱스가 데이터에 존재하는지 확인
-        if current_day not in df.index:
-            return False, False  # 매수, 매도 신호 없음
-
-        # 날짜의 이전 값 확인 (첫 번째 데이터는 신호 없음)
-        idx = df.index.get_loc(current_day)
-        if idx == 0:
-            return False, False
-
-        # MACD & Signal 값 가져오기 (전날과 비교)
-        prev_macd = df['macd'].iloc[idx - 1]
-        prev_signal = df['macd_signal'].iloc[idx - 1]
-        prev_macd_zero = df['macd'].iloc[idx - 1] < 0
-
-        macd = df['macd'].iloc[idx]
-        signal = df['macd_signal'].iloc[idx]
-        macd_zero = df['macd'].iloc[idx] > 0
-
-        # 📌 매수 신호 조건
-        macd_cross_up = prev_macd < prev_signal and macd > signal  # MACD 골든 크로스
-        macd_zero_cross_up = prev_macd_zero and macd_zero  # MACD 0선 상향 돌파
-        buy_signal = macd_cross_up and macd_zero_cross_up
-
-        # 📌 매도 신호 조건
-        macd_cross_down = prev_macd > prev_signal and macd < signal  # MACD 데드 크로스
-        macd_zero_cross_down = not prev_macd_zero and not macd_zero  # MACD 0선 하향 돌파
-        sell_signal = macd_cross_down and macd_zero_cross_down
-        return buy_signal, sell_signal       
-        
     
+    def stochastic_trading(self, df, k_threshold=20, d_threshold=80):
+        """
+        스토캐스틱 기반 매매 신호 생성
+        매수: ① %K가 %D를 아래에서 위로 교차 (골든 크로스)
+        ② %K & %D가 20 이하에서 상승
+        
+        매도: ① %K가 %D를 위에서 아래로 교차 (데드 크로스)
+        ② %K & %D가 80 이상에서 하락
+        """
+        df['%K'] = df['stochastic_k']
+        df['%D'] = df['stochastic_d']
+        
+        buy_signal = (df['%K'] > df['%D']) & (df['%K'].shift(1) <= df['%D'].shift(1)) & (df['%K'].shift(1) < k_threshold) & (df['%K'] > k_threshold)
+        sell_signal = (df['%K'] < df['%D']) & (df['%K'].shift(1) >= df['%D'].shift(1)) & (df['%K'].shift(1) > d_threshold) & (df['%K'] < d_threshold)
+        
+        print(f"buy_signal : {buy_signal}")
+        print(f"조작 후 buy_signal: {buy_signal.values[-1]}")
+        print(f"sell_signal : {sell_signal}")
+
+        return buy_signal.values[-1], sell_signal.values[-1]
+        
+    def add_trade_reason(self, candle, reason, buy_signal, sell_signal):
+        """
+        ✅ trade_reasons에 중복되지 않도록 매매 이유 추가
+        """
+        trade_date = candle.time.date()
+        self.trade_reasons = []
+        # ✅ 같은 날짜가 이미 trade_reasons 리스트에 있는지 확인
+        if not any(entry["Time"].date() == trade_date for entry in self.trade_reasons):
+            trade_entry = {
+                "Time": candle.time,
+                "Buy Signal": buy_signal,
+                "Sell Signal": sell_signal,
+                "Reason": reason
+            }
+            self.trade_reasons.append(trade_entry)  # 🚀 중복이 없을 때만 추가        

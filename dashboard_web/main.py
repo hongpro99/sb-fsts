@@ -19,7 +19,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.crud_sql import SQLExecutor
 from app.utils.database import get_db, get_db_session
+from app.utils.trading_logic import TradingLogic
 
+#보조지표 클래스 선언
+logic = TradingLogic()
 
 def draw_lightweight_chart(data_df):
 
@@ -46,6 +49,8 @@ def draw_lightweight_chart(data_df):
     macd_histogram = json.loads(data_df.dropna(subset=['macd_histogram']).rename(columns={"macd_histogram": "value"}).to_json(orient="records"))
     stochastic_k = json.loads(data_df.dropna(subset=['stochastic_k']).rename(columns={"stochastic_k": "value"}).to_json(orient="records"))
     stochastic_d = json.loads(data_df.dropna(subset=['stochastic_d']).rename(columns={"stochastic_d": "value"}).to_json(orient="records"))
+    mfi = json.loads(data_df.dropna(subset=['mfi']).rename(columns={"mfi": "value"}).to_json(orient="records"))
+    mfi_signal = json.loads(data_df.dropna(subset=['mfi_signal']).rename(columns={"mfi_signal": "value"}).to_json(orient="records"))
 
     temp_df = data_df
     temp_df['color'] = np.where(temp_df['open'] > temp_df['close'], COLOR_BEAR, COLOR_BULL)  # bull or bear
@@ -233,6 +238,34 @@ def draw_lightweight_chart(data_df):
                 "color": 'rgba(255, 99, 132, 0.7)',
                 "text": 'Stocastic',
             }
+        },
+        {
+            "height": 150,  # RSI 차트 높이 설정
+            "layout": {
+                "background": {"type": "solid", "color": 'white'},
+                "textColor": "black"
+            },
+            "grid": {
+                "vertLines": {"color": "rgba(197, 203, 206, 0.5)"},
+                "horzLines": {"color": "rgba(197, 203, 206, 0.5)"}
+            },
+            "crosshair": {"mode": 0},
+            "priceScale": {"borderColor": "rgba(197, 203, 206, 0.8)"},
+            "timeScale": {
+                "borderColor": "rgba(197, 203, 206, 0.8)",
+                "barSpacing": 15,
+                "fixLeftEdge": True,
+                "fixRightEdge": True,
+                "visible": True
+            },
+            "watermark": {
+                "visible": True,
+                "fontSize": 15,
+                "horzAlign": 'left',
+                "vertAlign": 'top',
+                "color": 'rgba(255, 99, 132, 0.7)',
+                "text": 'mfi'
+            }
         }
     ]
 
@@ -391,6 +424,49 @@ def draw_lightweight_chart(data_df):
         },
     ]
 
+    seriesMfiChart = [
+        {
+            "type": 'Line', 
+            "data": mfi, 
+            "options": {
+                "color": 'rgba(0, 150, 255, 1)', 
+                "lineWidth": 1.5,
+                "priceLineVisible": False,
+            }
+        },
+        {
+        "type": 'Line', 
+        "data": mfi_signal,  # ✅ MFI Signal 값
+        "options": {
+            "color": 'rgba(255, 0, 0, 1)',  # 🔴 빨간색 (MFI Signal)
+            "lineWidth": 1.5,
+            "priceLineVisible": False,
+        }
+    },
+    {
+            "type": 'Line',
+            "data": [{"time": row["time"], "value": 80} for row in mfi],  # 과매도 라인
+            "options": {
+                "color": 'rgba(200, 0, 0, 0.5)',  # 빨간색
+                "lineWidth": 2,
+                "priceScaleId": "right",
+                "lastValueVisible": True,
+                "priceLineVisible": False,
+            },
+    },
+    {
+            "type": 'Line',
+            "data": [{"time": row["time"], "value": 20} for row in mfi],  # 과매수 라인
+            "options": {
+                "color": 'rgba(200, 0, 0, 0.5)',  # 빨간색
+                "lineWidth": 2,
+                "priceScaleId": "right",
+                "lastValueVisible": True,
+                "priceLineVisible": False,
+            },
+    },
+    ]
+    
     renderLightweightCharts([
         {
             "chart": chartMultipaneOptions[0],
@@ -412,6 +488,10 @@ def draw_lightweight_chart(data_df):
             "chart": chartMultipaneOptions[4],
             "series": seriesStochasticChart
         },
+        {
+            "chart": chartMultipaneOptions[5],
+            "series": seriesMfiChart
+        },        
     ], 'multipane')
 
 def rename_tradingLogic(trade_history):
@@ -451,7 +531,11 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'mfi_trading':
             entry['trading_logic'] = 'mfi 확인'
         elif entry.get('trading_logic') == 'rsi+check_wick':
-            entry['trading_logic'] = 'rsi+꼬리'            
+            entry['trading_logic'] = 'rsi+꼬리'
+        elif entry.get('trading_logic') == 'stochastic_trading':
+            entry['trading_logic'] = '스토캐스틱'
+        elif entry.get('trading_logic') == 'macd_trading':
+            entry['trading_logic'] = 'macd 확인'              
             
             
 # ✅ 가짜 사용자 데이터베이스 (실제 구현 시 DB 연동 필요)
@@ -486,12 +570,12 @@ def setup_sidebar(sql_executer):
     
     st.sidebar.header("Simulation Settings")
 
-    user_name = '홍석문'
+    #user_name = '홍석문'
 
     # AutoTradingBot 및 SQLExecutor 객체 생성
     sql_executor = SQLExecutor()
-    auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=True)
-    
+    #auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=True)
+    auto_trading_stock = AutoTradingBot()    
     current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
     
     # 사용자 입력
@@ -500,26 +584,26 @@ def setup_sidebar(sql_executer):
     end_date = st.sidebar.date_input("End Date", value=current_date_kst)
     target_trade_value_krw = st.sidebar.number_input("Target Trade Value (KRW)", value=1000000, step=100000)
 
-    query = """
-            SELECT 종목코드, 종목이름 FROM fsts.kospi200 ORDER BY 종목이름 COLLATE "ko_KR";
-        """
+    # query = """
+    #         SELECT 종목코드, 종목이름 FROM fsts.kospi200 ORDER BY 종목이름 COLLATE "ko_KR";
+    #     """
 
 
-    params = {}
+    # params = {}
 
-    with get_db_session() as db:
-        result = sql_executor.execute_select(db, query, params)
+    # with get_db_session() as db:
+    #     result = sql_executor.execute_select(db, query, params)
 
-    # Dropdown 메뉴를 통해 데이터 선택
-    symbol_options = {
-        # "삼성전자": "352820",
-        # "대한항공": "003490",
-    }
+    # # Dropdown 메뉴를 통해 데이터 선택
+    # symbol_options = {
+    #     # "삼성전자": "352820",
+    #     # "대한항공": "003490",
+    # }
 
-    for stock in result:
-        key = stock['종목이름']  # 'a' 값을 키로
-        value = stock['종목코드']  # 'b' 값을 값으로
-        symbol_options[key] = value  # 딕셔너리에 추가
+    # for stock in result:
+    #     key = stock['종목이름']  # 'a' 값을 키로
+    #     value = stock['종목코드']  # 'b' 값을 값으로
+    #     symbol_options[key] = value  # 딕셔너리에 추가
             
     # interval 설정
     interval_options = {
@@ -538,7 +622,7 @@ def setup_sidebar(sql_executer):
     available_buy_logic = trading_logic["available_buy_logic"]
     available_sell_logic = trading_logic["available_sell_logic"]
     
-    selected_stock = st.sidebar.selectbox("Select a Stock", list(symbol_options.keys()))
+    #selected_stock = st.sidebar.selectbox("Select a Stock", list(symbol_options.keys()))
     selected_interval = st.sidebar.selectbox("Select Chart Interval", list(interval_options.keys()))
     selected_buy_logic = st.sidebar.multiselect("Select Buy Logic(s):", list(available_buy_logic.keys()))
     selected_sell_logic = st.sidebar.multiselect("Select Sell Logic(s):", list(available_sell_logic.keys()))
@@ -553,7 +637,8 @@ def setup_sidebar(sql_executer):
     else:
         buy_percentage = None
         
-    symbol = symbol_options[selected_stock]
+    #symbol = symbol_options[selected_stock]
+    symbol = '010120'
     interval = interval_options[selected_interval]
     
     selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic] if selected_buy_logic else []
@@ -570,13 +655,13 @@ def setup_sidebar(sql_executer):
     
     # ✅ 설정 값을 딕셔너리 형태로 반환
     return {
-        "user_name": user_name,
+        #"user_name": user_name,
         "start_date": start_date,
         "end_date": end_date,
         "target_trade_value_krw": target_trade_value_krw,
-        "kospi200": symbol_options,
+        #"kospi200": symbol_options,
         "symbol": symbol,
-        "selected_stock": selected_stock,
+        #"selected_stock": selected_stock,
         "interval": interval,
         "buy_trading_logic": selected_buyTrading_logic,
         "sell_trading_logic": selected_sellTrading_logic,
@@ -596,9 +681,9 @@ def setup_my_page(sql_executor):
     # AutoTradingBot, trading_logic 및 SQLExecutor 객체 생성
     
     sql_executor = SQLExecutor()
-    user_name = "홍석문"  # 사용자 이름 (고정값)
-    auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=True)
-    
+    #user_name = "홍석문"  # 사용자 이름 (고정값)
+    #auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=True)
+    auto_trading_stock = AutoTradingBot()    
     current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
 
     start_date = st.date_input("📅 Start Date", value=date(2023, 1, 1))
@@ -678,7 +763,7 @@ def setup_my_page(sql_executor):
     # ✅ 설정 저장 버튼
     if st.button("✅ 설정 저장"):
         st.session_state["my_page_settings"] = {
-            "user_name": user_name,
+            #"user_name": user_name,
             "start_date": start_date,
             "end_date": end_date,
             "target_trade_value_krw": target_trade_value_krw,
@@ -751,18 +836,18 @@ def main():
 
         params = {}
 
-        with get_db_session() as db:
-            result = sql_executor.execute_select(db, query, params)
+        # with get_db_session() as db:
+        #     result = sql_executor.execute_select(db, query, params)
 
-        for row in result:
-            data["Trading Bot Name"].append(row['trading_bot_name'])
-            data["Trading Logic"].append(row['trading_logic'])
-            data["Trade Date"].append(row['trade_date'])
-            data["Symbol Name"].append(row['symbol_name'])
-            data["Symbol"].append(row['symbol'])
-            data["Position"].append(row['position'])
-            data["Price"].append(row['price'])
-            data["Quantity"].append(row['quantity'])
+        # for row in result:
+        #     data["Trading Bot Name"].append(row['trading_bot_name'])
+        #     data["Trading Logic"].append(row['trading_logic'])
+        #     data["Trade Date"].append(row['trade_date'])
+        #     data["Symbol Name"].append(row['symbol_name'])
+        #     data["Symbol"].append(row['symbol'])
+        #     data["Position"].append(row['position'])
+        #     data["Price"].append(row['price'])
+        #     data["Quantity"].append(row['quantity'])
 
         # 데이터 생성
         # data = {
@@ -788,14 +873,14 @@ def main():
         st.header("📈 종목 시뮬레이션")
         
         if st.sidebar.button("개별 종목 시뮬레이션 실행", key = 'simulation_button'):
-            auto_trading_stock = AutoTradingBot(user_name=sidebar_settings["user_name"], virtual=True)
+            auto_trading_stock = AutoTradingBot()
             
             
             with st.container():
-                st.write(f"📊 {sidebar_settings['selected_stock']} 시뮬레이션 실행 중...")
+                #st.write(f"📊 {sidebar_settings['selected_stock']} 시뮬레이션 실행 중...")
                 
                 #시뮬레이션 실행
-                data_df, trading_history = auto_trading_stock.simulate_trading(
+                data_df, trading_history, trade_reasons = auto_trading_stock.simulate_trading(
                     symbol=sidebar_settings["symbol"],
                     start_date=sidebar_settings["start_date"],
                     end_date=sidebar_settings["end_date"],
@@ -809,7 +894,23 @@ def main():
                     rsi_sell_threshold = sidebar_settings['rsi_sell_threshold']
                     
                 )
-        
+                
+                print(f"최종 trade_reasons: {trade_reasons}")
+                
+                # ✅ Streamlit에 표시
+                if trade_reasons:
+                    st.subheader("📝 거래 내역 (Trade Reasons)")
+                    df_trade = pd.DataFrame(trade_reasons)
+                    st.dataframe(df_trade)
+                else:
+                    st.warning("🚨 거래 내역이 없습니다.")
+                    
+                import io
+                st.subheader("📥 데이터 다운로드")
+                csv_buffer = io.StringIO()
+                df_trade.to_csv(csv_buffer, index=False)
+                st.download_button("📄 CSV 파일 다운로드", csv_buffer.getvalue(), "trade_reasons.csv", "text/csv")
+                
                 # tradingview chart draw
                 draw_lightweight_chart(data_df)
 
@@ -872,6 +973,8 @@ def main():
                     st.dataframe(trade_history_df, use_container_width=True)
                 else:
                     st.write("No detailed trade history found.")
+                    
+
 
 
     with tabs[2]:
@@ -1006,8 +1109,8 @@ def main():
             else:
                 st.write("⚠️ 시뮬레이션 결과가 없습니다.")
                 
-    with tabs[4]:  # 🛠 마이페이지 설정
-        setup_my_page(sql_executor)            
+    # with tabs[4]:  # 🛠 마이페이지 설정
+    #     setup_my_page(sql_executor)            
     
 
 if __name__ == "__main__":

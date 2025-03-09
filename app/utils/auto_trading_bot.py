@@ -24,78 +24,34 @@ class AutoTradingBot:
     """
         실전투자와 모의투자를 선택적으로 설정 가능
     """
-    def __init__(self, user_name, virtual=False, app_key=None, secret_key=None, account=None):
+    def __init__(self):
         
-        sql_executor = SQLExecutor()
+        # if virtual:
+        #     self.virtual  = virtual
 
-        query = """
-            SELECT * FROM fsts.user_info
-            WHERE name = :name;
-        """
-
-        params = {
-            "name": user_name
-        }
-
-        with get_db_session() as db:
-            result = sql_executor.execute_select(db, query, params)
+        # if self.virtual:
             
-        if not result:
-            raise ValueError(f"사용자 {user_name}에 대한 정보를 찾을 수 없습니다.")    
-
-        self.kis_id = result[0]['kis_id']
-        self.app_key = result[0]['app_key']
-        self.secret_key = result[0]['secret_key']
-        self.account = result[0]['account']
-        self.virtual = virtual
-        self.virtual_kis_id = result[0]['virtual_kis_id']
-        self.virtual_app_key = result[0]['virtual_app_key']
-        self.virtual_secret_key = result[0]['virtual_secret_key']
-        self.virtual_account = result[0]['virtual_account']
-
-        # 임의로 app_key 및 secret_key 넣고 싶을 경우
-        if app_key and secret_key and account:
-            if virtual:
-                self.virual_app_key = app_key
-                self.virual_secret_key = secret_key
-                self.virual_account = account
-            else:
-                self.app_key = app_key
-                self.secret_key = secret_key
-                self.account = account
-
-        # PyKis 객체 생성
-        self.create_kis_object()    
-
-    def create_kis_object(self):
-        """한 번 발급받은 토큰을 유지하면서 PyKis 객체 생성"""
-        # 모의투자용 PyKis 객체 생성
-        if self.virtual:
-            if not all([self.kis_id, self.app_key, self.secret_key, 
-                        self.virtual_kis_id, self.virtual_app_key, self.virtual_secret_key, self.virtual_account]):
-                raise ValueError("모의투자 정보를 완전히 제공해야 합니다.")
-            
-            self.kis = PyKis(
-                id=self.kis_id,         # 한국투자증권 HTS ID
-                appkey=self.app_key,    # 발급받은 App Key
-                secretkey=self.secret_key, # 발급받은 App Secret
-                account=self.virtual_account, # 계좌번호 (예: "12345678-01")
-                virtual_id=self.virtual_kis_id,
-                virtual_appkey=self.virtual_app_key,
-                virtual_secretkey=self.virtual_secret_key,
-                keep_token=True  # API 접속 토큰 자동 저장
-            )
+        #     self.kis = PyKis(
+        #         id=self.kis_id,         # 한국투자증권 HTS ID
+        #         appkey=self.app_key,    # 발급받은 App Key
+        #         secretkey=self.secret_key, # 발급받은 App Secret
+        #         account=self.virtual_account, # 계좌번호 (예: "12345678-01")
+        #         virtual_id=self.virtual_kis_id,
+        #         virtual_appkey=self.virtual_app_key,
+        #         virtual_secretkey=self.virtual_secret_key,
+        #         keep_token=True  # API 접속 토큰 자동 저장
+        #     )
         # 실전투자용 PyKis 객체 생성
-        else:
+        # else:
             self.kis = PyKis(
-                id=self.kis_id,             # 한국투자증권 HTS ID
-                appkey=self.app_key,    # 발급받은 App Key
-                secretkey=self.secret_key, # 발급받은 App Secret
-                account=self.account, # 계좌번호 (예: "12345678-01")
+                id='dreaminmind',             # 한국투자증권 HTS ID
+                appkey='PSyTGF07QupJyV76XGm3mkgcr4RDvSeODpVZ',    # 발급받은 App Key
+                secretkey='eteoHNN+iHktbHC1TOKNdDc2ecFHqwyA+o1OijESqRtWY2cirhUqbiuFfO5zmEPNqB8/P0RSBuTjZnPq4zc5u3dKHIg/HOFQqmZcCik621aWqti5MBReqNpr/NChcs8edoBKd4cgJaC47m3IKncU4GglKzWNqHtic/4X8lmOAZx0oDGuFkI=', # 발급받은 App Secret
+                account='67737279', # 계좌번호 (예: "12345678-01")
                 keep_token=True           # 토큰 자동 갱신 여부
             )
 
-        print(f"{'모의투자' if self.virtual else '실전투자'} API 객체가 성공적으로 생성되었습니다.")
+        # print(f"{'모의투자' if self.virtual else '실전투자'} API 객체가 성공적으로 생성되었습니다.")
         
     def send_discord_webhook(self, message, bot_type):
         if bot_type == 'trading':
@@ -160,6 +116,7 @@ class AutoTradingBot:
         df = indicator.cal_rsi_df(df)
         df = indicator.cal_macd_df(df)
         df = indicator.cal_stochastic_df(df)
+        df = indicator.cal_mfi_df(df)
 
         print(f'df = {df}')
 
@@ -296,7 +253,9 @@ class AutoTradingBot:
                         interval='day', buy_percentage = None, ohlc_mode = 'default',rsi_buy_threshold = 35, rsi_sell_threshold = 70, initial_capital=None):
         
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval, ohlc_mode) #클래스 객체, .사용
-        
+        trade_reasons = logic.trade_reasons
+        # ✅ trade_reasons 초기화
+        trade_reasons = []        
         #실제 투자 모드인지 확인
             # ✅ 실제 투자 모드인지 확인
         real_trading = initial_capital is not None
@@ -307,7 +266,6 @@ class AutoTradingBot:
         positions = [] #손절 포지션
         previous_closes = []  # 이전 종가들을 저장
         closes = []
-        mfi_recent_data = []
         trading_history = {
             'average_price': 0,  # 평단가
             'realized_pnl': 0,  # 실현 손익
@@ -351,6 +309,7 @@ class AutoTradingBot:
             timestamp = candle.time
             timestamps.append(timestamp)
             closes.append(close_price) #rsi
+            trade_reasons = logic.trade_reasons
 
 
             # timestamp 변수를 ISO 8601 문자열로 변환
@@ -361,7 +320,8 @@ class AutoTradingBot:
             previous_closes.append(close_price)
             
             # 캔들 차트 데이터프레임 생성
-            df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))  
+            df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
+            print(f"df: {df}")  
             recent_20_days_volume = []
             avg_volume_20_days = 0
 
@@ -382,8 +342,13 @@ class AutoTradingBot:
                         _, buy_yn = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         
                     elif trading_logic == 'rsi_trading':
-                        rsi_values = indicator.cal_rsi(closes, 14)
-                        buy_yn, _ = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
+                        df = indicator.cal_rsi_df(df, 14)
+                        
+                        # ✅ df 출력 (여기서 실제 전달되는 값 확인)
+                        print("\n✅ RSI 계산 후 df:")
+                        print(df.tail(10))  # 최근 10개만 출력
+                        
+                        buy_yn, _ = logic.rsi_trading(candle, df['Rsi'], rsi_buy_threshold, rsi_sell_threshold)
 
                     elif trading_logic == 'penetrating':
                         buy_yn = logic.penetrating(candle, d_1, d_2, closes)
@@ -408,15 +373,11 @@ class AutoTradingBot:
                         
                     elif trading_logic == 'macd_trading':
                         df = indicator.cal_macd_df(df)
-                        buy_yn = logic.macd_trading(df, timestamp)                        
+                        buy_yn, _ = logic.macd_trading(candle, df)
+                                                
                     elif trading_logic == 'mfi_trading':
-                        mfi_values = indicator.cal_mfi(candle, d_1, 14)
-                        
-                        # ✅ None 체크 추가
-                        if mfi_values is None:
-                            mfi_values = []  # 빈 리스트로 처리
-                            
-                        buy_yn, _ = logic.mfi_trading(mfi_values)    
+                        df = indicator.cal_mfi_df(df)
+                        buy_yn, _ = logic.mfi_trading(df)    
                     #rsi와 check_wick and 조건
                     elif trading_logic == 'rsi+check_wick':
                         # 볼린저 밴드 계산
@@ -426,8 +387,15 @@ class AutoTradingBot:
                         buy_yn2, _ = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
                         buy_yn = buy_yn1 and buy_yn2
                         
+                    elif trading_logic == 'stochastic_trading':
+                        df = indicator.cal_stochastic_df(df, 14, 3)
+                        print(f"스토캐스틱 계산 후 df: {df}")
+                        buy_yn, _ = logic.stochastic_trading(df)
+                        
+                        
                         # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
-                    if buy_yn and volume > d_1.volume and d_1.volume > avg_volume_20_days:
+                    #if buy_yn and volume > d_1.volume and d_1.volume > avg_volume_20_days:
+                    if buy_yn:
                                                 
                         can_buy = True
                         # 매수 제한 조건 확인                        
@@ -511,8 +479,9 @@ class AutoTradingBot:
                         sell_yn = logic.dark_cloud(candle, d_1, d_2)
                         
                     elif trading_logic == 'rsi_trading':
-                        rsi_values = indicator.cal_rsi(closes, 14)
-                        _, sell_yn = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
+                        df = indicator.cal_rsi_df(df, 14)
+                        #print(f"rsi 데이터: {df['rsi']}")
+                        _, sell_yn = logic.rsi_trading(candle, df['Rsi'], rsi_buy_threshold, rsi_sell_threshold)
                         
                     elif trading_logic == 'check_wick':            
                         # 볼린저 밴드 계산
@@ -520,8 +489,8 @@ class AutoTradingBot:
                         sell_yn, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         
                     elif trading_logic == 'mfi_trading':
-                        mfi_values = indicator.cal_mfi(candle, d_1, 14)
-                        _, sell_yn = logic.mfi_trading(mfi_values)
+                        df = indicator.cal_mfi_df(df)
+                        _, sell_yn = logic.mfi_trading(df)
                         
                     #rsi와 check_wick and 조건
                     elif trading_logic == 'rsi+check_wick':
@@ -530,7 +499,15 @@ class AutoTradingBot:
                         sell_yn1, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         rsi_values = indicator.cal_rsi(closes, 14)
                         _, sell_yn2 = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
-                        sell_yn = sell_yn1 and sell_yn2                            
+                        sell_yn = sell_yn1 and sell_yn2
+                        
+                    elif trading_logic == 'stochastic_trading':
+                        df = indicator.cal_stochastic_df(df, 14, 3)
+                        _, sell_yn = logic.stochastic_trading(df)
+                        
+                    elif trading_logic == 'macd_trading':
+                        df = indicator.cal_macd_df(df)
+                        _, sell_yn = logic.macd_trading(candle, df)                                                    
                 #매도 사인이 2개 이상일 때 quantity 조건에 충족되지 않은 조건은 history에 추가되지 않는다는 문제 해결 필요
                 # 매도
                 if sell_yn:
@@ -579,7 +556,7 @@ class AutoTradingBot:
         print(f"총 실현손익: {trading_history['realized_pnl']}KRW")
         print(f"미실현 손익 (Unrealized PnL): {trading_history['unrealized_pnl']}KRW")
         
-        return result_data, trading_history
+        return result_data, trading_history, trade_reasons
 
 
     def save_trading_history_to_db_with_executor(self, trading_history, symbol, sql_executor):

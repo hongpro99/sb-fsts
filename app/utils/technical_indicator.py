@@ -4,10 +4,6 @@ import pandas as pd
 
 class TechnicalIndicator:
     
-    def __init__(self):
-        self.recent_data = []  # ✅ recent_data를 인스턴스 변수로 유지하여 초기화 방지
-        self.mfi_values = []
-        
     # 볼린저밴드 계산
     def cal_bollinger_band(self, previous_closes, close_price):
         if len(previous_closes) >= 20:
@@ -103,109 +99,86 @@ class TechnicalIndicator:
 
         return rsi
 
-
-    def cal_mfi(self, candle, d_1, period=14): 
+    def cal_mfi_df(self, df, period=14):
         """
-        새로운 캔들을 받아 MFI를 계산
-        :param candle: 현재 캔들 데이터 (딕셔너리 또는 클래스 객체)
-        :param d_1: 전일 캔들 데이터 (딕셔너리 또는 클래스 객체)
-        :return: 계산된 MFI 값 (단일 float 값)
-        기본 period = 14
+        ✅ MFI (Money Flow Index) 계산
+        - MFI = 100 - (100 / (1 + Money Flow Ratio))
         """
-        if not d_1:  # 전일 데이터가 없으면 MFI 계산 불가
-            return None
+        if not isinstance(df, pd.DataFrame):
+                raise TypeError(f"🚨 오류: df가 DataFrame이 아닙니다! 현재 타입: {type(df)}")
+        # ✅ Typical Price (TP) 계산
+        df['TP'] = (df['High'] + df['Low'] + df['Close']) / 3
+
+        # ✅ Raw Money Flow (RMF) 계산
+        df['RMF'] = df['TP'] * df['Volume']
+
+        # ✅ 이전 TP 값 추가 (shift(1) 오류 방지)
+        df['Prev_TP'] = df['TP'].shift(1)
         
+        # ✅ Money Flow 비교 (TP가 상승/하락한 경우)
+        df['Positive_MF'] = df.apply(lambda x: x['RMF'] if x['TP'] > x['Prev_TP'] else 0, axis=1)
+        df['Negative_MF'] = df.apply(lambda x: x['RMF'] if x['TP'] < x['Prev_TP'] else 0, axis=1)
+
+        # ✅ MFR (Money Flow Ratio) 계산
+        df['PMF'] = df['Positive_MF'].rolling(window=period).sum()
+        df['NMF'] = df['Negative_MF'].rolling(window=period).sum()
+        df['MFR'] = df['PMF'] / (df['NMF'] + 1e-10)  # 0으로 나누는 문제 방지
+
+        # ✅ MFI (Money Flow Index) 계산
+        df['MFI'] = 100 - (100 / (1 + df['MFR']))
         
-        # 전일 TP 계산
-        prev_tp = (d_1.high + d_1.low + d_1.close) / 3
+        df['MFI_Signal'] = df['MFI'].rolling(window=3).mean()  # ✅ MFI의 3일 이동 평균
 
-        # 1️⃣ 현재 Typical Price (TP) 계산
-        tp = (candle.high + candle.low + candle.close) / 3
+        return df
 
-        # 2️⃣ Raw Money Flow 계산
-        raw_money_flow = tp * candle.volume
+    def cal_rsi_df(self, df, period=14):
 
-        # 3️⃣ Positive / Negative Money Flow 계산
-        if tp > prev_tp:
-            positive_money_flow = raw_money_flow
-            negative_money_flow = 0
-        elif tp < prev_tp:
-            positive_money_flow = 0
-            negative_money_flow = raw_money_flow
-        else:
-            positive_money_flow = 0
-            negative_money_flow = 0
-
-        # 4️⃣ 최근 period 개의 데이터를 저장 (rolling 기능을 구현)
-        self.recent_data.append({"positive": positive_money_flow, "negative": negative_money_flow})
-
-        # 5️⃣ MFI 계산 (기간 내 데이터가 충분한 경우)
-        if len(self.recent_data) > period:
-            self.recent_data.pop(0)  # 가장 오래된 데이터 삭제
-
-        if len(self.recent_data) < period:
-            return None  # 데이터가 부족하면 MFI 계산 불가
-
-        positive_sum = sum(d["positive"] for d in self.recent_data)
-        negative_sum = sum(d["negative"] for d in self.recent_data)
-
-        # 6️⃣ Money Ratio 및 MFI 계산
-        money_ratio = positive_sum / (negative_sum if negative_sum > 0 else 1)  # 0 나누기 방지
-        mfi = 100 - (100 / (1 + money_ratio))
+        delta = df['Close'].diff(1)  # 종가 변화량
+        gain = delta.where(delta > 0, 0)  # 상승한 부분만 남기기
+        loss = -delta.where(delta < 0, 0)  # 하락한 부분만 남기기
         
-        mfi_values = self.mfi_values
-        self.mfi_values.append(mfi)
-        return mfi_values
-
-
-    
-
-    def cal_rsi_df(self, df, window=14):
-
-        delta = df['Close'].diff(1)  # 종가 차이 계산
-
-        gain = np.where(delta > 0, delta, 0)  # 상승분만 추출
-        loss = np.where(delta < 0, -delta, 0)  # 하락분만 추출
-
-        avg_gain = pd.Series(gain, index=df.index).rolling(window=window, min_periods=1).mean()
-        avg_loss = pd.Series(loss, index=df.index).rolling(window=window, min_periods=1).mean()
-
-        rs = avg_gain / (avg_loss + 1e-10)  # 0으로 나누는 오류 방지
-        rsi = 100 - (100 / (1 + rs))
-
-        df['rsi'] = rsi
+        # 📌 NaN 방지 & 초기값 설정 (최소 14개 이상 데이터 필요)
+        avg_gain = gain.rolling(window=period, min_periods=1).mean()
+        avg_loss = loss.rolling(window=period, min_periods=1).mean()
+        
+        # 📌 0으로 나누는 문제 방지 (loss가 0일 때 예외 처리)
+        rs = avg_gain / (avg_loss + 1e-10)  # 1e-10을 추가해서 0으로 나누는 것 방지
+        df['Rsi'] = 100 - (100 / (1 + rs))  # RSI 계산
+        
+        # 📌 처음 14일 동안의 데이터 제거 (이상값 방지)
+        df.iloc[:period, df.columns.get_loc('Rsi')] = np.nan
 
         return df
     
 
     def cal_macd_df(self, df, short_window=12, long_window=26, signal_window=9):
         """
-        	•	MACD (Moving Average Convergence Divergence)는 단기(12) EMA와 장기(26) EMA의 차이를 나타냄.
-            •	MACD Line = 12-day EMA - 26-day EMA
-            •	Signal Line = 9-day EMA of MACD Line (MACD의 9일 이동 평균)
-            •	MACD와 Signal의 차이를 히스토그램으로 표현함.
+        MACD 오실레이터
+        •	MACD (Moving Average Convergence Divergence)는 단기(12) EMA와 장기(26) EMA의 차이를 나타냄.
+        •	MACD Line = 12-day EMA - 26-day EMA
+        •	Signal Line = 9-day EMA of MACD Line (MACD의 9일 이동 평균)
+        •	MACD와 Signal의 차이를 히스토그램으로 표현함. = MACD OSC
         """
 
         df['ema_short'] = df['Close'].ewm(span=short_window, adjust=False).mean()
         df['ema_long'] = df['Close'].ewm(span=long_window, adjust=False).mean()
 
-
         df['macd'] = df['ema_short'] - df['ema_long']
         df['macd_signal'] = df['macd'].ewm(span=signal_window, adjust=False).mean()
-        df['macd_histogram'] = df['macd'] - df['macd_signal']  # MACD 히스토그램
+        df['macd_histogram'] = df['macd'] - df['macd_signal']  # MACD 히스토그램 = osc
 
         return df
     
 
     def cal_stochastic_df(self, df, k_window=14, d_window=3):
         """
-        	•	현재 종가가 최근 N일 동안의 고점과 저점 사이에서 어디쯤 위치하는지를 나타내는 지표.
-            •	K% = (현재 종가 - 최저가) / (최고가 - 최저가) * 100
-            •	D% = K%의 3일 이동 평균
+        •	현재 종가가 최근 N일 동안의 고점과 저점 사이에서 어디쯤 위치하는지를 나타내는 지표.
+        •	K% = (현재 종가 - 최저가) / (최고가 - 최저가) * 100
+        •	D% = K%의 3일 이동 평균
         """
 
-        df['low_min'] = df['Close'].rolling(window=k_window).min()
-        df['high_max'] = df['Close'].rolling(window=k_window).max()
+        df['low_min'] = df['Low'].rolling(window=k_window).min()
+        df['high_max'] = df['High'].rolling(window=k_window).max()
 
         df['stochastic_k'] = 100 * ((df['Close'] - df['low_min']) / (df['high_max'] - df['low_min'] + 1e-10))
         df['stochastic_d'] = df['stochastic_k'].rolling(window=d_window).mean()  # 3일 이동 평균
