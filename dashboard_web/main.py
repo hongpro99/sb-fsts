@@ -22,6 +22,8 @@ from app.utils.database import get_db, get_db_session
 from app.utils.trading_logic import TradingLogic
 from app.utils.dynamodb.model.stock_symbol_model import StockSymbol
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
+from app.utils.dynamodb.model.user_info_model import UserInfo
+
 
 #보조지표 클래스 선언
 logic = TradingLogic()
@@ -559,7 +561,12 @@ def login_page():
 
     # 간단한 사용자 검증 (실제 서비스에서는 DB 연동 필요)
     if st.button("로그인"):
-        if username == "fsts" and password == "1234":
+        # 로그인 정보 조회
+        result = list(UserInfo.scan(
+            filter_condition=((UserInfo.id == username) & (UserInfo.password == password))
+        ))
+        
+        if len(result) > 0:
             st.session_state["authenticated"] = True
             st.rerun()  # 로그인 후 페이지 새로고침
         else:
@@ -618,7 +625,7 @@ def setup_sidebar(sql_executer):
     available_buy_logic = trading_logic["available_buy_logic"]
     available_sell_logic = trading_logic["available_sell_logic"]
     
-    #selected_stock = st.sidebar.selectbox("Select a Stock", list(symbol_options.keys()))
+    selected_stock = st.sidebar.selectbox("Select a Stock", list(symbol_options.keys()))
     selected_interval = st.sidebar.selectbox("Select Chart Interval", list(interval_options.keys()))
     selected_buy_logic = st.sidebar.multiselect("Select Buy Logic(s):", list(available_buy_logic.keys()))
     selected_sell_logic = st.sidebar.multiselect("Select Sell Logic(s):", list(available_sell_logic.keys()))
@@ -633,7 +640,7 @@ def setup_sidebar(sql_executer):
     else:
         buy_percentage = None
         
-    #symbol = symbol_options[selected_stock]
+    symbol = symbol_options[selected_stock]
     symbol = '010120'
     interval = interval_options[selected_interval]
     
@@ -651,13 +658,13 @@ def setup_sidebar(sql_executer):
     
     # ✅ 설정 값을 딕셔너리 형태로 반환
     return {
-        #"user_name": user_name,
+        "user_name": user_name,
         "start_date": start_date,
         "end_date": end_date,
         "target_trade_value_krw": target_trade_value_krw,
-        #"kospi200": symbol_options,
+        "kospi200": symbol_options,
         "symbol": symbol,
-        #"selected_stock": selected_stock,
+        "selected_stock": selected_stock,
         "interval": interval,
         "buy_trading_logic": selected_buyTrading_logic,
         "sell_trading_logic": selected_sellTrading_logic,
