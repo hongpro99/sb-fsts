@@ -83,7 +83,10 @@ class TradingLogic:
         if has_upper_wick:
             print(f"윗꼬리 감지: 시간: {candle.time}, close_price: {close_price:.7f} KRW, 볼린저 밴드 상단: {upper_band:.7f} KRW, 중단: {middle_band:.7f} KRW, 하단: {lower_band:.7f} KRW")
 
-        return has_upper_wick, has_lower_wick
+        buy_signal = has_lower_wick
+        sell_signal = has_upper_wick
+
+        return buy_signal, sell_signal
 
     def rsi_trading(self, rsi_values, buy_threshold= 35, sell_threshold= 70):
         """
