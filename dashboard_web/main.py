@@ -759,7 +759,7 @@ def setup_my_page():
     # ✅ 설정 저장 버튼
     if st.button("✅ 설정 저장"):
         st.session_state["my_page_settings"] = {
-            #"user_name": user_name,
+            "user_name": user_name,
             "start_date": start_date,
             "end_date": end_date,
             "target_trade_value_krw": target_trade_value_krw,
