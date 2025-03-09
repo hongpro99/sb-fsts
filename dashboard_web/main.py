@@ -641,7 +641,6 @@ def setup_sidebar(sql_executer):
         buy_percentage = None
         
     symbol = symbol_options[selected_stock]
-    symbol = '010120'
     interval = interval_options[selected_interval]
     
     selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic] if selected_buy_logic else []
@@ -995,7 +994,7 @@ def main():
                     with st.spinner(f"📊 {stock_name} ({i+1}/{total_stocks}) 시뮬레이션 실행 중..."):
                         auto_trading_stock = AutoTradingBot(user_name=my_page_settings["user_name"], virtual=False)
 
-                        _, trading_history = auto_trading_stock.simulate_trading(
+                        _, trading_history, trade_reasons = auto_trading_stock.simulate_trading(
                             symbol=symbol,
                             start_date=my_page_settings["start_date"],
                             end_date=my_page_settings["end_date"],

@@ -599,7 +599,7 @@ class AutoTradingBot:
 
         # 캔들 차트 데이터프레임 생성
         result_data, simulation_plot = self._draw_chart(symbol, ohlc, timestamps, buy_signals, sell_signals)
-
+        print(f"result_data : {result_data}")
         # 매매 내역 요약 출력
         print("\n=== 매매 요약 ===")
         print(f"총 매수 횟수: {trading_history['buy_count']}")
