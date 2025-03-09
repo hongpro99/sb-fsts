@@ -6,14 +6,16 @@ import math
 import json
 from pykis import PyKis, KisChart, KisStock
 from datetime import datetime, date, time
-from pytz import timezone
 import mplfinance as mpf
 from pytz import timezone
+from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
 from app.utils.technical_indicator import TechnicalIndicator
 from app.utils.trading_logic import TradingLogic
 from app.utils.crud_sql import SQLExecutor
+from app.utils.dynamodb.crud import DynamoDBExecutor
 from app.utils.database import get_db, get_db_session
-from sqlalchemy import text
+from app.utils.dynamodb.model.trading_history_model import TradingHistory
+from app.utils.dynamodb.model.user_info_model import UserInfo
 
 
 # 보조지표 클래스 선언
@@ -24,34 +26,85 @@ class AutoTradingBot:
     """
         실전투자와 모의투자를 선택적으로 설정 가능
     """
-    def __init__(self):
+    def __init__(self, user_name, virtual=False, app_key=None, secret_key=None, account=None):
         
-        # if virtual:
-        #     self.virtual  = virtual
+        # sql_executor = SQLExecutor()
 
-        # if self.virtual:
+        # query = """
+        #     SELECT * FROM fsts.user_info
+        #     WHERE name = :name;
+        # """
+
+        # params = {
+        #     "name": user_name
+        # }
+
+        # with get_db_session() as db:
+        #     result = sql_executor.execute_select(db, query, params)
             
-        #     self.kis = PyKis(
-        #         id=self.kis_id,         # 한국투자증권 HTS ID
-        #         appkey=self.app_key,    # 발급받은 App Key
-        #         secretkey=self.secret_key, # 발급받은 App Secret
-        #         account=self.virtual_account, # 계좌번호 (예: "12345678-01")
-        #         virtual_id=self.virtual_kis_id,
-        #         virtual_appkey=self.virtual_app_key,
-        #         virtual_secretkey=self.virtual_secret_key,
-        #         keep_token=True  # API 접속 토큰 자동 저장
-        #     )
-        # 실전투자용 PyKis 객체 생성
-        # else:
+        # if not result:
+        #     raise ValueError(f"사용자 {user_name}에 대한 정보를 찾을 수 없습니다.")
+
+        result = list(UserInfo.scan(
+            filter_condition=(UserInfo.name == user_name)
+        ))
+
+        if len(result) == 0:
+            raise ValueError(f"사용자 {user_name}에 대한 정보를 찾을 수 없습니다.")
+
+        self.kis_id = result[0].kis_id
+        self.app_key = result[0].app_key
+        self.secret_key = result[0].secret_key
+        self.account = result[0].account
+        self.virtual = virtual
+        self.virtual_kis_id = result[0].virtual_kis_id
+        self.virtual_app_key = result[0].virtual_app_key
+        self.virtual_secret_key = result[0].virtual_secret_key
+        self.virtual_account = result[0].virtual_account
+
+        # 임의로 app_key 및 secret_key 넣고 싶을 경우
+        if app_key and secret_key and account:
+            if virtual:
+                self.virual_app_key = app_key
+                self.virual_secret_key = secret_key
+                self.virual_account = account
+            else:
+                self.app_key = app_key
+                self.secret_key = secret_key
+                self.account = account
+
+        # PyKis 객체 생성
+        self.create_kis_object()    
+
+    def create_kis_object(self):
+        """한 번 발급받은 토큰을 유지하면서 PyKis 객체 생성"""
+        # 모의투자용 PyKis 객체 생성
+        if self.virtual:
+            if not all([self.kis_id, self.app_key, self.secret_key, 
+                        self.virtual_kis_id, self.virtual_app_key, self.virtual_secret_key, self.virtual_account]):
+                raise ValueError("모의투자 정보를 완전히 제공해야 합니다.")
+            
             self.kis = PyKis(
-                id='dreaminmind',             # 한국투자증권 HTS ID
-                appkey='PSyTGF07QupJyV76XGm3mkgcr4RDvSeODpVZ',    # 발급받은 App Key
-                secretkey='eteoHNN+iHktbHC1TOKNdDc2ecFHqwyA+o1OijESqRtWY2cirhUqbiuFfO5zmEPNqB8/P0RSBuTjZnPq4zc5u3dKHIg/HOFQqmZcCik621aWqti5MBReqNpr/NChcs8edoBKd4cgJaC47m3IKncU4GglKzWNqHtic/4X8lmOAZx0oDGuFkI=', # 발급받은 App Secret
-                account='67737279', # 계좌번호 (예: "12345678-01")
+                id=self.kis_id,         # 한국투자증권 HTS ID
+                appkey=self.app_key,    # 발급받은 App Key
+                secretkey=self.secret_key, # 발급받은 App Secret
+                account=self.virtual_account, # 계좌번호 (예: "12345678-01")
+                virtual_id=self.virtual_kis_id,
+                virtual_appkey=self.virtual_app_key,
+                virtual_secretkey=self.virtual_secret_key,
+                keep_token=True  # API 접속 토큰 자동 저장
+            )
+        # 실전투자용 PyKis 객체 생성
+        else:
+            self.kis = PyKis(
+                id=self.kis_id,             # 한국투자증권 HTS ID
+                appkey=self.app_key,    # 발급받은 App Key
+                secretkey=self.secret_key, # 발급받은 App Secret
+                account=self.account, # 계좌번호 (예: "12345678-01")
                 keep_token=True           # 토큰 자동 갱신 여부
             )
 
-        # print(f"{'모의투자' if self.virtual else '실전투자'} API 객체가 성공적으로 생성되었습니다.")
+        print(f"{'모의투자' if self.virtual else '실전투자'} API 객체가 성공적으로 생성되었습니다.")
         
     def send_discord_webhook(self, message, bot_type):
         if bot_type == 'trading':
@@ -339,7 +392,7 @@ class AutoTradingBot:
                     if trading_logic == 'check_wick':            
                         # 볼린저 밴드 계산
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        _, buy_yn = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                        buy_yn, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         
                     elif trading_logic == 'rsi_trading':
                         df = indicator.cal_rsi_df(df, 14)
@@ -486,7 +539,7 @@ class AutoTradingBot:
                     elif trading_logic == 'check_wick':            
                         # 볼린저 밴드 계산
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        sell_yn, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                        _, sell_yn = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         
                     elif trading_logic == 'mfi_trading':
                         df = indicator.cal_mfi_df(df)
@@ -568,40 +621,36 @@ class AutoTradingBot:
         - symbol: str, 종목 코드
         - sql_executor: SQLExecutor 객체
         """
+
+        dynamodb_executor = DynamoDBExecutor()
+        # 한국 시간대
+        kst = timezone("Asia/Seoul")
+        # 현재 시간을 KST로 변환
+        current_time = datetime.now(kst)
+        created_at = int(current_time.timestamp() * 1000)  # ✅ 밀리세컨드 단위로 SK 생성
+
+        data_model = SimulationHistory(
+            symbol=symbol,
+            created_at=created_at,
+            updated_at=None,
+            average_price=trading_history['average_price'],
+            realized_pnl=trading_history['realized_pnl'],
+            unrealized_pnl=trading_history['unrealized_pnl'],
+            realized_roi=trading_history['realized_roi'],
+            unrealized_roi=trading_history['unrealized_roi'],
+            total_cost=trading_history['total_cost'],
+            total_quantity=trading_history['total_quantity'],
+            buy_count=trading_history['buy_count'],
+            sell_count=trading_history['sell_count'],
+            buy_dates=trading_history['buy_dates'],
+            sell_dates=trading_history['sell_dates'],
+            history=json.dumps(trading_history["history"])
+        )
+
+        result = dynamodb_executor.execute_save(data_model)
+        print(f"Trading history for {symbol} saved successfully: {result}")
+        return result
     
-        query = """
-            INSERT INTO fsts.simulation_history (
-                symbol, average_price, realized_pnl, unrealized_pnl, realized_roi, unrealized_roi,
-                total_cost, total_quantity, buy_count, sell_count, 
-                buy_dates, sell_dates, history, created_at
-            ) VALUES (
-                :symbol, :average_price, :realized_pnl, :unrealized_pnl, :realized_roi, :unrealized_roi,
-                :total_cost, :total_quantity, :buy_count, :sell_count, 
-                :buy_dates, :sell_dates, :history, NOW()
-            ) RETURNING *;
-        """
-
-        params = {
-            "symbol": symbol,
-            "average_price": trading_history['average_price'],
-            "realized_pnl": trading_history['realized_pnl'],
-            "unrealized_pnl": trading_history['unrealized_pnl'],
-            "realized_roi" : trading_history['realized_roi'],
-            "unrealized_roi": trading_history['unrealized_roi'],
-            "total_cost": trading_history['total_cost'],
-            "total_quantity": trading_history['total_quantity'],
-            "buy_count": trading_history['buy_count'],
-            "sell_count": trading_history['sell_count'],
-            "buy_dates": trading_history['buy_dates'],
-            "sell_dates": trading_history['sell_dates'],
-            "history": json.dumps(trading_history["history"])
-        }
-
-        with get_db_session() as db:
-            result = sql_executor.execute_insert(db, query, params)
-            print(f"Trading history for {symbol} saved successfully: {result}")
-            return result
-
 
     # 실시간 매매 함수
     def trade(self, trading_bot_name, buy_trading_logic, sell_trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw, interval='day'):
@@ -648,7 +697,7 @@ class AutoTradingBot:
             buy_yn = False # 각 로직에 대한 매수 신호 초기화
 
             if trading_logic == 'check_wick':            
-                _, buy_yn = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                buy_yn, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
             elif trading_logic == 'rsi_trading':
                 rsi_values = indicator.cal_rsi(closes, 14)
                 buy_yn, _ = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
@@ -673,7 +722,7 @@ class AutoTradingBot:
             
             if trading_logic == 'check_wick':            
                 # 볼린저 밴드 계산
-                sell_yn, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                _, sell_yn = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
             elif trading_logic == 'rsi_trading':
                 rsi_values = indicator.cal_rsi(closes, 14)
                 _, sell_yn = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
@@ -732,11 +781,8 @@ class AutoTradingBot:
             # trade history 에 추가
             position = 'BUY'
             quantity = 1 # 임시
-            try:
-                self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
-            except Exception as e:  # 모든 예외를 포착
-                # 예외 메시지를 로그로 출력하거나 처리
-                print(f"An error occurred while inserting trading history: {e}")
+
+            self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
         
         if sell_yn:
             # 매도 함수 구현
@@ -744,43 +790,59 @@ class AutoTradingBot:
             # trade history 에 추가
             position = 'SELL'
             quantity = 1 # 임시
-            try:
-                self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
-            except Exception as e:  # 모든 예외를 포착
-                # 예외 메시지를 로그로 출력하거나 처리
-                print(f"An error occurred while inserting trading history: {e}")
+
+            self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
 
 
-    def _insert_trading_history(self, trading_logic, position, trading_bot_name, price, quantity, symbol, symbol_name):
-
-        sql_executor = SQLExecutor()
-
+    def _insert_trading_history(self, trading_logic, position, trading_bot_name, price, quantity, symbol, symbol_name, data_type='test'):
+        
+        dynamodb_executor = DynamoDBExecutor()
         # 한국 시간대
         kst = timezone("Asia/Seoul")
-
         # 현재 시간을 KST로 변환
         current_time = datetime.now(kst)
+        created_at = int(current_time.timestamp() * 1000)  # ✅ 밀리세컨드 단위로 SK 생성
 
+        data_model = TradingHistory(
+            trading_bot_name=trading_bot_name,
+            created_at=created_at,
+            updated_at=None,
+            trading_logic=trading_logic,
+            trade_date=created_at,
+            symbol=symbol,
+            symbol_name=symbol_name,
+            position=position,
+            price=float(price),
+            quantity=float(quantity),
+            data_type=data_type
+        )
+
+        result = dynamodb_executor.execute_save(data_model)
+        print(f'execute_save 결과 = {result}')
+
+        # sql_executor = SQLExecutor()
+        
         # 동적 쿼리 생성
-        query = """
-            INSERT INTO fsts.trading_history
-            (trading_logic, "position", trading_bot_name, price, quantity, symbol, symbol_name, trade_date)
-            VALUES (:trading_logic, :position, :trading_bot_name, :price, :quantity, :symbol, :symbol_name, :trade_date)
-            RETURNING *;
-        """
-        params = {
-            "trading_logic": trading_logic,
-            "position": position,
-            "trading_bot_name": trading_bot_name,
-            "price": price,
-            "quantity": quantity,
-            "symbol": symbol,
-            "symbol_name": symbol_name,
-            "trade_date": current_time
-        }
+        # query = """
+        #     INSERT INTO fsts.trading_history
+        #     (trading_logic, "position", trading_bot_name, price, quantity, symbol, symbol_name, trade_date)
+        #     VALUES (:trading_logic, :position, :trading_bot_name, :price, :quantity, :symbol, :symbol_name, :trade_date)
+        #     RETURNING *;
+        # """
+        
+        # params = {
+        #     "trading_logic": trading_logic,
+        #     "position": position,
+        #     "trading_bot_name": trading_bot_name,
+        #     "price": price,
+        #     "quantity": quantity,
+        #     "symbol": symbol,
+        #     "symbol_name": symbol_name,
+        #     "trade_date": current_time
+        # }
 
-        with get_db_session() as db:
-            result = sql_executor.execute_upsert(db, query, params)
+        # with get_db_session() as db:
+        #     result = sql_executor.execute_upsert(db, query, params)
 
         return result
 

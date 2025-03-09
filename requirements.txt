@@ -17,3 +17,4 @@ streamlit
 seaborn
 streamlit-aggrid
 streamlit-lightweight-charts
+pynamodb

@@ -20,6 +20,8 @@ from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.crud_sql import SQLExecutor
 from app.utils.database import get_db, get_db_session
 from app.utils.trading_logic import TradingLogic
+from app.utils.dynamodb.model.stock_symbol_model import StockSymbol
+from app.utils.dynamodb.model.trading_history_model import TradingHistory
 
 #보조지표 클래스 선언
 logic = TradingLogic()
@@ -570,12 +572,12 @@ def setup_sidebar(sql_executer):
     
     st.sidebar.header("Simulation Settings")
 
-    #user_name = '홍석문'
+    user_name = '홍석형'
 
     # AutoTradingBot 및 SQLExecutor 객체 생성
     sql_executor = SQLExecutor()
-    #auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=True)
-    auto_trading_stock = AutoTradingBot()    
+    auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=False)
+    
     current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
     
     # 사용자 입력
@@ -584,26 +586,20 @@ def setup_sidebar(sql_executer):
     end_date = st.sidebar.date_input("End Date", value=current_date_kst)
     target_trade_value_krw = st.sidebar.number_input("Target Trade Value (KRW)", value=1000000, step=100000)
 
-    # query = """
-    #         SELECT 종목코드, 종목이름 FROM fsts.kospi200 ORDER BY 종목이름 COLLATE "ko_KR";
-    #     """
+    result = list(StockSymbol.scan(
+        filter_condition=(StockSymbol.type == 'kospi200')
+    ))
 
+    # Dropdown 메뉴를 통해 데이터 선택
+    symbol_options = {
+        # "삼성전자": "352820",
+        # "대한항공": "003490",
+    }
 
-    # params = {}
-
-    # with get_db_session() as db:
-    #     result = sql_executor.execute_select(db, query, params)
-
-    # # Dropdown 메뉴를 통해 데이터 선택
-    # symbol_options = {
-    #     # "삼성전자": "352820",
-    #     # "대한항공": "003490",
-    # }
-
-    # for stock in result:
-    #     key = stock['종목이름']  # 'a' 값을 키로
-    #     value = stock['종목코드']  # 'b' 값을 값으로
-    #     symbol_options[key] = value  # 딕셔너리에 추가
+    for stock in result:
+        key = stock.symbol_name  # 'a' 값을 키로
+        value = stock.symbol  # 'b' 값을 값으로
+        symbol_options[key] = value  # 딕셔너리에 추가
             
     # interval 설정
     interval_options = {
@@ -672,18 +668,16 @@ def setup_sidebar(sql_executer):
         "rsi_sell_threshold" : rsi_sell_threshold
     }
     
-def setup_my_page(sql_executor):
+def setup_my_page():
     """
     마이페이지 설정 탭: 사용자 맞춤 설정 저장
     """
     st.header("🛠 마이페이지 설정")
 
     # AutoTradingBot, trading_logic 및 SQLExecutor 객체 생성
+    user_name = "홍석형"  # 사용자 이름 (고정값)
+    auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=False)
     
-    sql_executor = SQLExecutor()
-    #user_name = "홍석문"  # 사용자 이름 (고정값)
-    #auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=True)
-    auto_trading_stock = AutoTradingBot()    
     current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
 
     start_date = st.date_input("📅 Start Date", value=date(2023, 1, 1))
@@ -699,16 +693,11 @@ def setup_my_page(sql_executor):
     if real_trading_yn == "Y":
         initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key="initial_capital")
     # ✅ DB에서 종목 리스트 가져오기
-    query = """
-            SELECT 종목코드, 종목이름 FROM fsts.kospi200 ORDER BY 종목이름 COLLATE "ko_KR";
-            """
-            
-    params = {}
+    kospi200_result = list(StockSymbol.scan(
+        filter_condition=(StockSymbol.type == 'kospi200')
+    ))
 
-    with get_db_session() as db:
-        kospi200_result = sql_executor.execute_select(db, query, params)
-
-    symbol_options = {row['종목이름']: row['종목코드'] for row in kospi200_result}
+    symbol_options = {row.symbol_name: row.symbol for row in kospi200_result}
     stock_names = list(symbol_options.keys())
     
     # ✅ "전체 선택" 및 "선택 해제" 버튼 추가
@@ -820,42 +809,28 @@ def main():
             "Quantity": []
         }
 
-        query = """
-            select
-                trading_bot_name,
-                trading_logic,
-                trade_date,
-                symbol_name,
-                symbol,
-                position,
-                price,
-                quantity
-            from fsts.trading_history
-            order by trading_logic, trade_date, symbol_name;
-        """
+        result = list(TradingHistory.scan())
 
-        params = {}
-
-        # with get_db_session() as db:
-        #     result = sql_executor.execute_select(db, query, params)
-
-        # for row in result:
-        #     data["Trading Bot Name"].append(row['trading_bot_name'])
-        #     data["Trading Logic"].append(row['trading_logic'])
-        #     data["Trade Date"].append(row['trade_date'])
-        #     data["Symbol Name"].append(row['symbol_name'])
-        #     data["Symbol"].append(row['symbol'])
-        #     data["Position"].append(row['position'])
-        #     data["Price"].append(row['price'])
-        #     data["Quantity"].append(row['quantity'])
-
-        # 데이터 생성
-        # data = {
-        #     "Name": ["Alice", "Bob", "Charlie"],
-        #     "Age": [25, 30, 35],
-        #     "City": ["New York", "San Francisco", "Los Angeles"]
-        # }
+        sorted_result = sorted(
+            result,
+            key=lambda x: (x.trading_logic, -x.trade_date, x.symbol_name) #trade_date 최신 순
+        )
         
+        for row in sorted_result:
+            # 초 단위로 변환
+            sec_timestamp = row.trade_date / 1000
+            # 포맷 변환
+            formatted_trade_date = datetime.fromtimestamp(sec_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+
+            data["Trading Bot Name"].append(row.trading_bot_name)
+            data["Trading Logic"].append(row.trading_logic)
+            data["Trade Date"].append(formatted_trade_date)
+            data["Symbol Name"].append(row.symbol_name)
+            data["Symbol"].append(row.symbol)
+            data["Position"].append(row.position)
+            data["Price"].append(f"{row.price:,.0f}")
+            data["Quantity"].append(f"{row.quantity:,.0f}")
+
         df = pd.DataFrame(data)
         
         # AgGrid로 테이블 표시
@@ -873,7 +848,7 @@ def main():
         st.header("📈 종목 시뮬레이션")
         
         if st.sidebar.button("개별 종목 시뮬레이션 실행", key = 'simulation_button'):
-            auto_trading_stock = AutoTradingBot()
+            auto_trading_stock = AutoTradingBot(user_name=sidebar_settings["user_name"], virtual=False)
             
             
             with st.container():
@@ -1011,7 +986,7 @@ def main():
             for i, (stock_name, symbol) in enumerate(my_page_settings["selected_symbols"].items()):
                 try:
                     with st.spinner(f"📊 {stock_name} ({i+1}/{total_stocks}) 시뮬레이션 실행 중..."):
-                        auto_trading_stock = AutoTradingBot(user_name=my_page_settings["user_name"], virtual=True)
+                        auto_trading_stock = AutoTradingBot(user_name=my_page_settings["user_name"], virtual=False)
 
                         _, trading_history = auto_trading_stock.simulate_trading(
                             symbol=symbol,
@@ -1109,8 +1084,8 @@ def main():
             else:
                 st.write("⚠️ 시뮬레이션 결과가 없습니다.")
                 
-    # with tabs[4]:  # 🛠 마이페이지 설정
-    #     setup_my_page(sql_executor)            
+    with tabs[4]:  # 🛠 마이페이지 설정
+        setup_my_page()            
     
 
 if __name__ == "__main__":
