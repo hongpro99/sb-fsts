@@ -556,15 +556,13 @@ def setup_sidebar(sql_executer):
         "rsi_sell_threshold" : rsi_sell_threshold
     }
     
-def setup_my_page(sql_executor):
+def setup_my_page():
     """
     마이페이지 설정 탭: 사용자 맞춤 설정 저장
     """
     st.header("🛠 마이페이지 설정")
 
     # AutoTradingBot, trading_logic 및 SQLExecutor 객체 생성
-    
-    sql_executor = SQLExecutor()
     user_name = "홍석형"  # 사용자 이름 (고정값)
     auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=False)
     
@@ -930,7 +928,7 @@ def main():
                 st.write("⚠️ 시뮬레이션 결과가 없습니다.")
                 
     with tabs[4]:  # 🛠 마이페이지 설정
-        setup_my_page(sql_executor)            
+        setup_my_page()            
     
 
 if __name__ == "__main__":
