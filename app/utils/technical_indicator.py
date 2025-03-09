@@ -185,3 +185,16 @@ class TechnicalIndicator:
 
         return df
 
+
+    def cal_ema_df(self, df, period=20):
+        """
+            DataFrame에서 EMA(지수이동평균)를 계산하여 추가합니다.
+            :param df: 입력 DataFrame
+            :param period: EMA 주기
+            :param column: EMA를 계산할 컬럼 이름 (기본값: 'Close')
+            :return: EMA 컬럼이 추가된 DataFrame
+        """
+        ema_column_name = f'EMA_{period}'
+        df[ema_column_name] = df['Close'].ewm(span=period, adjust=False).mean()
+        
+        return df

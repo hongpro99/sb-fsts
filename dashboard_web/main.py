@@ -31,8 +31,8 @@ logic = TradingLogic()
 def draw_lightweight_chart(data_df):
 
     # 차트 color
-    COLOR_BULL = 'rgba(38,166,154,0.9)' # #26a69a
-    COLOR_BEAR = 'rgba(239,83,80,0.9)'  # #ef5350
+    COLOR_BULL = 'rgba(236, 57, 72, 1)' # #26a69a
+    COLOR_BEAR = 'rgba(74, 86, 160, 1)'  # #ef5350
 
     # Some data wrangling to match required format
     data_df = data_df.reset_index()
@@ -47,6 +47,9 @@ def draw_lightweight_chart(data_df):
     bollinger_band_upper = json.loads(data_df.dropna(subset=['upper']).rename(columns={"upper": "value",}).to_json(orient = "records"))
     bollinger_band_middle = json.loads(data_df.dropna(subset=['middle']).rename(columns={"middle": "value",}).to_json(orient = "records"))
     bollinger_band_lower = json.loads(data_df.dropna(subset=['lower']).rename(columns={"lower": "value",}).to_json(orient = "records"))
+
+    ema_60 = json.loads(data_df.dropna(subset=['ema_60']).rename(columns={"ema_60": "value"}).to_json(orient="records"))
+
     rsi = json.loads(data_df.dropna(subset=['rsi']).rename(columns={"rsi": "value"}).to_json(orient="records"))
     macd = json.loads(data_df.dropna(subset=['macd']).rename(columns={"macd": "value"}).to_json(orient="records"))
     macd_signal = json.loads(data_df.dropna(subset=['macd_signal']).rename(columns={"macd_signal": "value"}).to_json(orient="records"))
@@ -302,6 +305,17 @@ def draw_lightweight_chart(data_df):
             "options": {
                 "color": 'rgba(0, 0, 0, 1)',  # 노란색
                 "lineWidth": 1,
+                "priceScaleId": "right",
+                "lastValueVisible": False, # 가격 레이블 숨기기
+                "priceLineVisible": False, # 가격 라인 숨기기
+            },
+        },
+        {
+            "type": 'Line',
+            "data": ema_60,  # 하단 밴드 데이터
+            "options": {
+                "color": 'rgba(0, 170, 170, 1)',
+                "lineWidth": 2,
                 "priceScaleId": "right",
                 "lastValueVisible": False, # 가격 레이블 숨기기
                 "priceLineVisible": False, # 가격 라인 숨기기
