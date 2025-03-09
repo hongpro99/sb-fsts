@@ -49,6 +49,9 @@ class AutoTradingBot:
             filter_condition=(UserInfo.name == user_name)
         ))
 
+        if len(result) == 0:
+            raise ValueError(f"사용자 {user_name}에 대한 정보를 찾을 수 없습니다.")
+
         self.kis_id = result[0].kis_id
         self.app_key = result[0].app_key
         self.secret_key = result[0].secret_key

@@ -13,14 +13,13 @@ from streamlit_lightweight_charts import renderLightweightCharts
 import json
 import numpy as np
 
-from app.utils.dynamodb.model.stock_symbol_model import StockSymbol
-
 # 프로젝트 루트를 PYTHONPATH에 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.crud_sql import SQLExecutor
 from app.utils.database import get_db, get_db_session
+from app.utils.dynamodb.model.stock_symbol_model import StockSymbol
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
 
 
@@ -453,8 +452,8 @@ def rename_tradingLogic(trade_history):
             entry['trading_logic'] = '흑운형'
         elif entry.get('trading_logic') == 'mfi_trading':
             entry['trading_logic'] = 'mfi 확인'
-     
-        
+
+
 def setup_sidebar(sql_executer):
     """
     공통적으로 사용할 사이드바 UI를 설정하는 함수
@@ -462,11 +461,11 @@ def setup_sidebar(sql_executer):
     
     st.sidebar.header("Simulation Settings")
 
-    user_name = '홍석문'
+    user_name = '홍석형'
 
     # AutoTradingBot 및 SQLExecutor 객체 생성
     sql_executor = SQLExecutor()
-    auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=True)
+    auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=False)
     
     current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
     
@@ -566,8 +565,8 @@ def setup_my_page(sql_executor):
     # AutoTradingBot, trading_logic 및 SQLExecutor 객체 생성
     
     sql_executor = SQLExecutor()
-    user_name = "홍석문"  # 사용자 이름 (고정값)
-    auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=True)
+    user_name = "홍석형"  # 사용자 이름 (고정값)
+    auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=False)
     
     current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
 
@@ -689,18 +688,23 @@ def main():
 
         sorted_result = sorted(
             result,
-            key=lambda x: (x.trading_logic, x.trade_date, x.symbol_name)
+            key=lambda x: (x.trading_logic, -x.trade_date, x.symbol_name) #trade_date 최신 순
         )
         
         for row in sorted_result:
+            # 초 단위로 변환
+            sec_timestamp = row.trade_date / 1000
+            # 포맷 변환
+            formatted_trade_date = datetime.fromtimestamp(sec_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+
             data["Trading Bot Name"].append(row.trading_bot_name)
             data["Trading Logic"].append(row.trading_logic)
-            data["Trade Date"].append(row.trade_date)
+            data["Trade Date"].append(formatted_trade_date)
             data["Symbol Name"].append(row.symbol_name)
             data["Symbol"].append(row.symbol)
             data["Position"].append(row.position)
-            data["Price"].append(row.price)
-            data["Quantity"].append(row.quantity)
+            data["Price"].append(f"{row.price:,.0f}")
+            data["Quantity"].append(f"{row.quantity:,.0f}")
 
         df = pd.DataFrame(data)
         
@@ -719,7 +723,7 @@ def main():
         st.header("📈 종목 시뮬레이션")
         
         if st.sidebar.button("개별 종목 시뮬레이션 실행", key = 'simulation_button'):
-            auto_trading_stock = AutoTradingBot(user_name=sidebar_settings["user_name"], virtual=True)
+            auto_trading_stock = AutoTradingBot(user_name=sidebar_settings["user_name"], virtual=False)
             
             
             with st.container():
@@ -839,7 +843,7 @@ def main():
             for i, (stock_name, symbol) in enumerate(my_page_settings["selected_symbols"].items()):
                 try:
                     with st.spinner(f"📊 {stock_name} ({i+1}/{total_stocks}) 시뮬레이션 실행 중..."):
-                        auto_trading_stock = AutoTradingBot(user_name=my_page_settings["user_name"], virtual=True)
+                        auto_trading_stock = AutoTradingBot(user_name=my_page_settings["user_name"], virtual=False)
 
                         _, trading_history = auto_trading_stock.simulate_trading(
                             symbol=symbol,
