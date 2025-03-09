@@ -13,6 +13,8 @@ from streamlit_lightweight_charts import renderLightweightCharts
 import json
 import numpy as np
 
+from app.utils.dynamodb.model.stock_symbol_model import StockSymbol
+
 # 프로젝트 루트를 PYTHONPATH에 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -451,6 +453,7 @@ def rename_tradingLogic(trade_history):
             entry['trading_logic'] = '흑운형'
         elif entry.get('trading_logic') == 'mfi_trading':
             entry['trading_logic'] = 'mfi 확인'
+     
         
 def setup_sidebar(sql_executer):
     """
@@ -473,14 +476,9 @@ def setup_sidebar(sql_executer):
     end_date = st.sidebar.date_input("End Date", value=current_date_kst)
     target_trade_value_krw = st.sidebar.number_input("Target Trade Value (KRW)", value=1000000, step=100000)
 
-    query = """
-            SELECT 종목코드, 종목이름 FROM fsts.kospi200 ORDER BY 종목이름 COLLATE "ko_KR";
-        """
-
-    params = {}
-
-    with get_db_session() as db:
-        result = sql_executor.execute_select(db, query, params)
+    result = list(StockSymbol.scan(
+        filter_condition=(StockSymbol.type == 'kospi200')
+    ))
 
     # Dropdown 메뉴를 통해 데이터 선택
     symbol_options = {
@@ -489,8 +487,8 @@ def setup_sidebar(sql_executer):
     }
 
     for stock in result:
-        key = stock['종목이름']  # 'a' 값을 키로
-        value = stock['종목코드']  # 'b' 값을 값으로
+        key = stock.symbol_name  # 'a' 값을 키로
+        value = stock.symbol  # 'b' 값을 값으로
         symbol_options[key] = value  # 딕셔너리에 추가
             
     # interval 설정
@@ -578,16 +576,11 @@ def setup_my_page(sql_executor):
     target_trade_value_krw = st.number_input("💰 Target Trade Value (KRW)", value=1000000, step=100000)
 
     # ✅ DB에서 종목 리스트 가져오기
-    query = """
-            SELECT 종목코드, 종목이름 FROM fsts.kospi200 ORDER BY 종목이름 COLLATE "ko_KR";
-            """
-            
-    params = {}
+    kospi200_result = list(StockSymbol.scan(
+        filter_condition=(StockSymbol.type == 'kospi200')
+    ))
 
-    with get_db_session() as db:
-        kospi200_result = sql_executor.execute_select(db, query, params)
-
-    symbol_options = {row['종목이름']: row['종목코드'] for row in kospi200_result}
+    symbol_options = {row.symbol_name: row.symbol for row in kospi200_result}
     stock_names = list(symbol_options.keys())
     
     # ✅ "전체 선택" 및 "선택 해제" 버튼 추가
@@ -692,38 +685,14 @@ def main():
             "Quantity": []
         }
 
-        query = """
-            select
-                trading_bot_name,
-                trading_logic,
-                trade_date,
-                symbol_name,
-                symbol,
-                position,
-                price,
-                quantity
-            from fsts.trading_history
-            order by trading_logic, trade_date, symbol_name;
-        """
+        result = list(TradingHistory.scan())
 
-        params = {}
-
-        # with get_db_session() as db:
-        #     result = sql_executor.execute_select(db, query, params)
-
-        # for row in result:
-        #     data["Trading Bot Name"].append(row['trading_bot_name'])
-        #     data["Trading Logic"].append(row['trading_logic'])
-        #     data["Trade Date"].append(row['trade_date'])
-        #     data["Symbol Name"].append(row['symbol_name'])
-        #     data["Symbol"].append(row['symbol'])
-        #     data["Position"].append(row['position'])
-        #     data["Price"].append(row['price'])
-        #     data["Quantity"].append(row['quantity'])
+        sorted_result = sorted(
+            result,
+            key=lambda x: (x.trading_logic, x.trade_date, x.symbol_name)
+        )
         
-        result = TradingHistory.scan()
-
-        for row in result:
+        for row in sorted_result:
             data["Trading Bot Name"].append(row.trading_bot_name)
             data["Trading Logic"].append(row.trading_logic)
             data["Trade Date"].append(row.trade_date)
@@ -733,12 +702,6 @@ def main():
             data["Price"].append(row.price)
             data["Quantity"].append(row.quantity)
 
-        # 데이터 생성
-        # data = {
-        #     "Name": ["Alice", "Bob", "Charlie"],
-        #     "Age": [25, 30, 35],
-        #     "City": ["New York", "San Francisco", "Los Angeles"]
-        # }
         df = pd.DataFrame(data)
         
         # AgGrid로 테이블 표시

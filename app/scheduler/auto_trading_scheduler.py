@@ -4,6 +4,7 @@ import requests
 from app.utils.database import get_db, get_db_session
 from app.utils.crud_sql import SQLExecutor
 from app.utils.auto_trading_bot import AutoTradingBot
+from app.utils.dynamodb.model.stock_symbol_model import StockSymbol
 
 # db = get_db()
 sql_executor = SQLExecutor()
@@ -35,17 +36,21 @@ def scheduled_trading_task():
     # 매수 로직 여기에 추가
     trading_bot = AutoTradingBot(user_name="홍석형")
     
-    sql_executor = SQLExecutor()
+    # sql_executor = SQLExecutor()
 
-    query = """
-        SELECT 종목코드, 종목이름 FROM fsts.kospi200;
-    """
+    # query = """
+    #     SELECT 종목코드, 종목이름 FROM fsts.kospi200;
+    # """
 
-    params = {
-    }
+    # params = {
+    # }
 
-    with get_db_session() as db:
-        result = sql_executor.execute_select(db, query, params)
+    # with get_db_session() as db:
+    #     result = sql_executor.execute_select(db, query, params)
+
+    result = list(StockSymbol.scan(
+        filter_condition=(StockSymbol.type == 'kospi200')
+    ))
     
     # 당일로부터 1년전 기간으로 차트 분석
     end_date = date.today()
@@ -59,8 +64,8 @@ def scheduled_trading_task():
     sell_trading_logic = ['check_wick', 'rsi_trading']
 
     for stock in result:
-        symbol = stock['종목코드']
-        symbol_name = stock['종목이름']
+        symbol = stock.symbol
+        symbol_name = stock.symbol_name
 
         max_retries = 5  # 최대 재시도 횟수
         retries = 0  # 재시도 횟수 초기화

@@ -8,12 +8,14 @@ from pykis import PyKis, KisChart, KisStock
 from datetime import datetime, date, time
 import mplfinance as mpf
 from pytz import timezone
+from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
 from app.utils.technical_indicator import TechnicalIndicator
 from app.utils.trading_logic import TradingLogic
 from app.utils.crud_sql import SQLExecutor
 from app.utils.dynamodb.crud import DynamoDBExecutor
 from app.utils.database import get_db, get_db_session
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
+from app.utils.dynamodb.model.user_info_model import UserInfo
 
 
 # 보조지표 클래스 선언
@@ -26,32 +28,36 @@ class AutoTradingBot:
     """
     def __init__(self, user_name, virtual=False, app_key=None, secret_key=None, account=None):
         
-        sql_executor = SQLExecutor()
+        # sql_executor = SQLExecutor()
 
-        query = """
-            SELECT * FROM fsts.user_info
-            WHERE name = :name;
-        """
+        # query = """
+        #     SELECT * FROM fsts.user_info
+        #     WHERE name = :name;
+        # """
 
-        params = {
-            "name": user_name
-        }
+        # params = {
+        #     "name": user_name
+        # }
 
-        with get_db_session() as db:
-            result = sql_executor.execute_select(db, query, params)
+        # with get_db_session() as db:
+        #     result = sql_executor.execute_select(db, query, params)
             
-        if not result:
-            raise ValueError(f"사용자 {user_name}에 대한 정보를 찾을 수 없습니다.")    
+        # if not result:
+        #     raise ValueError(f"사용자 {user_name}에 대한 정보를 찾을 수 없습니다.")
 
-        self.kis_id = result[0]['kis_id']
-        self.app_key = result[0]['app_key']
-        self.secret_key = result[0]['secret_key']
-        self.account = result[0]['account']
+        result = list(UserInfo.scan(
+            filter_condition=(UserInfo.name == user_name)
+        ))
+
+        self.kis_id = result[0].kis_id
+        self.app_key = result[0].app_key
+        self.secret_key = result[0].secret_key
+        self.account = result[0].account
         self.virtual = virtual
-        self.virtual_kis_id = result[0]['virtual_kis_id']
-        self.virtual_app_key = result[0]['virtual_app_key']
-        self.virtual_secret_key = result[0]['virtual_secret_key']
-        self.virtual_account = result[0]['virtual_account']
+        self.virtual_kis_id = result[0].virtual_kis_id
+        self.virtual_app_key = result[0].virtual_app_key
+        self.virtual_secret_key = result[0].virtual_secret_key
+        self.virtual_account = result[0].virtual_account
 
         # 임의로 app_key 및 secret_key 넣고 싶을 경우
         if app_key and secret_key and account:
@@ -586,40 +592,36 @@ class AutoTradingBot:
         - symbol: str, 종목 코드
         - sql_executor: SQLExecutor 객체
         """
+
+        dynamodb_executor = DynamoDBExecutor()
+        # 한국 시간대
+        kst = timezone("Asia/Seoul")
+        # 현재 시간을 KST로 변환
+        current_time = datetime.now(kst)
+        created_at = int(current_time.timestamp() * 1000)  # ✅ 밀리세컨드 단위로 SK 생성
+
+        data_model = SimulationHistory(
+            symbol=symbol,
+            created_at=created_at,
+            updated_at=None,
+            average_price=trading_history['average_price'],
+            realized_pnl=trading_history['realized_pnl'],
+            unrealized_pnl=trading_history['unrealized_pnl'],
+            realized_roi=trading_history['realized_roi'],
+            unrealized_roi=trading_history['unrealized_roi'],
+            total_cost=trading_history['total_cost'],
+            total_quantity=trading_history['total_quantity'],
+            buy_count=trading_history['buy_count'],
+            sell_count=trading_history['sell_count'],
+            buy_dates=trading_history['buy_dates'],
+            sell_dates=trading_history['sell_dates'],
+            history=json.dumps(trading_history["history"])
+        )
+
+        result = dynamodb_executor.execute_save(data_model)
+        print(f"Trading history for {symbol} saved successfully: {result}")
+        return result
     
-        query = """
-            INSERT INTO fsts.simulation_history (
-                symbol, average_price, realized_pnl, unrealized_pnl, realized_roi, unrealized_roi,
-                total_cost, total_quantity, buy_count, sell_count, 
-                buy_dates, sell_dates, history, created_at
-            ) VALUES (
-                :symbol, :average_price, :realized_pnl, :unrealized_pnl, :realized_roi, :unrealized_roi,
-                :total_cost, :total_quantity, :buy_count, :sell_count, 
-                :buy_dates, :sell_dates, :history, NOW()
-            ) RETURNING *;
-        """
-
-        params = {
-            "symbol": symbol,
-            "average_price": trading_history['average_price'],
-            "realized_pnl": trading_history['realized_pnl'],
-            "unrealized_pnl": trading_history['unrealized_pnl'],
-            "realized_roi" : trading_history['realized_roi'],
-            "unrealized_roi": trading_history['unrealized_roi'],
-            "total_cost": trading_history['total_cost'],
-            "total_quantity": trading_history['total_quantity'],
-            "buy_count": trading_history['buy_count'],
-            "sell_count": trading_history['sell_count'],
-            "buy_dates": trading_history['buy_dates'],
-            "sell_dates": trading_history['sell_dates'],
-            "history": json.dumps(trading_history["history"])
-        }
-
-        with get_db_session() as db:
-            result = sql_executor.execute_insert(db, query, params)
-            print(f"Trading history for {symbol} saved successfully: {result}")
-            return result
-
 
     # 실시간 매매 함수
     def trade(self, trading_bot_name, buy_trading_logic, sell_trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw, interval='day'):
