@@ -858,6 +858,11 @@ def main():
             fit_columns_on_grid_load=True  # 열 너비 자동 조정
         )
 
+    # -- 시뮬레이션 결과를 저장할 세션 상태 초기화 --
+    if "simulation_result" not in st.session_state:
+        st.session_state.simulation_result = None
+    
+    import io
     with tabs[1]:
         st.header("📈 종목 시뮬레이션")
         
@@ -866,7 +871,7 @@ def main():
             
             
             with st.container():
-                #st.write(f"📊 {sidebar_settings['selected_stock']} 시뮬레이션 실행 중...")
+                st.write(f"📊 {sidebar_settings['selected_stock']} 시뮬레이션 실행 중...")
                 
                 #시뮬레이션 실행
                 data_df, trading_history, trade_reasons = auto_trading_stock.simulate_trading(
@@ -883,83 +888,80 @@ def main():
                     rsi_sell_threshold = sidebar_settings['rsi_sell_threshold']
                     
                 )
-                
-                print(f"최종 trade_reasons: {trade_reasons}")
-                
-                # ✅ Streamlit에 표시
-                if trade_reasons:
-                    df_trade = pd.DataFrame(trade_reasons)
-                else:
-                    st.warning("🚨 거래 내역이 없습니다.")
-                    
-                import io
-                st.subheader("📥 데이터 다운로드")
-                csv_buffer = io.StringIO()
-                df_trade.to_csv(csv_buffer, index=False)
-                st.download_button("📄 CSV 파일 다운로드", csv_buffer.getvalue(), "trade_reasons.csv", "text/csv")
-                
-                # tradingview chart draw
-                draw_lightweight_chart(data_df)
-
-                # # DB에서 trading_history 결과 조회
-                # query = """
-                #     SELECT *
-                #     FROM fsts.simulation_history
-                #     WHERE symbol = :symbol
-                #     ORDER BY created_at DESC
-                #     LIMIT 1
-                # """
-                # params = {"symbol": symbol}
-                
-                # with get_db_session() as db:
-                #     trade_history = sql_executor.execute_select(db, query, params)
-                
-                if not trading_history:
-                    st.write("No trading history available.")
-                    return
-
-                # 기본 거래 내역을 DataFrame으로 변환
+                # 시뮬레이션 결과를 session_state에 저장
+                st.session_state.simulation_result = {
+                    "data_df": data_df,
+                    "trading_history": trading_history,
+                    "trade_reasons": trade_reasons
+                }
+    
+        # -- 세션 상태에 시뮬레이션 결과가 있다면 이를 표시 --
+        if st.session_state.simulation_result is not None:
+            result = st.session_state.simulation_result
+            data_df = result["data_df"]
+            trading_history = result["trading_history"]
+            trade_reasons = result["trade_reasons"]
+            
+            
+            # CSV 다운로드 버튼 - trade_reasons DataFrame 생성 후 다운로드
+            if trade_reasons:
+                df_trade = pd.DataFrame(trade_reasons)
+            else:
+                st.warning("🚨 거래 내역이 없습니다.")
+                df_trade = pd.DataFrame()
+            
+            st.subheader("📥 데이터 다운로드")
+            csv_buffer = io.StringIO()
+            df_trade.to_csv(csv_buffer, index=False)
+            st.download_button(
+                label="📄 CSV 파일 다운로드",
+                data=csv_buffer.getvalue(),
+                file_name="trade_reasons.csv",
+                mime="text/csv"
+            )
+            
+            # TradingView 차트 그리기
+            draw_lightweight_chart(data_df)
+            
+            # -- Trading History 처리 --
+            if not trading_history:
+                st.write("No trading history available.")
+            else:
+                # 거래 내역을 DataFrame으로 변환
                 history_df = pd.DataFrame([trading_history])
-
-                # 실현 수익률/미실현 수익률 컬럼이 존재하면 % 포맷 적용
+        
+                # 실현/미실현 수익률에 % 포맷 적용
                 for column in ["realized_roi", "unrealized_roi"]:
                     if column in history_df.columns:
                         history_df[column] = history_df[column].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
                         
-                # 🎯 trading_history에 symbol 변수 추가
-                stock_name = next((company for company, code in st.session_state.items() if code == sidebar_settings["symbol"]), "해당 종목 없음") #수정 필요!
+                # symbol 변수 설정 (예시; 필요시 수정)
+                stock_name = next((company for company, code in st.session_state.items() if code == sidebar_settings["symbol"]), "해당 종목 없음")
                 history_df["symbol"] = stock_name
-                # 원하는 컬럼 순서 지정
+        
                 reorder_columns = [
                     "symbol", "average_price",
                     "realized_pnl", "unrealized_pnl", "realized_roi", "unrealized_roi", "total_cost",
                     "buy_count", "sell_count", "buy_dates", "sell_dates", "total_quantity", "history", "created_at"
                 ]
-                
-                # 재정렬된 컬럼만 선택
                 history_df = history_df[[col for col in reorder_columns if col in history_df.columns]]
-
-                # 데이터의 행과 열 전환 (Transpose) 후 테이블 표시
+        
                 history_df_transposed = history_df.transpose().reset_index()
                 history_df_transposed.columns = ["Field", "Value"]
-
-                # Streamlit에서 표시
+        
                 st.subheader("📊 Trading History Summary")
                 st.dataframe(history_df_transposed, use_container_width=True)
                 
-                # 상세 거래 내역 처리
                 if "history" in trading_history and isinstance(trading_history["history"], list) and trading_history["history"]:
-                    # 트레이딩 로직명을 변환 (필요시)
-                    rename_tradingLogic(trading_history["history"])  
-
-                    # 상세 거래 내역을 DataFrame으로 변환
+                    rename_tradingLogic(trading_history["history"])  # 필요 시 로직명 변환
                     trade_history_df = pd.DataFrame(trading_history["history"])
-
-                    # Streamlit에서 표시
+        
                     st.subheader("📋 Detailed Trade History")
                     st.dataframe(trade_history_df, use_container_width=True)
                 else:
                     st.write("No detailed trade history found.")
+        else:
+            st.info("먼저 시뮬레이션을 실행해주세요.")
                     
 
 

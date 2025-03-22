@@ -394,7 +394,7 @@ class AutoTradingBot:
                     if trading_logic == 'check_wick':            
                         # 볼린저 밴드 계산
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        buy_yn, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                        buy_yn, _ = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         
                     elif trading_logic == 'rsi_trading':
                         df = indicator.cal_rsi_df(df, 14)
@@ -403,7 +403,7 @@ class AutoTradingBot:
                         print("\n✅ RSI 계산 후 df:")
                         print(df.tail(10))  # 최근 10개만 출력
                         
-                        buy_yn, _ = logic.rsi_trading(candle, df['rsi'], rsi_buy_threshold, rsi_sell_threshold)
+                        buy_yn, _ = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
 
                     elif trading_logic == 'penetrating':
                         buy_yn = logic.penetrating(candle, d_1, d_2, closes)
@@ -536,12 +536,12 @@ class AutoTradingBot:
                     elif trading_logic == 'rsi_trading':
                         df = indicator.cal_rsi_df(df, 14)
                         #print(f"rsi 데이터: {df['rsi']}")
-                        _, sell_yn = logic.rsi_trading(candle, df['rsi'], rsi_buy_threshold, rsi_sell_threshold)
+                        _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
                         
                     elif trading_logic == 'check_wick':            
                         # 볼린저 밴드 계산
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        _, sell_yn = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                        _, sell_yn = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         
                     elif trading_logic == 'mfi_trading':
                         df = indicator.cal_mfi_df(df)

@@ -11,7 +11,7 @@ class TradingLogic:
         self.trade_reasons = []
 
     # 윗꼬리와 아랫꼬리를 체크하는 함수
-    def check_wick(self, candle, previous_closes, lower_band, sma, upper_band):
+    def check_wick(self, candle, previous_closes, symbol, lower_band, sma, upper_band):
         open_price = float(candle.open)
         high_price = float(candle.high)
         low_price = float(candle.low)
@@ -86,6 +86,7 @@ class TradingLogic:
         sell_signal = has_upper_wick
 
         trade_entry = {
+                'symbol': symbol,
                 'Time' : candle.time,
                 'price' : close_price,
                 'upper_wick' : upper_wick,
@@ -102,7 +103,7 @@ class TradingLogic:
         
         return buy_signal, sell_signal
 
-    def rsi_trading(self, candle, rsi_values, buy_threshold= 35, sell_threshold= 70):
+    def rsi_trading(self, candle, rsi_values, symbol, buy_threshold= 35, sell_threshold= 70):
         """
         RSI를 기반으로 매수/매도 신호를 계산하는 함수.
         
@@ -160,6 +161,7 @@ class TradingLogic:
         if not any(entry["Time"].date() == trade_date for entry in self.trade_reasons):        
             # trade_reasons 리스트에 데이터 저장        
             trade_entry = {
+                'symbol': symbol,
                 'Time' : candle.time,
                 'price' : close_price,
                 'Previous RSI': previous_rsi,
