@@ -26,7 +26,7 @@ class AutoTradingBot:
     """
         실전투자와 모의투자를 선택적으로 설정 가능
     """
-    def __init__(self, user_name, virtual=False, app_key=None, secret_key=None, account=None):
+    def __init__(self, id, virtual=False, app_key=None, secret_key=None, account=None):
         
         # sql_executor = SQLExecutor()
 
@@ -46,11 +46,11 @@ class AutoTradingBot:
         #     raise ValueError(f"사용자 {user_name}에 대한 정보를 찾을 수 없습니다.")
 
         result = list(UserInfo.scan(
-            filter_condition=(UserInfo.name == user_name)
+            filter_condition=(UserInfo.id == id)
         ))
 
         if len(result) == 0:
-            raise ValueError(f"사용자 {user_name}에 대한 정보를 찾을 수 없습니다.")
+            raise ValueError(f"사용자 {id}에 대한 정보를 찾을 수 없습니다.")
 
         self.kis_id = result[0].kis_id
         self.app_key = result[0].app_key

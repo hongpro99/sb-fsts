@@ -555,13 +555,6 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'macd_trading':
             entry['trading_logic'] = 'macd 확인'              
             
-            
-# ✅ 가짜 사용자 데이터베이스 (실제 구현 시 DB 연동 필요)
-USER_CREDENTIALS = {
-    "user1": "password123",
-    "user2": "securepass",
-    "admin": "admin123"
-}
 
 def login_page():
     """
@@ -584,7 +577,8 @@ def login_page():
             st.session_state["authenticated"] = True
             st.rerun()  # 로그인 후 페이지 새로고침
         else:
-            st.error("아이디 또는 비밀번호가 올바르지 않습니다.")         
+            st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
+        
         
 def setup_sidebar(sql_executer):
     """
@@ -593,11 +587,11 @@ def setup_sidebar(sql_executer):
     
     st.sidebar.header("Simulation Settings")
 
-    user_name = '홍석형'
+    #user_name = login_page()
 
     # AutoTradingBot 및 SQLExecutor 객체 생성
     sql_executor = SQLExecutor()
-    auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=False)
+    auto_trading_stock = AutoTradingBot(id=id, virtual=False)
     
     current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
     
@@ -671,7 +665,7 @@ def setup_sidebar(sql_executer):
     
     # ✅ 설정 값을 딕셔너리 형태로 반환
     return {
-        "user_name": user_name,
+        "id": id,
         "start_date": start_date,
         "end_date": end_date,
         "target_trade_value_krw": target_trade_value_krw,
@@ -695,8 +689,8 @@ def setup_my_page():
     st.header("🛠 마이페이지 설정")
 
     # AutoTradingBot, trading_logic 및 SQLExecutor 객체 생성
-    user_name = "홍석형"  # 사용자 이름 (고정값)
-    auto_trading_stock = AutoTradingBot(user_name=user_name, virtual=False)
+    id = "id1"  # 사용자 이름 (고정값)
+    auto_trading_stock = AutoTradingBot(id=id, virtual=False)
     
     current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
 
@@ -772,7 +766,7 @@ def setup_my_page():
     # ✅ 설정 저장 버튼
     if st.button("✅ 설정 저장"):
         st.session_state["my_page_settings"] = {
-            "user_name": user_name,
+            "id": id,
             "start_date": start_date,
             "end_date": end_date,
             "target_trade_value_krw": target_trade_value_krw,
@@ -1004,7 +998,7 @@ def main():
             for i, (stock_name, symbol) in enumerate(my_page_settings["selected_symbols"].items()):
                 try:
                     with st.spinner(f"📊 {stock_name} ({i+1}/{total_stocks}) 시뮬레이션 실행 중..."):
-                        auto_trading_stock = AutoTradingBot(user_name=my_page_settings["user_name"], virtual=False)
+                        auto_trading_stock = AutoTradingBot(id=my_page_settings["id"], virtual=False)
 
                         _, trading_history, trade_reasons = auto_trading_stock.simulate_trading(
                             symbol=symbol,

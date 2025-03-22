@@ -33,7 +33,7 @@ def scheduled_trading_task():
     
     # TO-DO
     # 매수 로직 여기에 추가
-    trading_bot = AutoTradingBot(user_name="홍석형")
+    trading_bot = AutoTradingBot(id="id1")
     
     # sql_executor = SQLExecutor()
 
