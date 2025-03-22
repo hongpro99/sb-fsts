@@ -1,5 +1,6 @@
 import sys
 import os
+import io
 import streamlit as st
 import matplotlib.pyplot as plt
 from io import BytesIO
@@ -862,7 +863,6 @@ def main():
     if "simulation_result" not in st.session_state:
         st.session_state.simulation_result = None
     
-    import io
     with tabs[1]:
         st.header("📈 종목 시뮬레이션")
         
@@ -936,8 +936,7 @@ def main():
                         history_df[column] = history_df[column].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
                         
                 # symbol 변수 설정 (예시; 필요시 수정)
-                stock_name = next((company for company, code in st.session_state.items() if code == sidebar_settings["symbol"]), "해당 종목 없음")
-                history_df["symbol"] = stock_name
+                history_df["symbol"] = sidebar_settings['selected_stock']
         
                 reorder_columns = [
                     "symbol", "average_price",
