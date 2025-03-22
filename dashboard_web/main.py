@@ -587,7 +587,7 @@ def setup_sidebar(sql_executer):
     
     st.sidebar.header("Simulation Settings")
 
-    #user_name = login_page()
+    id = 'id1'
 
     # AutoTradingBot 및 SQLExecutor 객체 생성
     sql_executor = SQLExecutor()
@@ -862,7 +862,7 @@ def main():
         st.header("📈 종목 시뮬레이션")
         
         if st.sidebar.button("개별 종목 시뮬레이션 실행", key = 'simulation_button'):
-            auto_trading_stock = AutoTradingBot(user_name=sidebar_settings["user_name"], virtual=False)
+            auto_trading_stock = AutoTradingBot(id=sidebar_settings["id"], virtual=False)
             
             
             with st.container():

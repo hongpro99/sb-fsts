@@ -536,7 +536,7 @@ class AutoTradingBot:
                     elif trading_logic == 'rsi_trading':
                         df = indicator.cal_rsi_df(df, 14)
                         #print(f"rsi 데이터: {df['rsi']}")
-                        _, sell_yn = logic.rsi_trading(candle, df['Rsi'], rsi_buy_threshold, rsi_sell_threshold)
+                        _, sell_yn = logic.rsi_trading(candle, df['rsi'], rsi_buy_threshold, rsi_sell_threshold)
                         
                     elif trading_logic == 'check_wick':            
                         # 볼린저 밴드 계산
