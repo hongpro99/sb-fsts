@@ -614,7 +614,7 @@ class TradingLogic:
         
         return all_conditions_met and sell_signal
     
-    def mfi_trading(self, df, buy_threshold=20, sell_threshold=80):
+    def mfi_trading(self, df, buy_threshold=25, sell_threshold=75):
         """
         ✅ MFI 매매 신호 생성
         - MFI < 20 → 매수
@@ -631,7 +631,7 @@ class TradingLogic:
 
         return buy_signal.values[-1], sell_signal.values[-1]
         
-    def macd_trading(self, candle, df):
+    def macd_trading(self, candle, df, symbol):
         """
         ✅ MACD 크로스 & MACD 오실레이터 조합
         - MACD 크로스 신호 + MACD OSC 방향이 일치할 때만 매매
@@ -642,6 +642,9 @@ class TradingLogic:
         sell_signal = False
         reason = ""
 
+        previous_macd = df['macd'].shift(1)
+        current_macd = df['macd']
+        
         # ✅ MACD 크로스 신호
         macd_buy = (df['macd'] > df['macd_signal']) & (df['macd'].shift(1) <= df['macd_signal'].shift(1))
         macd_sell = (df['macd'] < df['macd_signal']) & (df['macd'].shift(1) >= df['macd_signal'].shift(1))
@@ -662,11 +665,26 @@ class TradingLogic:
         else:
             reason = f"MACD {df['macd'].iloc[-1]:.2f}, Signal {df['macd_signal'].iloc[-1]:.2f} (추세 유지 중)"
 
-        if reason:
-            self.add_trade_reason(candle, reason, buy_signal, sell_signal)
-
-        print(f"📌 DEBUG: buy_signal - {buy_signal}, sell_signal - {sell_signal}")
-
+        trade_date = candle.time.date()  # 날짜만 추출 (YYYY-MM-DD)
+        close_price = float(candle.close)
+        # ✅ 같은 날짜가 이미 trade_reasons 리스트에 있는지 확인(딕셔너리 방식도 가능)
+        if not any(entry["Time"].date() == trade_date for entry in self.trade_reasons):        
+            # trade_reasons 리스트에 데이터 저장        
+            trade_entry = {
+                'symbol': symbol,
+                'Time' : candle.time,
+                'price' : close_price,
+                'Buy Signal': buy_signal,
+                'Sell Signal': sell_signal,
+                'Reason': reason
+            }
+            self.trade_reasons.append(trade_entry)           
+                
+        print(f"📌 매수 신호: {buy_signal}, 매도 신호: {sell_signal}, 이유: {reason}")
+            
+        print(f"📌 현재 trade_reasons: {len(self.trade_reasons)} 개")
+        print(f"📌 trade_reasons: {self.trade_reasons}")        
+            
         return buy_signal, sell_signal
     
     def stochastic_trading(self, df, k_threshold=20, d_threshold=80):

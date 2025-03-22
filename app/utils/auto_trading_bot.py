@@ -428,7 +428,7 @@ class AutoTradingBot:
                         
                     elif trading_logic == 'macd_trading':
                         df = indicator.cal_macd_df(df)
-                        buy_yn, _ = logic.macd_trading(candle, df)
+                        buy_yn, _ = logic.macd_trading(candle, df, symbol)
                                                 
                     elif trading_logic == 'mfi_trading':
                         df = indicator.cal_mfi_df(df)
@@ -438,14 +438,21 @@ class AutoTradingBot:
                         # 볼린저 밴드 계산
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
                         _, buy_yn1 = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-                        rsi_values = indicator.cal_rsi(closes, 14)
-                        buy_yn2, _ = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
+                        df = indicator.cal_rsi_df(df, 14)
+                        buy_yn2, _ = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
                         buy_yn = buy_yn1 and buy_yn2
                         
                     elif trading_logic == 'stochastic_trading':
                         df = indicator.cal_stochastic_df(df, 14, 3)
                         print(f"스토캐스틱 계산 후 df: {df}")
                         buy_yn, _ = logic.stochastic_trading(df)
+                        
+                    elif trading_logic == 'rsi+mfi':
+                        df = indicator.cal_mfi_df(df)
+                        buy_yn1, _ = logic.mfi_trading(df)
+                        df = indicator.cal_rsi_df(df, 14)
+                        buy_yn2, _ = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
+                        buy_yn = buy_yn1 and buy_yn2  
                         
                         
                         # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
@@ -552,8 +559,8 @@ class AutoTradingBot:
                         # 볼린저 밴드 계산
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
                         sell_yn1, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-                        rsi_values = indicator.cal_rsi(closes, 14)
-                        _, sell_yn2 = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
+                        df = indicator.cal_rsi_df(df, 14)
+                        _, sell_yn2 = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
                         sell_yn = sell_yn1 and sell_yn2
                         
                     elif trading_logic == 'stochastic_trading':
@@ -562,7 +569,14 @@ class AutoTradingBot:
                         
                     elif trading_logic == 'macd_trading':
                         df = indicator.cal_macd_df(df)
-                        _, sell_yn = logic.macd_trading(candle, df)                                                    
+                        _, sell_yn = logic.macd_trading(candle, df, symbol)
+                        
+                    elif trading_logic == 'rsi+mfi':
+                        df = indicator.cal_mfi_df(df)
+                        _, sell_yn1 = logic.mfi_trading(df)
+                        df = indicator.cal_rsi_df(df, 14)
+                        _, sell_yn2 = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
+                        sell_yn = sell_yn1 and sell_yn2                                                    
                 #매도 사인이 2개 이상일 때 quantity 조건에 충족되지 않은 조건은 history에 추가되지 않는다는 문제 해결 필요
                 # 매도
                 if sell_yn:

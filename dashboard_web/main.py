@@ -554,7 +554,9 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'stochastic_trading':
             entry['trading_logic'] = '스토캐스틱'
         elif entry.get('trading_logic') == 'macd_trading':
-            entry['trading_logic'] = 'macd 확인'              
+            entry['trading_logic'] = 'macd 확인'
+        elif entry.get('trading_logic') == 'rsi+mfi':
+            entry['trading_logic'] = 'rsi+mfi'              
             
 
 def login_page():
