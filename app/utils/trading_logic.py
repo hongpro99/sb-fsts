@@ -42,8 +42,9 @@ class TradingLogic:
 
         print(f'윗꼬리 = {upper_wick}, 아랫꼬리 = {lower_wick}, body = {body}')
 
+        reason = []
+
         if not has_lower_wick:
-            reason = []
             if abs(lower_wick) <= abs(upper_wick):
                 reason.append("아랫꼬리가 윗꼬리보다 짦음")
             if close_price <= open_price:
@@ -66,7 +67,6 @@ class TradingLogic:
         has_upper_wick = abs(upper_wick) > abs(lower_wick) * wick_ratio and close_price < open_price and is_uptrend and is_near_upper_band and body * body_ratio > abs(lower_wick)
 
         if not has_upper_wick:
-            reason = []
             if abs(upper_wick) <= abs(lower_wick):
                 reason.append("윗꼬리가 아랫꼬리보다 짦음")
             if close_price >= open_price:
@@ -85,6 +85,21 @@ class TradingLogic:
         buy_signal = has_lower_wick
         sell_signal = has_upper_wick
 
+        trade_entry = {
+                'Time' : candle.time,
+                'price' : close_price,
+                'upper_wick' : upper_wick,
+                'lower_wick' : lower_wick,
+                'body' : body,
+                'BB upper_band': upper_band,
+                'BB middle_band': middle_band,
+                'BB lower_band': lower_band,
+                'Buy Signal': buy_signal,
+                'Sell Signal': sell_signal,
+                'Reason': reason
+            }
+        self.trade_reasons.append(trade_entry)  
+        
         return buy_signal, sell_signal
 
     def rsi_trading(self, candle, rsi_values, buy_threshold= 35, sell_threshold= 70):
