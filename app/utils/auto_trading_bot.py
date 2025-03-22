@@ -308,7 +308,8 @@ class AutoTradingBot:
                         interval='day', buy_percentage = None, ohlc_mode = 'default',rsi_buy_threshold = 35, rsi_sell_threshold = 70, initial_capital=None):
         
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval, ohlc_mode) #클래스 객체, .사용
-        trade_reasons = logic.trade_reasons
+        # trade_reasons = logic.trade_reasons
+        logic.trade_reasons = []
         # ✅ trade_reasons 초기화
         trade_reasons = []        
         #실제 투자 모드인지 확인
@@ -365,7 +366,6 @@ class AutoTradingBot:
             timestamps.append(timestamp)
             closes.append(close_price) #rsi
             trade_reasons = logic.trade_reasons
-
 
             # timestamp 변수를 ISO 8601 문자열로 변환
             timestamp_iso = timestamp.isoformat()
