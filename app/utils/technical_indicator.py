@@ -34,71 +34,6 @@ class TechnicalIndicator:
         
         return sma_last
     
-    
-    # volume 평균 계산 (20일 등등 파라미터로 받아서)
-    def cal_volume_avg(self, period):
-        
-        volume_avg = None
-
-        return volume_avg
-    
-    
-    def cal_rsi(self, closes, window=14):
-        """
-        RSI 계산
-        Args:
-            closes (list): 종가 데이터
-            window (int): RSI 계산에 사용할 기간
-        Returns:
-            list: RSI 값 리스트
-        """
-        # 종가 데이터가 충분히 있는지 확인
-        if len(closes) < 1:
-            print("[ERROR] 종가 데이터가 부족하여 RSI를 계산할 수 없습니다.")
-            return []
-
-        # 종가 차이 계산
-        deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
-        gains = [max(delta, 0) for delta in deltas]
-        losses = [-min(delta, 0) for delta in deltas]
-
-        # 초기화
-        avg_gain = [0] * len(closes)
-        avg_loss = [0] * len(closes)
-        rsi = [None] * len(closes)
-
-        # `window`보다 작은 날 계산 (단순 평균 사용)
-        for i in range(1, min(window, len(closes))):
-            avg_gain[i] = sum(gains[:i]) / i
-            avg_loss[i] = sum(losses[:i]) / i
-            if avg_loss[i] == 0:
-                rs = 0
-            else:
-                rs = avg_gain[i] / avg_loss[i]
-            rsi[i] = 100 - (100 / (1 + rs))
-
-        # `window` 이상의 날 계산 (EMA 방식 사용)
-        if len(closes) >= window:
-            avg_gain[window - 1] = sum(gains[:window]) / window
-            avg_loss[window - 1] = sum(losses[:window]) / window
-            if avg_loss[window - 1] == 0:
-                rsi[window - 1] = 100
-            else:
-                rs = avg_gain[window - 1] / avg_loss[window - 1]
-                rsi[window - 1] = 100 - (100 / (1 + rs))
-
-            for i in range(window, len(closes)):
-                avg_gain[i] = (avg_gain[i - 1] * (window - 1) + gains[i - 1]) / window
-                avg_loss[i] = (avg_loss[i - 1] * (window - 1) + losses[i - 1]) / window
-
-                if avg_loss[i] == 0:
-                    rsi[i] = 100
-                else:
-                    rs = avg_gain[i] / avg_loss[i]
-                    rsi[i] = 100 - (100 / (1 + rs))
-
-        return rsi
-
     def cal_mfi_df(self, df, period=14):
         """
         ✅ MFI (Money Flow Index) 계산
@@ -125,9 +60,9 @@ class TechnicalIndicator:
         df['MFR'] = df['PMF'] / (df['NMF'] + 1e-10)  # 0으로 나누는 문제 방지
 
         # ✅ MFI (Money Flow Index) 계산
-        df['MFI'] = 100 - (100 / (1 + df['MFR']))
+        df['mfi'] = 100 - (100 / (1 + df['MFR']))
         
-        df['MFI_Signal'] = df['MFI'].rolling(window=3).mean()  # ✅ MFI의 3일 이동 평균
+        df['mfi_signal'] = df['mfi'].rolling(window=3).mean()  # ✅ MFI의 3일 이동 평균
 
         return df
 
@@ -143,10 +78,10 @@ class TechnicalIndicator:
         
         # 📌 0으로 나누는 문제 방지 (loss가 0일 때 예외 처리)
         rs = avg_gain / (avg_loss + 1e-10)  # 1e-10을 추가해서 0으로 나누는 것 방지
-        df['Rsi'] = 100 - (100 / (1 + rs))  # RSI 계산
+        df['rsi'] = 100 - (100 / (1 + rs))  # RSI 계산
         
         # 📌 처음 14일 동안의 데이터 제거 (이상값 방지)
-        df.iloc[:period, df.columns.get_loc('Rsi')] = np.nan
+        df.iloc[:period, df.columns.get_loc('rsi')] = np.nan
 
         return df
     

@@ -271,7 +271,7 @@ def draw_lightweight_chart(data_df):
                 "horzAlign": 'left',
                 "vertAlign": 'top',
                 "color": 'rgba(255, 99, 132, 0.7)',
-                "text": 'mfi'
+                "text": 'Mfi'
             }
         }
     ]
@@ -894,9 +894,7 @@ def main():
                 
                 # ✅ Streamlit에 표시
                 if trade_reasons:
-                    st.subheader("📝 거래 내역 (Trade Reasons)")
                     df_trade = pd.DataFrame(trade_reasons)
-                    st.dataframe(df_trade)
                 else:
                     st.warning("🚨 거래 내역이 없습니다.")
                     

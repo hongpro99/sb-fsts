@@ -144,7 +144,6 @@ class AutoTradingBot:
             
         return klines
 
-
     def _draw_chart(self, symbol, ohlc, timestamps, buy_signals, sell_signals):
 
         # 캔들 차트 데이터프레임 생성
@@ -171,13 +170,10 @@ class AutoTradingBot:
         df = indicator.cal_ema_df(df, 120)
         df = indicator.cal_ema_df(df, 200)
 
-        #rsi
         df = indicator.cal_rsi_df(df)
         df = indicator.cal_macd_df(df)
         df = indicator.cal_stochastic_df(df)
         df = indicator.cal_mfi_df(df)
-
-        print(f'df = {df}')
 
         # 매수 및 매도 시그널 표시를 위한 추가 데이터 (x와 y의 길이 맞추기 위해 NaN 사용)
         df['Buy_Signal'] = np.nan
@@ -212,9 +208,9 @@ class AutoTradingBot:
         if len(sell_signals) > 0:
             add_plot.append(mpf.make_addplot(df['Sell_Signal'], type='scatter', markersize=60, marker='v', color='black', label='SELL'))
 
-        simulation_plot = mpf.plot(df, type='candle', style='charles', title=f'{symbol}', addplot=add_plot, volume=True, ylabel_lower='Volume', ylabel='Price(KRW)', figsize=(20, 9), returnfig=True)
+        #simulation_plot = mpf.plot(df, type='candle', style='charles', title=f'{symbol}', addplot=add_plot, volume=True, ylabel_lower='Volume', ylabel='Price(KRW)', figsize=(20, 9), returnfig=True)
 
-        return df, simulation_plot
+        return df
 
 
     def calculate_pnl(self, trading_history, current_price, initial_capital):
@@ -407,7 +403,7 @@ class AutoTradingBot:
                         print("\n✅ RSI 계산 후 df:")
                         print(df.tail(10))  # 최근 10개만 출력
                         
-                        buy_yn, _ = logic.rsi_trading(candle, df['Rsi'], rsi_buy_threshold, rsi_sell_threshold)
+                        buy_yn, _ = logic.rsi_trading(candle, df['rsi'], rsi_buy_threshold, rsi_sell_threshold)
 
                     elif trading_logic == 'penetrating':
                         buy_yn = logic.penetrating(candle, d_1, d_2, closes)
@@ -454,7 +450,7 @@ class AutoTradingBot:
                         
                         # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
                     #if buy_yn and volume > d_1.volume and d_1.volume > avg_volume_20_days:
-                    if buy_yn:
+                    if buy_yn and volume > d_1.volume:
                                                 
                         can_buy = True
                         # 매수 제한 조건 확인                        
@@ -604,7 +600,7 @@ class AutoTradingBot:
             i += 1
 
         # 캔들 차트 데이터프레임 생성
-        result_data, simulation_plot = self._draw_chart(symbol, ohlc, timestamps, buy_signals, sell_signals)
+        result_data = self._draw_chart(symbol, ohlc, timestamps, buy_signals, sell_signals)
         print(f"result_data : {result_data}")
         # 매매 내역 요약 출력
         print("\n=== 매매 요약 ===")
@@ -618,7 +614,7 @@ class AutoTradingBot:
         return result_data, trading_history, trade_reasons
 
 
-    def save_trading_history_to_db_with_executor(self, trading_history, symbol, sql_executor):
+    def save_trading_history_to_db_with_executor(self, trading_history, symbol):
         """
         trading_history 데이터를 DB에 저장하는 함수 (sql_executor 사용)
         

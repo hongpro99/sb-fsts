@@ -117,6 +117,7 @@ class TradingLogic:
         reason = ""
 
         trade_date = candle.time.date()  # 날짜만 추출 (YYYY-MM-DD)
+        close_price = float(candle.close)
         # 📌 매수 신호 판단 (Buy)
         if previous_rsi <= buy_threshold and current_rsi > buy_threshold:
             buy_signal = True
@@ -145,6 +146,7 @@ class TradingLogic:
             # trade_reasons 리스트에 데이터 저장        
             trade_entry = {
                 'Time' : candle.time,
+                'price' : close_price,
                 'Previous RSI': previous_rsi,
                 'Current RSI': current_rsi,
                 'Buy Signal': buy_signal,
@@ -603,10 +605,10 @@ class TradingLogic:
         """
 
         # ✅ 매수 (MFI가 20 이하였다가 20 이상으로 상승)
-        buy_signal = (df['MFI'].shift(1) < buy_threshold) & (df['MFI'] > buy_threshold)
+        buy_signal = (df['mfi'].shift(1) < buy_threshold) & (df['mfi'] > buy_threshold)
 
         # ✅ 매도 (MFI가 80 이상이었다가 80 이하로 하락)
-        sell_signal = (df['MFI'].shift(1) > sell_threshold) & (df['MFI'] < sell_threshold)
+        sell_signal = (df['mfi'].shift(1) > sell_threshold) & (df['mfi'] < sell_threshold)
 
         print(f"📌 DEBUG: buy_signal - {buy_signal}, sell_signal - {sell_signal}")
 

@@ -9,7 +9,6 @@ from app.utils.dynamodb.model.stock_symbol_model import StockSymbol
 # db = get_db()
 sql_executor = SQLExecutor()
 
-
 def send_discord_webhook(message, bot_type):
     if bot_type == 'trading':
         webhook_url = 'https://discord.com/api/webhooks/1313346849838596106/6Rn_8BNDeL9bMYfFtqscpu4hPah5c2RsNl0rBiPoSw_Qb9RXgDdVHoHmwEuStPv_ufnV'  # 복사한 Discord 웹훅 URL로 변경
