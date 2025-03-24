@@ -13,7 +13,10 @@
         "스토캐스틱" : "stochastic_trading",
         "macd 확인" : "macd_trading",
         "mfi 확인" : "mfi_trading",
-        "rsi+mfi" : "rsi+mfi"
+        "rsi+mfi" : "rsi+mfi",
+        "지수이동평균선 확인": "ema_breakout_trading",
+        "볼린저밴드 매매": "bollinger_band_trading",
+        "볼린저+지수이동평균선": "bollinger+ema"
         
     },
     "available_sell_logic": {
@@ -30,6 +33,7 @@
         "스토캐스틱" : "stochastic_trading",
         "macd 확인" : "macd_trading",
         "mfi 확인" : "mfi_trading",
-        "rsi+mfi" : "rsi+mfi"        
+        "rsi+mfi" : "rsi+mfi",
+        "볼린저밴드 매매": "bollinger_band_trading"        
     }
 }

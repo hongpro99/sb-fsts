@@ -6,6 +6,7 @@ class TechnicalIndicator:
     
     # 볼린저밴드 계산
     def cal_bollinger_band(self, previous_closes, close_price):
+    
         if len(previous_closes) >= 20:
             sma = np.mean(previous_closes[-20:])
             std = np.std(previous_closes[-20:])
@@ -121,7 +122,7 @@ class TechnicalIndicator:
         return df
 
 
-    def cal_ema_df(self, df, period=20):
+    def cal_ema_df(self, df, period):
         """
             DataFrame에서 EMA(지수이동평균)를 계산하여 추가합니다.
             :param df: 입력 DataFrame

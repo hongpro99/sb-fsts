@@ -556,7 +556,13 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'macd_trading':
             entry['trading_logic'] = 'macd 확인'
         elif entry.get('trading_logic') == 'rsi+mfi':
-            entry['trading_logic'] = 'rsi+mfi'              
+            entry['trading_logic'] = 'rsi+mfi'
+        elif entry.get('trading_logic') == 'ema_breakout_trading':
+            entry['trading_logic'] = '지수이동평균선 확인'
+        elif entry.get('trading_logic') == 'bollinger_band_trading':
+            entry['trading_logic'] = '볼린저밴드 매매'
+        elif entry.get('trading_logic') == 'bollinger+ema':
+            entry['trading_logic'] = '볼린저+지수이동평균선'            
             
 
 def login_page():
@@ -710,11 +716,11 @@ def setup_my_page():
     if real_trading_yn == "Y":
         initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key="initial_capital")
     # ✅ DB에서 종목 리스트 가져오기
-    kospi200_result = list(StockSymbol.scan(
-        filter_condition=(StockSymbol.type == 'kospi200')
+    kosdaq150_result = list(StockSymbol.scan(
+        filter_condition=(StockSymbol.type == 'kosdaq150')
     ))
 
-    symbol_options = {row.symbol_name: row.symbol for row in kospi200_result}
+    symbol_options = {row.symbol_name: row.symbol for row in kosdaq150_result}
     stock_names = list(symbol_options.keys())
     
     # ✅ "전체 선택" 및 "선택 해제" 버튼 추가

@@ -48,7 +48,7 @@ def scheduled_trading_task():
     #     result = sql_executor.execute_select(db, query, params)
 
     result = list(StockSymbol.scan(
-        filter_condition=(StockSymbol.type == 'kospi200')
+        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
     ))
     
     # 당일로부터 1년전 기간으로 차트 분석
@@ -59,8 +59,8 @@ def scheduled_trading_task():
     interval = 'day'
 
     # trading_logic 리스트 설정
-    buy_trading_logic = ['check_wick', 'rsi_trading']
-    sell_trading_logic = ['check_wick', 'rsi_trading']
+    buy_trading_logic = ['check_wick', 'rsi_trading', 'ema_breakout_trading', 'bollinger_band_trading', 'bollinger+ema', 'rsi+mfi']
+    sell_trading_logic = ['check_wick', 'rsi_trading', 'bollinger_band_trading', 'bollinger+ema', 'rsi+mfi']
 
     for stock in result:
         symbol = stock.symbol

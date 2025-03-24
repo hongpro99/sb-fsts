@@ -103,7 +103,7 @@ class TradingLogic:
         
         return buy_signal, sell_signal
 
-    def rsi_trading(self, candle, rsi_values, symbol, buy_threshold= 35, sell_threshold= 70):
+    def rsi_trading(self, candle, rsi_values, symbol, buy_threshold= 35, sell_threshold= 75):
         """
         RSI를 기반으로 매수/매도 신호를 계산하는 함수.
         
@@ -641,9 +641,6 @@ class TradingLogic:
         buy_signal = False
         sell_signal = False
         reason = ""
-
-        previous_macd = df['macd'].shift(1)
-        current_macd = df['macd']
         
         # ✅ MACD 크로스 신호
         macd_buy = (df['macd'] > df['macd_signal']) & (df['macd'].shift(1) <= df['macd_signal'].shift(1))
@@ -708,18 +705,70 @@ class TradingLogic:
 
         return buy_signal.values[-1], sell_signal.values[-1]
         
-    def add_trade_reason(self, candle, reason, buy_signal, sell_signal):
+    def ema_breakout_trading(self, df):
         """
-        ✅ trade_reasons에 중복되지 않도록 매매 이유 추가
+        EMA60 돌파 기반 매수 신호 생성
+        조건:
+        ① 종가가 EMA60을 아래에서 위로 돌파
+        ② 종가가 EMA60 위에서 마감
+        ④ 거래량이 5일 평균보다 큼
+        ⑤ EMA20 기울기가 양수
         """
-        trade_date = candle.time.date()
-        self.trade_reasons = []
-        # ✅ 같은 날짜가 이미 trade_reasons 리스트에 있는지 확인
-        if not any(entry["Time"].date() == trade_date for entry in self.trade_reasons):
-            trade_entry = {
-                "Time": candle.time,
-                "Buy Signal": buy_signal,
-                "Sell Signal": sell_signal,
-                "Reason": reason
-            }
-            self.trade_reasons.append(trade_entry)  # 🚀 중복이 없을 때만 추가        
+
+        if df.shape[0] < 2:
+            print("❌ 데이터가 부족해서 ema_breakout_trading 조건 계산 불가")
+            return False
+    
+        # EMA20 기울기
+        df['EMA20_slope'] = df['EMA_20'] - df['EMA_20'].shift(5)
+
+        # 5일 평균 거래량
+        df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+
+        # 조건 계산
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+
+        breaks_above_ema60 = (prev['Close'] < prev['EMA_60']) and (last['Close'] > last['EMA_60'])
+        close_above_ema60 = last['Close'] > last['EMA_60']
+        #golden_cross = last['EMA_20'] > last['EMA_60'] > last['EMA_120']
+        volume_up = last['Volume'] > last['Volume_MA5']
+        ema20_up = last['EMA20_slope'] > 0
+
+        buy_signal = breaks_above_ema60 and close_above_ema60 and volume_up and ema20_up
+
+        print(f"breaks_above_ema60: {breaks_above_ema60}")
+        print(f"close_above_ema60: {close_above_ema60}")
+        print(f"volume_up: {volume_up}")
+        print(f"ema20_up: {ema20_up}")
+        print(f"Buy Signal: {buy_signal}")
+
+        return buy_signal
+    
+    def bollinger_band_trading(self, candle, lower_band, upper_band, df):
+        """
+        볼린저 밴드 기반 매매 신호 생성
+        매수: 현재 종가가 하단 밴드보다 작거나 같음
+        매도: 현재 종가가 상단 밴드보다 크거나 같음
+
+        :param previous_closes: 과거 종가 리스트 (최소 20개 권장)
+        :param current_close: 현재 종가
+        :return: (buy_signal: bool, sell_signal: bool)
+        """
+
+        if lower_band == upper_band and df.shape[0] < 2:
+            return False, False
+
+        # EMA20 기울기
+        df['EMA60_slope'] = df['EMA_60'] - df['EMA_60'].shift(5)
+        df['EMA20_slope'] = df['EMA_20'] - df['EMA_20'].shift(5)        
+        # 조건 계산
+        last = df.iloc[-1]
+        prev = df.iloc[-2]        
+
+        buy_signal = prev['Close'] < lower_band and last['Close'] > lower_band and (last['EMA60_slope'] > 0)  
+        sell_signal = prev['Close'] > upper_band and last['Close'] < upper_band and (last['EMA60_slope'] < 0) 
+
+        print(f"[BB Signal]  Lower: {lower_band:.2f} | Upper: {upper_band:.2f} | Buy: {buy_signal} | Sell: {sell_signal}")
+
+        return buy_signal, sell_signal    
