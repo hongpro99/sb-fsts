@@ -50,6 +50,10 @@ def draw_lightweight_chart(data_df):
     bollinger_band_lower = json.loads(data_df.dropna(subset=['lower']).rename(columns={"lower": "value",}).to_json(orient = "records"))
 
     ema_60 = json.loads(data_df.dropna(subset=['ema_60']).rename(columns={"ema_60": "value"}).to_json(orient="records"))
+    ema_10 = json.loads(data_df.dropna(subset=['ema_10']).rename(columns={"ema_10": "value"}).to_json(orient="records"))
+    ema_20 = json.loads(data_df.dropna(subset=['ema_20']).rename(columns={"ema_20": "value"}).to_json(orient="records"))
+    ema_50 = json.loads(data_df.dropna(subset=['ema_50']).rename(columns={"ema_50": "value"}).to_json(orient="records"))
+    
 
     rsi = json.loads(data_df.dropna(subset=['rsi']).rename(columns={"rsi": "value"}).to_json(orient="records"))
     macd = json.loads(data_df.dropna(subset=['macd']).rename(columns={"macd": "value"}).to_json(orient="records"))
@@ -278,23 +282,23 @@ def draw_lightweight_chart(data_df):
     ]
 
     seriesCandlestickChart = [
-        {
-            "type": 'Line',
-            "data": bollinger_band_upper,  # 중앙선 데이터
-            "options": {
-                "color": 'rgba(0, 0, 0, 1)',  # 노란색
-                "lineWidth": 1,
-                "priceScaleId": "right",
-                "lastValueVisible": False, # 가격 레이블 숨기기
-                "priceLineVisible": False, # 가격 라인 숨기기
-            },
-        },
+        # {
+        #     "type": 'Line',
+        #     "data": bollinger_band_upper,  # 중앙선 데이터
+        #     "options": {
+        #         "color": 'rgba(0, 0, 0, 1)',  # 노란색
+        #         "lineWidth": 0.5,
+        #         "priceScaleId": "right",
+        #         "lastValueVisible": False, # 가격 레이블 숨기기
+        #         "priceLineVisible": False, # 가격 라인 숨기기
+        #     },
+        # },
         {
             "type": 'Line',
             "data": bollinger_band_middle,  # 상단 밴드 데이터
             "options": {
                 "color": 'rgba(0, 0, 0, 1)',  # 노란색
-                "lineWidth": 1,
+                "lineWidth": 0.5,
                 "priceScaleId": "right",
                 "lastValueVisible": False, # 가격 레이블 숨기기
                 "priceLineVisible": False, # 가격 라인 숨기기
@@ -305,7 +309,7 @@ def draw_lightweight_chart(data_df):
             "data": bollinger_band_lower,  # 하단 밴드 데이터
             "options": {
                 "color": 'rgba(0, 0, 0, 1)',  # 노란색
-                "lineWidth": 1,
+                "lineWidth": 0.5,
                 "priceScaleId": "right",
                 "lastValueVisible": False, # 가격 레이블 숨기기
                 "priceLineVisible": False, # 가격 라인 숨기기
@@ -315,12 +319,45 @@ def draw_lightweight_chart(data_df):
             "type": 'Line',
             "data": ema_60,  # 하단 밴드 데이터
             "options": {
-                "color": 'rgba(0, 170, 170, 1)',
+                "color": 'rgba(0, 170, 170, 1)', #청록색
                 "lineWidth": 2,
                 "priceScaleId": "right",
                 "lastValueVisible": False, # 가격 레이블 숨기기
                 "priceLineVisible": False, # 가격 라인 숨기기
             },
+        },
+        {
+            "type": 'Line',
+            "data": ema_10,  # 10일 EMA
+            "options": {
+                "color": 'rgba(255, 0, 0, 1)',  # 빨간색
+                "lineWidth": 2,
+                "priceScaleId": "right",
+                "lastValueVisible": False,
+                "priceLineVisible": False,
+                },
+        },
+        {
+            "type": 'Line',
+            "data": ema_20,  # 20일 EMA
+            "options": {
+                "color": 'rgba(0, 255, 0, 1)',  # 초록색
+                "lineWidth": 2,
+                "priceScaleId": "right",
+                "lastValueVisible": False,
+                "priceLineVisible": False,
+                },
+        },
+        {
+            "type": 'Line',
+            "data": ema_50,  # 50일 EMA
+            "options": {
+                "color": 'rgba(0, 0, 255, 1)',  # 파란색
+                "lineWidth": 2,
+                "priceScaleId": "right",
+                "lastValueVisible": False,
+                "priceLineVisible": False,
+                },
         },
         {
             "type": 'Candlestick',
@@ -399,7 +436,7 @@ def draw_lightweight_chart(data_df):
             "type": 'Line',
             "data": macd,
             "options": {
-                "color": 'rgba(0, 150, 255, 1)',
+                "color": 'rgba(0, 150, 255, 1)', #파란색
                 "lineWidth": 1.5,
                 "priceLineVisible": False,
             }
@@ -408,7 +445,7 @@ def draw_lightweight_chart(data_df):
             "type": 'Line',
             "data": macd_signal, 
             "options": {
-                "color": 'rgba(255, 0, 0, 1)', 
+                "color": 'rgba(255, 0, 0, 1)', #빨간색
                 "lineWidth": 1.5,
                 "priceLineVisible": False,
             }
@@ -427,7 +464,7 @@ def draw_lightweight_chart(data_df):
             "type": 'Line', 
             "data": stochastic_k, 
             "options": {
-                "color": 'rgba(0, 150, 255, 1)', 
+                "color": 'rgba(0, 150, 255, 1)', #파란색
                 "lineWidth": 1.5,
                 "priceLineVisible": False,
             }
@@ -436,7 +473,7 @@ def draw_lightweight_chart(data_df):
             "type": 'Line', 
             "data": stochastic_d, 
             "options": {
-                "color": 'rgba(255, 0, 0, 1)', 
+                "color": 'rgba(255, 0, 0, 1)', #빨간색
                 "lineWidth": 1.5,
                 "priceLineVisible": False,
             }
@@ -448,7 +485,7 @@ def draw_lightweight_chart(data_df):
             "type": 'Line', 
             "data": mfi, 
             "options": {
-                "color": 'rgba(0, 150, 255, 1)', 
+                "color": 'rgba(0, 150, 255, 1)', #파란색 
                 "lineWidth": 1.5,
                 "priceLineVisible": False,
             }
@@ -584,6 +621,7 @@ def login_page():
         
         if len(result) > 0:
             st.session_state["authenticated"] = True
+            st.query_params = {"page" : "main", "login": "true"}
             st.rerun()  # 로그인 후 페이지 새로고침
         else:
             st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
@@ -809,8 +847,9 @@ def main():
     
     if st.button("로그아웃"):
         st.session_state["authenticated"] = False
+        st.query_params = {"page" : "login", "login": "false"}
         st.rerun()  # 로그아웃 후 페이지 새로고침
-    
+        
     # ✅ 공통 사이드바 설정 함수 실행 후 값 가져오기
     sidebar_settings = setup_sidebar(sql_executor)
     
@@ -1111,10 +1150,16 @@ def main():
 
 if __name__ == "__main__":
         # Streamlit 실행 시 로그인 여부 확인
+        
+    # ✅ 현재 쿼리 파라미터로 페이지 상태 확인
+    params = st.query_params
+    is_logged_in = params.get("login", "false") == "true"
+    current_page = params.get("page", "login")
+        
     if "authenticated" not in st.session_state:
-        st.session_state["authenticated"] = False
+        st.session_state["authenticated"] = is_logged_in
 
-    if st.session_state["authenticated"]:
+    if st.session_state["authenticated"] and current_page == 'main':
         main()
     else:
         login_page()

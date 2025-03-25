@@ -165,10 +165,10 @@ class AutoTradingBot:
         df['SMA_200'] = df['Close'].rolling(window=200).mean()
 
         #ema
-        df = indicator.cal_ema_df(df, 5)
+        df = indicator.cal_ema_df(df, 10)
+        df = indicator.cal_ema_df(df, 20)
+        df = indicator.cal_ema_df(df, 50)
         df = indicator.cal_ema_df(df, 60)
-        df = indicator.cal_ema_df(df, 120)
-        df = indicator.cal_ema_df(df, 200)
 
         df = indicator.cal_rsi_df(df)
         df = indicator.cal_macd_df(df)
@@ -377,10 +377,10 @@ class AutoTradingBot:
             # 캔들 차트 데이터프레임 생성
             df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
             #ema
-            df = indicator.cal_ema_df(df, 5)
+            df = indicator.cal_ema_df(df, 10)
             df = indicator.cal_ema_df(df, 20)
+            df = indicator.cal_ema_df(df, 50)
             df = indicator.cal_ema_df(df, 60)
-            df = indicator.cal_ema_df(df, 120)
 
 
             df = indicator.cal_rsi_df(df)
@@ -388,7 +388,6 @@ class AutoTradingBot:
             df = indicator.cal_stochastic_df(df)
             df = indicator.cal_mfi_df(df)
             
-            print(f"df: {df}")  
             recent_20_days_volume = []
             avg_volume_20_days = 0
 
