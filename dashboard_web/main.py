@@ -9,7 +9,7 @@ from st_aggrid import AgGrid
 import pandas as pd
 from datetime import datetime, date, timedelta
 import pytz
-
+import streamlit.components.v1 as components
 from streamlit_lightweight_charts import renderLightweightCharts
 import json
 import numpy as np
@@ -62,7 +62,6 @@ def draw_lightweight_chart(data_df):
     stochastic_k = json.loads(data_df.dropna(subset=['stochastic_k']).rename(columns={"stochastic_k": "value"}).to_json(orient="records"))
     stochastic_d = json.loads(data_df.dropna(subset=['stochastic_d']).rename(columns={"stochastic_d": "value"}).to_json(orient="records"))
     mfi = json.loads(data_df.dropna(subset=['mfi']).rename(columns={"mfi": "value"}).to_json(orient="records"))
-    mfi_signal = json.loads(data_df.dropna(subset=['mfi_signal']).rename(columns={"mfi_signal": "value"}).to_json(orient="records"))
 
     temp_df = data_df
     temp_df['color'] = np.where(temp_df['open'] > temp_df['close'], COLOR_BEAR, COLOR_BULL)  # bull or bear
@@ -282,20 +281,9 @@ def draw_lightweight_chart(data_df):
     ]
 
     seriesCandlestickChart = [
-        # {
-        #     "type": 'Line',
-        #     "data": bollinger_band_upper,  # 중앙선 데이터
-        #     "options": {
-        #         "color": 'rgba(0, 0, 0, 1)',  # 노란색
-        #         "lineWidth": 0.5,
-        #         "priceScaleId": "right",
-        #         "lastValueVisible": False, # 가격 레이블 숨기기
-        #         "priceLineVisible": False, # 가격 라인 숨기기
-        #     },
-        # },
         {
             "type": 'Line',
-            "data": bollinger_band_middle,  # 상단 밴드 데이터
+            "data": bollinger_band_upper,  # 상단 데이터
             "options": {
                 "color": 'rgba(0, 0, 0, 1)',  # 노란색
                 "lineWidth": 0.5,
@@ -304,6 +292,17 @@ def draw_lightweight_chart(data_df):
                 "priceLineVisible": False, # 가격 라인 숨기기
             },
         },
+        # {
+        #     "type": 'Line',
+        #     "data": bollinger_band_middle,  # 중단 밴드 데이터
+        #     "options": {
+        #         "color": 'rgba(0, 0, 0, 1)',  # 노란색
+        #         "lineWidth": 0.5,
+        #         "priceScaleId": "right",
+        #         "lastValueVisible": False, # 가격 레이블 숨기기
+        #         "priceLineVisible": False, # 가격 라인 숨기기
+        #     },
+        # },
         {
             "type": 'Line',
             "data": bollinger_band_lower,  # 하단 밴드 데이터
@@ -491,15 +490,6 @@ def draw_lightweight_chart(data_df):
             }
         },
         {
-        "type": 'Line', 
-        "data": mfi_signal,  # ✅ MFI Signal 값
-        "options": {
-            "color": 'rgba(255, 0, 0, 1)',  # 🔴 빨간색 (MFI Signal)
-            "lineWidth": 1.5,
-            "priceLineVisible": False,
-        }
-    },
-    {
             "type": 'Line',
             "data": [{"time": row["time"], "value": 80} for row in mfi],  # 과매도 라인
             "options": {
@@ -509,8 +499,8 @@ def draw_lightweight_chart(data_df):
                 "lastValueVisible": True,
                 "priceLineVisible": False,
             },
-    },
-    {
+        },
+        {
             "type": 'Line',
             "data": [{"time": row["time"], "value": 20} for row in mfi],  # 과매수 라인
             "options": {
@@ -520,7 +510,7 @@ def draw_lightweight_chart(data_df):
                 "lastValueVisible": True,
                 "priceLineVisible": False,
             },
-    },
+        },
     ]
     
     renderLightweightCharts([
@@ -599,9 +589,14 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'bollinger_band_trading':
             entry['trading_logic'] = '볼린저밴드 매매'
         elif entry.get('trading_logic') == 'bollinger+ema':
-            entry['trading_logic'] = '볼린저+지수이동평균선'            
+            entry['trading_logic'] = '볼린저+지수이동평균선'
+        elif entry.get('trading_logic') == 'ema_breakout_trading2':
+            entry['trading_logic'] = '지수이동평균선 확인2'
+        elif entry.get('trading_logic') == 'trend_entry_trading':
+            entry['trading_logic'] = '상승추세형 매수'
+        elif entry.get('trading_logic') == 'bottom_rebound_trading':
+            entry['trading_logic'] =  '저점반등형 매수'                                    
             
-
 def login_page():
     """
     로그인 페이지: 사용자 로그인 및 세션 상태 관리
@@ -611,7 +606,7 @@ def login_page():
     # 사용자 입력 받기
     username = st.text_input("아이디", key="username")
     password = st.text_input("비밀번호", type="password", key="password")
-
+    
     # 간단한 사용자 검증 (실제 서비스에서는 DB 연동 필요)
     if st.button("로그인"):
         # 로그인 정보 조회
@@ -649,7 +644,7 @@ def setup_sidebar(sql_executer):
     target_trade_value_krw = st.sidebar.number_input("Target Trade Value (KRW)", value=1000000, step=100000)
 
     result = list(StockSymbol.scan(
-        filter_condition=(StockSymbol.type == 'kospi200')
+        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
     ))
 
     # Dropdown 메뉴를 통해 데이터 선택
@@ -755,7 +750,7 @@ def setup_my_page():
         initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key="initial_capital")
     # ✅ DB에서 종목 리스트 가져오기
     kosdaq150_result = list(StockSymbol.scan(
-        filter_condition=(StockSymbol.type == 'kosdaq150')
+        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
     ))
 
     symbol_options = {row.symbol_name: row.symbol for row in kosdaq150_result}

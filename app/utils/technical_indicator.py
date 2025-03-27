@@ -40,8 +40,6 @@ class TechnicalIndicator:
         ✅ MFI (Money Flow Index) 계산
         - MFI = 100 - (100 / (1 + Money Flow Ratio))
         """
-        if not isinstance(df, pd.DataFrame):
-                raise TypeError(f"🚨 오류: df가 DataFrame이 아닙니다! 현재 타입: {type(df)}")
         # ✅ Typical Price (TP) 계산
         df['TP'] = (df['High'] + df['Low'] + df['Close']) / 3
 
@@ -61,9 +59,8 @@ class TechnicalIndicator:
         df['MFR'] = df['PMF'] / (df['NMF'] + 1e-10)  # 0으로 나누는 문제 방지
 
         # ✅ MFI (Money Flow Index) 계산
-        df['mfi'] = 100 - (100 / (1 + df['MFR']))
+        df['mfi'] = (100 - (100 / (1 + df['MFR']))).round(2)
         
-        df['mfi_signal'] = df['mfi'].rolling(window=3).mean()  # ✅ MFI의 3일 이동 평균
 
         return df
 
@@ -79,7 +76,7 @@ class TechnicalIndicator:
         
         # 📌 0으로 나누는 문제 방지 (loss가 0일 때 예외 처리)
         rs = avg_gain / (avg_loss + 1e-10)  # 1e-10을 추가해서 0으로 나누는 것 방지
-        df['rsi'] = 100 - (100 / (1 + rs))  # RSI 계산
+        df['rsi'] = (100 - (100 / (1 + rs))).round(2)  # RSI 계산
         
         # 📌 처음 14일 동안의 데이터 제거 (이상값 방지)
         df.iloc[:period, df.columns.get_loc('rsi')] = np.nan
@@ -99,9 +96,9 @@ class TechnicalIndicator:
         df['ema_short'] = df['Close'].ewm(span=short_window, adjust=False).mean()
         df['ema_long'] = df['Close'].ewm(span=long_window, adjust=False).mean()
 
-        df['macd'] = df['ema_short'] - df['ema_long']
-        df['macd_signal'] = df['macd'].ewm(span=signal_window, adjust=False).mean()
-        df['macd_histogram'] = df['macd'] - df['macd_signal']  # MACD 히스토그램 = osc
+        df['macd'] = (df['ema_short'] - df['ema_long']).round(2)
+        df['macd_signal'] = (df['macd'].ewm(span=signal_window, adjust=False).mean()).round(2)
+        df['macd_histogram'] = (df['macd'] - df['macd_signal']).round(2)  # MACD 히스토그램 = osc
 
         return df
     
@@ -116,8 +113,8 @@ class TechnicalIndicator:
         df['low_min'] = df['Low'].rolling(window=k_window).min()
         df['high_max'] = df['High'].rolling(window=k_window).max()
 
-        df['stochastic_k'] = 100 * ((df['Close'] - df['low_min']) / (df['high_max'] - df['low_min'] + 1e-10))
-        df['stochastic_d'] = df['stochastic_k'].rolling(window=d_window).mean()  # 3일 이동 평균
+        df['stochastic_k'] = (100 * ((df['Close'] - df['low_min']) / (df['high_max'] - df['low_min'] + 1e-10))).round(2)
+        df['stochastic_d'] = (df['stochastic_k'].rolling(window=d_window).mean()).round(2)  # 3일 이동 평균
 
         return df
 
@@ -131,6 +128,6 @@ class TechnicalIndicator:
             :return: EMA 컬럼이 추가된 DataFrame
         """
         ema_column_name = f'EMA_{period}'
-        df[ema_column_name] = df['Close'].ewm(span=period, adjust=False).mean()
+        df[ema_column_name] = (df['Close'].ewm(span=period, adjust=False).mean()).round(1)
         
         return df

@@ -388,6 +388,25 @@ class AutoTradingBot:
             df = indicator.cal_stochastic_df(df)
             df = indicator.cal_mfi_df(df)
             
+            trade_entry = {
+                'symbol': symbol,
+                'Time': timestamp,
+                'price': close_price,
+                'volume': volume,
+                'mfi': df['mfi'].iloc[-1],
+                'rsi': df['rsi'].iloc[-1],
+                'macd': df['macd'].iloc[-1],
+                'macd_signal': df['macd_signal'].iloc[-1],
+                'macd_histogram': df['macd_histogram'].iloc[-1],
+                'stochastic_k': df['stochastic_k'].iloc[-1],
+                'stochastic_d': df['stochastic_d'].iloc[-1],
+                'EMA_10': df['EMA_10'].iloc[-1],
+                'EMA_20': df['EMA_20'].iloc[-1],
+                'EMA_50': df['EMA_50'].iloc[-1],
+                'EMA_60': df['EMA_60'].iloc[-1],
+            }
+            trade_reasons.append(trade_entry)
+                        
             recent_20_days_volume = []
             avg_volume_20_days = 0
 
@@ -407,13 +426,7 @@ class AutoTradingBot:
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
                         buy_yn, _ = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         
-                    elif trading_logic == 'rsi_trading':
-                        df = indicator.cal_rsi_df(df)
-                        
-                        # ✅ df 출력 (여기서 실제 전달되는 값 확인)
-                        print("\n✅ RSI 계산 후 df:")
-                        print(df.tail(10))  # 최근 10개만 출력
-                        
+                    elif trading_logic == 'rsi_trading':            
                         buy_yn, _ = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
 
                     elif trading_logic == 'penetrating':
@@ -438,54 +451,54 @@ class AutoTradingBot:
                         buy_yn = logic.morning_star(candle, d_1, d_2, closes)
                         
                     elif trading_logic == 'macd_trading':
-                        df = indicator.cal_macd_df(df)
                         buy_yn, _ = logic.macd_trading(candle, df, symbol)
                                                 
                     elif trading_logic == 'mfi_trading':
-                        df = indicator.cal_mfi_df(df)
-                        buy_yn, _ = logic.mfi_trading(df)    
+                        buy_yn, _ = logic.mfi_trading(df, symbol)    
                     #rsi와 check_wick and 조건
                     elif trading_logic == 'rsi+check_wick':
                         # 볼린저 밴드 계산
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
                         _, buy_yn1 = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-                        df = indicator.cal_rsi_df(df)
                         buy_yn2, _ = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
                         buy_yn = buy_yn1 and buy_yn2
                         
                     elif trading_logic == 'stochastic_trading':
-                        df = indicator.cal_stochastic_df(df)
-                        print(f"스토캐스틱 계산 후 df: {df}")
-                        buy_yn, _ = logic.stochastic_trading(df)
+                        buy_yn, _ = logic.stochastic_trading(df, symbol)
                         
                     elif trading_logic == 'rsi+mfi':
-                        df_mfi = indicator.cal_mfi_df(df)
-                        buy_yn1, _ = logic.mfi_trading(df_mfi)
-                        df = indicator.cal_rsi_df(df)
+                        buy_yn1, _ = logic.mfi_trading(df)
                         buy_yn2, _ = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
                         buy_yn = buy_yn1 and buy_yn2
                         
                     elif trading_logic == 'ema_breakout_trading':
-                        df = indicator.cal_ema_df(df, 20)
-                        df = indicator.cal_ema_df(df, 60)
-                        df = indicator.cal_ema_df(df, 120)
-                        buy_yn = logic.ema_breakout_trading(df)
+                        buy_yn = logic.ema_breakout_trading(df, symbol)
                         
                     elif trading_logic == 'bollinger_band_trading':
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        buy_yn, _ = logic.bollinger_band_trading(candle, bollinger_band['lower'], bollinger_band['upper'], df)
+                        buy_yn, _ = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)
                         
                     elif trading_logic == 'bollinger+ema':
                         buy_yn1 = logic.ema_breakout_trading(df)
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        buy_yn2, _ = logic.bollinger_band_trading(candle, bollinger_band['lower'], bollinger_band['upper'], df)                                                                        
+                        buy_yn2, _ = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)                                                                        
                         buy_yn = buy_yn1 or buy_yn2
+                        
+                    elif trading_logic == 'ema_breakout_trading2':
+                        buy_yn = logic.ema_breakout_trading2(df)
+                        
+                    elif trading_logic == 'trend_entry_trading':
+                        buy_yn = logic.trend_entry_trading(df)
+                        
+                    elif trading_logic == 'bottom_rebound_trading':
+                        buy_yn = logic.bottom_rebound_trading(df)
                     
                     # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
-                    #if buy_yn and volume > d_1.volume and d_1.volume > avg_volume_20_days:
-                    if buy_yn and d_1 is not None and volume > d_1.volume:
+                    #if buy_yn and d_1 is not None and volume > d_1.volume and d_1.volume > avg_volume_20_days:
+                    if buy_yn: # 일단 매수 거래량 조건 제거
                                                 
                         can_buy = True
+                        
                         # 매수 제한 조건 확인                        
                         if buy_percentage is not None:
                             #첫 매수는 항상 허용
@@ -567,8 +580,6 @@ class AutoTradingBot:
                         sell_yn = logic.dark_cloud(candle, d_1, d_2)
                         
                     elif trading_logic == 'rsi_trading':
-                        df = indicator.cal_rsi_df(df)
-                        #print(f"rsi 데이터: {df['rsi']}")
                         _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
                         
                     elif trading_logic == 'check_wick':            
@@ -577,36 +588,30 @@ class AutoTradingBot:
                         _, sell_yn = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         
                     elif trading_logic == 'mfi_trading':
-                        df = indicator.cal_mfi_df(df)
-                        _, sell_yn = logic.mfi_trading(df)
+                        _, sell_yn = logic.mfi_trading(df, symbol)
                         
                     #rsi와 check_wick and 조건
                     elif trading_logic == 'rsi+check_wick':
                         # 볼린저 밴드 계산
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
                         sell_yn1, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-                        df = indicator.cal_rsi_df(df, 14)
                         _, sell_yn2 = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
                         sell_yn = sell_yn1 and sell_yn2
                         
                     elif trading_logic == 'stochastic_trading':
-                        df = indicator.cal_stochastic_df(df)
-                        _, sell_yn = logic.stochastic_trading(df)
+                        _, sell_yn = logic.stochastic_trading(df, symbol)
                         
                     elif trading_logic == 'macd_trading':
-                        df = indicator.cal_macd_df(df)
                         _, sell_yn = logic.macd_trading(candle, df, symbol)
                         
                     elif trading_logic == 'rsi+mfi':
-                        df = indicator.cal_mfi_df(df)
                         _, sell_yn1 = logic.mfi_trading(df)
-                        df = indicator.cal_rsi_df(df, 14)
                         _, sell_yn2 = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
                         sell_yn = sell_yn1 and sell_yn2
                         
                     elif trading_logic == 'bollinger_band_trading':
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        _, sell_yn = logic.bollinger_band_trading(candle, bollinger_band['lower'], bollinger_band['upper'], df)                                                     
+                        _, sell_yn = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)                                                     
                 #매도 사인이 2개 이상일 때 quantity 조건에 충족되지 않은 조건은 history에 추가되지 않는다는 문제 해결 필요
                 # 매도
                 if sell_yn:
