@@ -884,9 +884,9 @@ class TradingLogic:
         if lower_band == upper_band and df.shape[0] < 2:
             return False, False
 
-        # EMA20 기울기
-        df['EMA60_slope'] = df['EMA_60'] - df['EMA_60'].shift(5)
-        df['EMA20_slope'] = df['EMA_20'] - df['EMA_20'].shift(5)        
+        # EMA20 기울기(3일 차이)
+        df['EMA60_slope'] = df['EMA_60'] - df['EMA_60'].shift(3)
+        df['EMA20_slope'] = df['EMA_20'] - df['EMA_20'].shift(3)        
         # 조건 계산
         last = df.iloc[-1]
         prev = df.iloc[-2]        
@@ -912,31 +912,21 @@ class TradingLogic:
         last = df.iloc[-1]
         prev = df.iloc[-2]
 
-        # 조건 1: 직전 EMA 배열
-        prev_arranged = (
-            prev['EMA_50'] > prev['EMA_20'] > prev['EMA_10']
-        )
-
         # 조건 2: EMA_10이 EMA_50 상향 돌파
         cross_up = (
             prev['EMA_10'] <= prev['EMA_50'] and
-            last['EMA_10'] >= last['EMA_50']
+            last['EMA_10'] >= last['EMA_50'] and
+            last['EMA_10'] >= last['EMA_20']
         )
 
         # 조건 3: EMA_20, EMA_50 기울기 ≥ 0
         ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema50_slope = last['EMA_50'] - prev['EMA_50']
-        slope_up = ema20_slope > 0 and ema50_slope >= 0
+        ema10_slope = last['EMA_10'] - prev['EMA_10']
+        slope_up = ema20_slope >0 and ema50_slope >0 and ema10_slope >0
 
         # 최종 매수 조건
-        buy_signal = prev_arranged and cross_up and slope_up
-
-        # 디버깅 출력
-        print(f"prev_arranged (EMA50 > EMA20 > EMA10): {prev_arranged}")
-        print(f"cross_up (EMA10 cross above EMA50): {cross_up}")
-        print(f"EMA20_slope: {ema20_slope:.4f}, EMA50_slope: {ema50_slope:.4f}")
-        print(f"slope_up: {slope_up}")
-        print(f"Buy Signal: {buy_signal}")
+        buy_signal = cross_up and slope_up
 
         return buy_signal    
 
@@ -1017,4 +1007,94 @@ class TradingLogic:
 
         return buy_signal
 
+
+    def downtrend_sell_trading(self, df):
+        """
+        하락 추세 진입형 매도 전략 (보완형)
+        
+        조건:
+        ① 전날 EMA 배열: EMA_10 > EMA_20 > EMA_50
+        ② 오늘 EMA_10이 EMA_50을 위에서 아래로 돌파
+        ③ EMA_20, EMA_50 기울기 < 0
+        ④ MACD와 히스토그램 모두 감소
+        ⑤ RSI가 50 아래로 하향 돌파
+        ⑥ Stochastic K가 D를 위에서 아래로 하향 돌파 + 과매수 근처
+        """
+
+        if df.shape[0] < 2:
+            print("❌ 데이터가 부족해서 조건 계산 불가")
+            return False
+
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+
+        # 조건 ① EMA 배열
+        prev_arranged = prev['EMA_10'] > prev['EMA_20'] > prev['EMA_50']
+
+        # 조건 ② 교차
+        cross_down = prev['EMA_10'] >= prev['EMA_50'] and last['EMA_10'] <= last['EMA_50']
+
+        # 조건 ③ 기울기
+        ema20_slope = last['EMA_20'] - prev['EMA_20']
+        ema50_slope = last['EMA_50'] - prev['EMA_50']
+        slope_down = ema20_slope < 0 and ema50_slope <= 0
+
+        # 조건 ④ MACD 하락
+        macd_falling = last['macd'] < prev['macd'] and last['macd_histogram'] < prev['macd_histogram']
+
+        # 조건 ⑤ RSI 50 하향 돌파
+        rsi_breakdown = prev['rsi'] >= 50 and last['rsi'] < 50
+
+        # 조건 ⑥ Stochastic %K < %D 교차 + 과매수 근처
+        stoch_cross = (
+            prev['stochastic_k'] > prev['stochastic_d'] and
+            last['stochastic_k'] < last['stochastic_d'] and
+            last['stochastic_k'] > 70
+        )
+
+        # 최종 조건
+        sell_signal = (
+            prev_arranged and cross_down and slope_down and
+            macd_falling and rsi_breakdown and stoch_cross
+        )
+
+        return sell_signal
     
+    def top_reversal_sell_trading(self, df):
+        """
+        고점 반락형 매도 전략
+        조건:
+        ① 전날 RSI, MFI, Stoch > 임계값
+        ② 오늘 RSI, MFI, Stoch 임계값 아래로 하락
+        ③ MACD, 히스토그램 하락
+        """
+        if df.shape[0] < 2:
+            print("❌ 데이터가 부족해서 조건 계산 불가")
+            return False
+
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+
+        # 조건 1: 전날 과매수
+        prev_overbought = (
+            prev['rsi'] >= 70 and
+            prev['mfi'] >= 70 and
+            prev['stochastic_k'] >= 80
+        )
+
+        # 조건 2: 오늘 하락 돌파
+        breakdown_today = (
+            last['rsi'] < 70 and
+            last['mfi'] < 70 and
+            last['stochastic_k'] < 80
+        )
+
+        # 조건 3: MACD 약화
+        macd_falling = (
+            last['macd'] < prev['macd'] and
+            last['macd_histogram'] < prev['macd_histogram']
+        )
+
+        sell_signal = prev_overbought and breakdown_today and macd_falling
+
+        return sell_signal

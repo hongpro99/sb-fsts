@@ -39,6 +39,8 @@ class TechnicalIndicator:
         """
         ✅ MFI (Money Flow Index) 계산
         - MFI = 100 - (100 / (1 + Money Flow Ratio))
+        
+        테스트 결과 값이 정확히 계산됨
         """
         # ✅ Typical Price (TP) 계산
         df['TP'] = (df['High'] + df['Low'] + df['Close']) / 3
@@ -61,11 +63,29 @@ class TechnicalIndicator:
         # ✅ MFI (Money Flow Index) 계산
         df['mfi'] = (100 - (100 / (1 + df['MFR']))).round(2)
         
-
+        # 📌 처음 14일 동안의 데이터 제거 (이상값 방지)
+        df.iloc[:period, df.columns.get_loc('mfi')] = np.nan
+        
         return df
 
     def cal_rsi_df(self, df, period=14):
+        """
+        delta = 오늘 종가 - 어제 종가
 
+        gain = 양의 delta (음수는 0으로)
+
+        loss = 음의 delta의 절댓값 (양수는 0으로)
+
+        avg_gain = 14일간 평균 gain
+
+        avg_loss = 14일간 평균 loss
+
+        RS = avg_gain / avg_loss
+
+        RSI = 100 - (100 / (1 + RS)
+        테스트 결과 값이 정확히 계산됨
+        """
+        
         delta = df['Close'].diff(1)  # 종가 변화량
         gain = delta.where(delta > 0, 0)  # 상승한 부분만 남기기
         loss = -delta.where(delta < 0, 0)  # 하락한 부분만 남기기

@@ -595,7 +595,11 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'trend_entry_trading':
             entry['trading_logic'] = '상승추세형 매수'
         elif entry.get('trading_logic') == 'bottom_rebound_trading':
-            entry['trading_logic'] =  '저점반등형 매수'                                    
+            entry['trading_logic'] =  '저점반등형 매수'
+        elif entry.get('trading_logic') == 'top_reversal_sell_trading':
+            entry['trading_logic'] =  '고점반락형 매도'
+        elif entry.get('trading_logic') == 'downtrend_sell_trading':
+            entry['trading_logic'] =  '하락추세형 매도'                                     
             
 def login_page():
     """
@@ -695,11 +699,6 @@ def setup_sidebar(sql_executer):
     
     selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic] if selected_buy_logic else []
     selected_sellTrading_logic = [available_sell_logic[logic] for logic in selected_sell_logic] if selected_sell_logic else []
-
-    # ✅ rsi 조건값 입력
-    
-    rsi_buy_threshold = st.sidebar.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1)
-    rsi_sell_threshold = st.sidebar.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1)
     
     #mode
     ohlc_mode_checkbox = st.sidebar.checkbox("차트 연결 모드")  # True / False 반환
@@ -719,9 +718,8 @@ def setup_sidebar(sql_executer):
         "sell_trading_logic": selected_sellTrading_logic,
         "buy_condition_yn": buy_condition_yn,
         "buy_percentage": buy_percentage,
-        "ohlc_mode": ohlc_mode,
-        "rsi_buy_threshold" : rsi_buy_threshold,
-        "rsi_sell_threshold" : rsi_sell_threshold
+        "ohlc_mode": ohlc_mode
+
     }
     
 def setup_my_page():
@@ -801,9 +799,9 @@ def setup_my_page():
         buy_percentage = st.number_input("💵 퍼센트 (%) 입력", min_value=0.0, max_value=100.0, value=3.0, step=0.1, key="buy_percentage")
 
     # ✅ rsi 조건값 입력
-    st.subheader("🎯 RSI 조건값 설정")
-    rsi_buy_threshold = st.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1, key="rsi_buy_threshold")
-    rsi_sell_threshold = st.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1, key="rsi_sell_threshold")
+    # st.subheader("🎯 RSI 조건값 설정")
+    # rsi_buy_threshold = st.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1, key="rsi_buy_threshold")
+    # rsi_sell_threshold = st.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1, key="rsi_sell_threshold")
 
     # ✅ 설정 저장 버튼
     if st.button("✅ 설정 저장"):
@@ -819,8 +817,6 @@ def setup_my_page():
             "selected_sellTrading_logic": selected_sellTrading_logic,
             "buy_condition_yn": buy_condition_yn,
             "buy_percentage": buy_percentage,
-            "rsi_buy_threshold": rsi_buy_threshold,
-            "rsi_sell_threshold": rsi_sell_threshold,
             "initial_capital": initial_capital
         }
         st.success("✅ 설정이 저장되었습니다!")
@@ -926,8 +922,6 @@ def main():
                     interval=sidebar_settings["interval"],
                     buy_percentage=sidebar_settings["buy_percentage"],
                     ohlc_mode = sidebar_settings["ohlc_mode"],
-                    rsi_buy_threshold = sidebar_settings['rsi_buy_threshold'],
-                    rsi_sell_threshold = sidebar_settings['rsi_sell_threshold']
                     
                 )
                 # 시뮬레이션 결과를 session_state에 저장
@@ -1052,8 +1046,6 @@ def main():
                             sell_trading_logic=my_page_settings["selected_sellTrading_logic"],
                             interval=my_page_settings["interval"],
                             buy_percentage=my_page_settings["buy_percentage"],
-                            rsi_buy_threshold = my_page_settings['rsi_buy_threshold'],
-                            rsi_sell_threshold = my_page_settings['rsi_sell_threshold'],
                             initial_capital= my_page_settings['initial_capital']
                         )
 

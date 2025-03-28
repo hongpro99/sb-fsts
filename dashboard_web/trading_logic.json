@@ -37,6 +37,8 @@
         "macd 확인" : "macd_trading",
         "mfi 확인" : "mfi_trading",
         "rsi+mfi" : "rsi+mfi",
-        "볼린저밴드 매매": "bollinger_band_trading"        
+        "볼린저밴드 매매": "bollinger_band_trading",
+        "고점반락형 매도": "top_reversal_sell_trading",
+        "하락추세형 매도": "downtrend_sell_trading"        
     }
 }
