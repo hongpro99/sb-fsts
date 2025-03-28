@@ -104,21 +104,37 @@ class TechnicalIndicator:
         return df
     
 
-    def cal_macd_df(self, df, short_window=12, long_window=26, signal_window=9):
+    def cal_macd_df(self, df, short_window=12, long_window=26, signal_window=9, round_digits=2):
         """
         MACD 오실레이터
         •	MACD (Moving Average Convergence Divergence)는 단기(12) EMA와 장기(26) EMA의 차이를 나타냄.
         •	MACD Line = 12-day EMA - 26-day EMA
         •	Signal Line = 9-day EMA of MACD Line (MACD의 9일 이동 평균)
         •	MACD와 Signal의 차이를 히스토그램으로 표현함. = MACD OSC
+        테스트 결과 ??
         """
 
+        # 단기 EMA
         df['ema_short'] = df['Close'].ewm(span=short_window, adjust=False).mean()
+
+        # 장기 EMA
         df['ema_long'] = df['Close'].ewm(span=long_window, adjust=False).mean()
 
-        df['macd'] = (df['ema_short'] - df['ema_long']).round(2)
-        df['macd_signal'] = (df['macd'].ewm(span=signal_window, adjust=False).mean()).round(2)
-        df['macd_histogram'] = (df['macd'] - df['macd_signal']).round(2)  # MACD 히스토그램 = osc
+        # MACD
+        df['macd'] = df['ema_short'] - df['ema_long']
+
+        # Signal (MACD의 EMA)
+        df['macd_signal'] = df['macd'].ewm(span=signal_window, adjust=False).mean()
+
+        # Histogram
+        df['macd_histogram'] = df['macd'] - df['macd_signal']
+
+        # 반올림 (optional)
+        df['ema_short'] = df['ema_short'].round(round_digits)
+        df['ema_long'] = df['ema_long'].round(round_digits)
+        df['macd'] = df['macd'].round(round_digits)
+        df['macd_signal'] = df['macd_signal'].round(round_digits)
+        df['macd_histogram'] = df['macd_histogram'].round(round_digits)
 
         return df
     
@@ -146,8 +162,14 @@ class TechnicalIndicator:
             :param period: EMA 주기
             :param column: EMA를 계산할 컬럼 이름 (기본값: 'Close')
             :return: EMA 컬럼이 추가된 DataFrame
+            adjust= True, False 차이로 값이 다름. True와 False 모두 다른 증권사와는 값이 차이가 있음.
+            True = 가중합식, False = 재귀식
         """
+        
         ema_column_name = f'EMA_{period}'
-        df[ema_column_name] = (df['Close'].ewm(span=period, adjust=False).mean()).round(1)
+        
+        df[ema_column_name] = (df['Close'].ewm(span=period, adjust=False).mean())
         
         return df
+    
+    

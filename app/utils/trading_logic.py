@@ -911,15 +911,17 @@ class TradingLogic:
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
-
+        last_close_price = float(last['Close'])
+        prev_close_price = float(prev['Close'])
+        
         # 조건 2: EMA_10이 EMA_50 상향 돌파
         cross_up = (
-            prev['EMA_10'] <= prev['EMA_50'] and
-            last['EMA_10'] >= last['EMA_50'] and
-            last['EMA_10'] >= last['EMA_20']
+            prev_close_price <= prev['EMA_50'] and
+            last_close_price > prev['EMA_50'] and
+            last_close_price > prev_close_price
         )
 
-        # 조건 3: EMA_20, EMA_50 기울기 ≥ 0
+        # 조건 3: EMA_10, EMA_20, EMA_50 기울기 ≥ 0
         ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema50_slope = last['EMA_50'] - prev['EMA_50']
         ema10_slope = last['EMA_10'] - prev['EMA_10']
