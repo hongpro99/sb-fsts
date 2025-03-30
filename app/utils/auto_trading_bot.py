@@ -718,6 +718,9 @@ class AutoTradingBot:
         closes = [float(candle.close) for candle in ohlc_data[:-1]]
         previous_closes = [float(candle.close) for candle in ohlc_data[:-2]]  # 마지막 봉을 제외한 종가들
 
+        timestamps = []
+        ohlc = []
+        
         # 마지막 봉 데이터 (마지막 봉이란 당일)
         candle = ohlc_data[-1]
         open_price = float(candle.open)
@@ -726,7 +729,8 @@ class AutoTradingBot:
         close_price = float(candle.close)
         volume = float(candle.volume)
         timestamp = candle.time
-
+        timestamp_str = timestamp.date().isoformat()
+        
         # 마지막 직전 봉 데이터
         previous_candle = ohlc_data[-2]
         prev_open_price = float(previous_candle.open)
@@ -743,6 +747,12 @@ class AutoTradingBot:
             recent_20_days_volume = [float(c.volume) for c in ohlc_data[-20:]]
             avg_volume_20_days = sum(recent_20_days_volume) / len(recent_20_days_volume)
         
+        
+        ohlc.append([timestamp_str, open_price, high_price, low_price, close_price, volume])
+        previous_closes.append(close_price)
+            
+        # 캔들 차트 데이터프레임 생성
+        df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
         # 볼린저 밴드 계산
         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
         

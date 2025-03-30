@@ -880,6 +880,9 @@ class TradingLogic:
         last_close_price = float(last['Close'])
         prev_close_price = float(prev['Close'])
         
+        # 5일 평균 거래량
+        df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+        
         # 조건 2: EMA_10이 EMA_50 상향 돌파
         cross_up = (
             prev['EMA_10'] < prev['EMA_50'] and
@@ -891,10 +894,12 @@ class TradingLogic:
         ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema50_slope = last['EMA_50'] - prev['EMA_50']
         ema10_slope = last['EMA_10'] - prev['EMA_10']
+        volume_up = last['Volume'] > last['Volume_MA5']
+        
         slope_up = ema20_slope >0 and ema50_slope >0 and ema10_slope >0
 
         # 최종 매수 조건
-        buy_signal = cross_up and slope_up
+        buy_signal = cross_up and slope_up and volume_up
         
         for entry in self.trade_reasons:
             if entry['Time'].date() == trade_date:

@@ -704,6 +704,15 @@ def setup_sidebar(sql_executer):
     ohlc_mode_checkbox = st.sidebar.checkbox("차트 연결 모드")  # True / False 반환
     ohlc_mode = "continuous" if ohlc_mode_checkbox else "default"
     
+    # ✅ 실제 투자 조건 체크박스
+    real_trading_enabled = st.sidebar.checkbox("💰 실제 투자자본 설정", key="real_trading_enabled")
+    real_trading_yn = "Y" if real_trading_enabled else "N"
+    
+        # ✅ 매수 퍼센트 입력
+    initial_capital = None
+    if real_trading_yn == "Y":
+        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key="initial_capital")
+    
     # ✅ 설정 값을 딕셔너리 형태로 반환
     return {
         "id": id,
@@ -718,8 +727,8 @@ def setup_sidebar(sql_executer):
         "sell_trading_logic": selected_sellTrading_logic,
         "buy_condition_yn": buy_condition_yn,
         "buy_percentage": buy_percentage,
-        "ohlc_mode": ohlc_mode
-
+        "ohlc_mode": ohlc_mode,
+        "initial_capital": initial_capital
     }
     
 def setup_my_page():
