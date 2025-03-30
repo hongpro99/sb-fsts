@@ -129,8 +129,8 @@ def scheduled_single_buy_task():
 
     # ✅ 매수할 종목 정보 (원하는 종목으로 변경 가능)
     symbol = "005930"        # 삼성전자
-    target_trade_value_krw = 1000000
-    
+    target_trade_value_krw = 1000
+
     quote = trading_bot.get_quote(symbol=symbol)
     qty = math.floor(target_trade_value_krw / quote.close) # 주식 매매 개수
     buy_price = None         # 시장가 매수 (지정가 입력 시 가격 설정)
