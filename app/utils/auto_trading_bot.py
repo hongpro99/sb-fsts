@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 import math
 import json
-from pykis import PyKis, KisChart, KisStock
+from pykis import PyKis, KisChart, KisStock, KisQuote
 from datetime import datetime, date, time
 import mplfinance as mpf
 from pytz import timezone
@@ -977,6 +977,12 @@ class AutoTradingBot:
             error_message = f"주문 처리 중 오류 발생: {e}"
             print(error_message)
             self.send_discord_webhook(error_message, "trading")
+
+
+    def get_quote(self, symbol):
+        quote: KisQuote = self.kis.stock(symbol).quote()
+        return quote
+    
 
     # 컷 로스 (손절)
     def cut_loss(self, target_trade_value_usdt):

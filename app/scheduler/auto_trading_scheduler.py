@@ -1,6 +1,7 @@
 from datetime import datetime, date, timedelta
 import requests
 import json
+import math
 
 from app.utils.database import get_db, get_db_session
 from app.utils.crud_sql import SQLExecutor
@@ -128,7 +129,10 @@ def scheduled_single_buy_task():
 
     # ✅ 매수할 종목 정보 (원하는 종목으로 변경 가능)
     symbol = "005930"        # 삼성전자
-    qty = 1                  # 수량 1주
+    target_trade_value_krw = 1000000
+    
+    quote = trading_bot.get_quote(symbol=symbol)
+    qty = math.floor(target_trade_value_krw / quote.close) # 주식 매매 개수
     buy_price = None         # 시장가 매수 (지정가 입력 시 가격 설정)
 
     print(f"[{datetime.now()}] 자동 매수 실행: 종목 {symbol}, 수량 {qty}주")
