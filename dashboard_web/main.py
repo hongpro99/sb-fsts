@@ -893,7 +893,7 @@ def main():
             sortable=True,  # 정렬 가능
             filter=True,    # 필터링 가능
             resizable=True, # 크기 조절 가능
-            theme='streamlit',   # 테마 변경 가능 ('light', 'dark', 'blue', 등)
+            theme='dark',   # 테마 변경 가능 ('light', 'dark', 'blue', 등)
             fit_columns_on_grid_load=True  # 열 너비 자동 조정
         )
 

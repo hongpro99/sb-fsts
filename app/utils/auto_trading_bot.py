@@ -386,8 +386,6 @@ class AutoTradingBot:
             df = indicator.cal_rsi_df(df)
             df = indicator.cal_macd_df(df)
             df = indicator.cal_stochastic_df(df)
-            print(f"stochastic_k : {df['stochastic_k']}")
-            print(f"stochastic_d : {df['stochastic_d']}")
             df = indicator.cal_mfi_df(df)
             
             trade_entry = {
@@ -748,9 +746,15 @@ class AutoTradingBot:
         # 볼린저 밴드 계산
         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
         
-        # rsi
-        rsi_buy_threshold = 35
-        rsi_sell_threshold = 70
+        df = indicator.cal_ema_df(df, 10)
+        df = indicator.cal_ema_df(df, 20)
+        df = indicator.cal_ema_df(df, 50)
+        df = indicator.cal_ema_df(df, 60)
+
+        df = indicator.cal_rsi_df(df)
+        df = indicator.cal_macd_df(df)
+        df = indicator.cal_stochastic_df(df)
+        df = indicator.cal_mfi_df(df)
 
         for trading_logic in buy_trading_logic:
             buy_yn = False # 각 로직에 대한 매수 신호 초기화
@@ -758,9 +762,21 @@ class AutoTradingBot:
             if trading_logic == 'check_wick':            
                 buy_yn, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
             elif trading_logic == 'rsi_trading':
-                rsi_values = indicator.cal_rsi(closes, 14)
-                buy_yn, _ = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
-            
+                buy_yn, _ = logic.rsi_trading(candle, df['rsi'], symbol)
+            elif trading_logic == 'mfi_trading':
+                buy_yn, _ = logic.mfi_trading(df, symbol)
+            elif trading_logic == 'stochastic_trading':
+                buy_yn, _ = logic.stochastic_trading(df, symbol)
+            elif trading_logic == 'ema_breakout_trading2':
+                buy_yn = logic.ema_breakout_trading2(df)    
+            elif trading_logic == 'trend_entry_trading':
+                buy_yn = logic.trend_entry_trading(df)
+            elif trading_logic == 'bottom_rebound_trading':
+                buy_yn = logic.bottom_rebound_trading(df)
+            elif trading_logic == 'ema_breakout_trading':
+                buy_yn = logic.ema_breakout_trading(df, symbol)
+                
+                
             print(f'{trading_logic} 로직 buy_signal = {buy_yn}')
 
             self._trade_kis(
@@ -783,9 +799,18 @@ class AutoTradingBot:
                 # 볼린저 밴드 계산
                 _, sell_yn = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
             elif trading_logic == 'rsi_trading':
-                rsi_values = indicator.cal_rsi(closes, 14)
-                _, sell_yn = logic.rsi_trading(rsi_values, rsi_buy_threshold, rsi_sell_threshold)
-            
+                buy_yn, _ = logic.rsi_trading(candle, df['rsi'], symbol)
+            elif trading_logic == 'mfi_trading':
+                _, sell_yn = logic.mfi_trading(df, symbol)
+            elif trading_logic == 'ema_breakout_trading':
+                buy_yn = logic.ema_breakout_trading(df, symbol)
+            elif trading_logic == 'top_reversal_sell_trading':
+                sell_yn = logic.top_reversal_sell_trading(df)            
+            elif trading_logic == 'downtrend_sell_trading':
+                sell_yn = logic.downtrend_sell_trading(df)
+            elif trading_logic == 'stochastic_trading':
+                _, sell_yn = logic.stochastic_trading(df, symbol)
+                
             print(f'{trading_logic} 로직 sell_signal = {sell_yn}')
 
             self._trade_kis(
@@ -831,7 +856,7 @@ class AutoTradingBot:
 
     def _trade_kis(self, buy_yn, sell_yn, volume, d_1, avg_volume_20_days, trading_logic, symbol, symbol_name, ohlc_data, trading_bot_name):
 
-        if buy_yn and volume > d_1.volume and d_1.volume > avg_volume_20_days:                                 
+        if buy_yn:                     
             # 매수 함수 구현
             # trade()
 
@@ -905,6 +930,43 @@ class AutoTradingBot:
 
         return result
 
+    def place_order(self, symbol, qty, buy_price=None, sell_price=None, order_type="buy"):
+        """주식 매수/매도 주문 함수
+        Args:
+            symbol (str): 종목 코드
+            qty (int): 주문 수량
+            price (int, optional): 주문 가격. 지정가 주문 시 필요
+            order_type (str): "buy" 또는 "sell"
+        """
+        try:
+            # 종목 객체 가져오기
+            stock = self.kis.stock(symbol)
+
+            # 매수/매도 주문 처리
+            if order_type == "buy":
+                if buy_price:
+                    order = stock.buy(price=buy_price, qty=qty)  # price 값이 있으면 지정가 매수
+                else:
+                    order = stock.buy(qty=qty)  # 시장가 매수
+                message = f"📈 매수 주문 완료! 종목: {symbol}, 수량: {qty}, 가격: {'시장가' if not buy_price else buy_price}"
+            elif order_type == "sell":
+                if sell_price:
+                    order = stock.sell(price=sell_price)  # 지정가 매도
+                else:
+                    order = stock.sell()  # 시장가 매도
+                message = f"📉 매도 주문 완료! 종목: {symbol}, 수량: {qty}, 가격: {'시장가' if not sell_price else sell_price}"
+            else:
+                raise ValueError("Invalid order_type. Must be 'buy' or 'sell'.")
+
+            # 디스코드로 주문 결과 전송
+            self.send_discord_webhook(message, "trading")
+
+            return order
+        
+        except Exception as e:
+            error_message = f"주문 처리 중 오류 발생: {e}"
+            print(error_message)
+            self.send_discord_webhook(error_message, "trading")
 
     # 컷 로스 (손절)
     def cut_loss(self, target_trade_value_usdt):

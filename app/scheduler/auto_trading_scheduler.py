@@ -1,5 +1,6 @@
 from datetime import datetime, date, timedelta
 import requests
+import json
 
 from app.utils.database import get_db, get_db_session
 from app.utils.crud_sql import SQLExecutor
@@ -58,9 +59,22 @@ def scheduled_trading_task():
     trading_bot_name = 'test_bot'
     interval = 'day'
 
+    # 매수/매도 로직 설정
+    # JSON 파일 읽기
+    file_path = "./dashboard_web/trading_logic.json"
+    with open(file_path, "r", encoding="utf-8") as file:
+        trading_logic = json.load(file)
+
+    # 사용 예시
+    available_buy_logic = trading_logic["available_buy_logic"]
+    available_sell_logic = trading_logic["available_sell_logic"]
+    
+    #print(list(available_buy_logic.values()))
+    #print(list(available_sell_logic.values()))
+    
     # trading_logic 리스트 설정
-    buy_trading_logic = ['check_wick', 'rsi_trading', 'ema_breakout_trading', 'bollinger_band_trading', 'bollinger+ema', 'rsi+mfi']
-    sell_trading_logic = ['check_wick', 'rsi_trading', 'bollinger_band_trading', 'bollinger+ema', 'rsi+mfi']
+    buy_trading_logic = list(available_buy_logic.values())
+    sell_trading_logic = list(available_sell_logic.values())
 
     for stock in result:
         symbol = stock.symbol
