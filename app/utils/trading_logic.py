@@ -158,21 +158,11 @@ class TradingLogic:
             else:
                 reason = ("RSI 기준 충족하지 않음")
 
-        # ✅ 같은 날짜가 이미 trade_reasons 리스트에 있는지 확인(딕셔너리 방식도 가능)
-        if not any(entry["Time"].date() == trade_date for entry in self.trade_reasons):        
-            # trade_reasons 리스트에 데이터 저장        
-            trade_entry = {
-                'symbol': symbol,
-                'Time' : candle.time,
-                'price' : close_price,
-                'volume' : volume,
-                'Previous RSI': previous_rsi,
-                'Current RSI': current_rsi,
-                'Buy Signal': buy_signal,
-                'Sell Signal': sell_signal,
-                'Reason': reason
-            }
-            self.trade_reasons.append(trade_entry)           
+        for entry in self.trade_reasons:
+            if entry['Time'].date() == trade_date and entry['symbol'] == symbol:
+                entry['Buy Signal'] = buy_signal
+                entry['Sell Signal'] = sell_signal
+                entry['Reason'] = reason           
             
         return buy_signal, sell_signal
 
@@ -660,21 +650,11 @@ class TradingLogic:
             else:
                 reason = "MFI 기준 충족하지 않음"
 
-        # ✅ 같은 날짜의 매매 사유가 이미 저장되어 있는지 확인
-        if not any(entry["Time"].date() == trade_date for entry in self.trade_reasons):        
-            # trade_reasons 리스트에 저장        
-            trade_entry = {
-                'symbol': symbol,
-                'Time': candle.name,  # datetime index 사용
-                'price': close_price,
-                'volume': volume,
-                'Previous MFI': previous_mfi,
-                'Current MFI': current_mfi,
-                'Buy Signal': buy_signal,
-                'Sell Signal': sell_signal,
-                'Reason': reason
-            }
-            self.trade_reasons.append(trade_entry)
+        for entry in self.trade_reasons:
+            if entry['Time'].date() == trade_date and entry['symbol'] == symbol:
+                entry['Buy Signal'] = buy_signal
+                entry['Sell Signal'] = sell_signal
+                entry['Reason'] = reason
 
         return buy_signal, sell_signal
         
@@ -713,40 +693,29 @@ class TradingLogic:
         else:
             reason = f"MACD 오실레이터 유지 중: {current_hist:.4f} (0선 돌파 없음)"
 
-        # ✅ 같은 날짜가 이미 trade_reasons 리스트에 있는지 확인(딕셔너리 방식도 가능)
-        if not any(entry["Time"].date() == trade_date for entry in self.trade_reasons):        
-            # trade_reasons 리스트에 데이터 저장        
-            trade_entry = {
-                'symbol': symbol,
-                'Time' : candle.time,
-                'price' : close_price,
-                'volume': volume,
-                'Buy Signal': buy_signal,
-                'Sell Signal': sell_signal,
-                'Reason': reason
-            }
-            self.trade_reasons.append(trade_entry)           
+        for entry in self.trade_reasons:
+            if entry['Time'].date() == trade_date and entry['symbol'] == symbol:
+                entry['Buy Signal'] = buy_signal
+                entry['Sell Signal'] = sell_signal
+                entry['Reason'] = reason           
             
         return buy_signal, sell_signal
     
     def stochastic_trading(self, df, symbol, k_threshold=20, d_threshold=80):
         """
         스토캐스틱 기반 매매 신호 생성
-        매수: ① %K가 %D를 아래에서 위로 교차 (골든 크로스)
-        ② %K & %D가 20 이하에서 상승
-        
-        매도: ① %K가 %D를 위에서 아래로 교차 (데드 크로스)
-        ② %K & %D가 80 이상에서 하락
+        - 기본 조건: 골든/데드 크로스 + 과매도/과매수 영역
+        - 보완 조건: %K ≤ 30 골든크로스, %K ≥ 70 데드크로스
+        - 신호 강도 구분: "normal" / "strong"
         """
-        
+
         if df.shape[0] < 2:
-            print("❌ MFI 계산을 위한 데이터가 부족합니다.")
+            print("❌ 스토캐스틱 계산을 위한 데이터가 부족합니다.")
             return False, False
-        
+
         df['%K'] = df['stochastic_k']
         df['%D'] = df['stochastic_d']
 
-        # 현재/이전 캔들
         candle = df.iloc[-1]
         trade_date = candle.name.date()
         close_price = float(candle['Close'])
@@ -757,46 +726,52 @@ class TradingLogic:
         prev_k = df['%K'].iloc[-2]
         prev_d = df['%D'].iloc[-2]
 
-        # 초기화
         buy_signal = False
         sell_signal = False
+        signal_strength = None
         reason = ""
 
-        # ✅ 매수 조건 (골든크로스 + 과매도 영역)
-        if (current_k > current_d) and (prev_k <= prev_d) and (prev_k < k_threshold) and (current_k > k_threshold):
+        # ✅ 기본 매수 조건
+        if (current_k > current_d) and (prev_k <= prev_d) and (current_k < k_threshold):
             buy_signal = True
-            reason = (f"스토캐스틱 골든크로스: %K {prev_k:.2f} → {current_k:.2f}, "
-                    f"%D {prev_d:.2f} → {current_d:.2f}, "
-                    f"과매도 영역에서 상승")
+            signal_strength = "normal"
+            reason = (f"[기본 매수] 골든크로스: %K {prev_k:.2f} → {current_k:.2f}, "
+                    f"%D {prev_d:.2f} → {current_d:.2f}, 과매도 영역 상승")
 
-        # ✅ 매도 조건 (데드크로스 + 과매수 영역)
-        elif (current_k < current_d) and (prev_k >= prev_d) and (prev_k > d_threshold) and (current_k < d_threshold):
+        # ✅ 기본 매도 조건
+        
+        elif (current_k < current_d) and (prev_k >= prev_d) and (current_k > d_threshold):
             sell_signal = True
-            reason = (f"스토캐스틱 데드크로스: %K {prev_k:.2f} → {current_k:.2f}, "
-                    f"%D {prev_d:.2f} → {current_d:.2f}, "
-                    f"과매수 영역에서 하락")
+            signal_strength = "normal"
+            reason = (f"[기본 매도] 데드크로스: %K {prev_k:.2f} → {current_k:.2f}, "
+                    f"%D {prev_d:.2f} → {current_d:.2f}, 과매수 영역 하락")
 
-        # ✅ 신호가 없는 경우
+        # ✅ 보완 매수 조건 (강한 신호)
+        if (current_k > current_d) and (prev_k <= prev_d) and (current_k <= 30):
+            buy_signal = True
+            signal_strength = "strong"
+            reason = (f"[강한 매수] 30 이하 골든크로스: %K {prev_k:.2f} → {current_k:.2f}, "
+                    f"%D {prev_d:.2f} → {current_d:.2f}")
+
+        # ✅ 보완 매도 조건 (강한 신호)
+        elif (current_k < current_d) and (prev_k >= prev_d) and (current_k >= 70):
+            sell_signal = True
+            signal_strength = "strong"
+            reason = (f"[강한 매도] 70 이상 데드크로스: %K {prev_k:.2f} → {current_k:.2f}, "
+                    f"%D {prev_d:.2f} → {current_d:.2f}")
+
+        # ✅ 신호 없음
         else:
             reason = (f"%K {prev_k:.2f} → {current_k:.2f}, %D {prev_d:.2f} → {current_d:.2f}, "
-                    f"스토캐스틱 기준 충족 안됨")
+                    f"스토캐스틱 조건 미충족")
+            signal_strength = None
 
-        # ✅ 같은 날짜에 기록된 이유가 없다면 저장
-        if not any(entry["Time"].date() == trade_date for entry in self.trade_reasons):
-            trade_entry = {
-                'symbol': symbol,
-                'Time': candle.name,
-                'price': close_price,
-                'volume': volume,
-                'Previous %K': prev_k,
-                'Current %K': current_k,
-                'Previous %D': prev_d,
-                'Current %D': current_d,
-                'Buy Signal': buy_signal,
-                'Sell Signal': sell_signal,
-                'Reason': reason
-            }
-            self.trade_reasons.append(trade_entry)
+        for entry in self.trade_reasons:
+            if entry['Time'].date() == trade_date and entry['symbol'] == symbol:
+                entry['Buy Signal'] = buy_signal
+                entry['Sell Signal'] = sell_signal
+                entry['Strength'] = signal_strength
+                entry['Reason'] = reason
 
         return buy_signal, sell_signal
         
@@ -853,20 +828,10 @@ class TradingLogic:
         else:
             reason = "EMA60 돌파 조건 불충족"
 
-        # ✅ 이미 기록된 날짜인지 확인하고 저장
-        if not any(entry["Time"].date() == trade_date for entry in self.trade_reasons):
-            trade_entry = {
-                'symbol': symbol,
-                'Time': last.name,
-                'price': close_price,
-                'volume': volume,
-                'Buy Signal': buy_signal,
-                'EMA_60': last['EMA_60'],
-                'Price - EMA60 (차이)': round(price_diff, 2),
-                'Price - EMA60 (%)': round(price_diff_pct, 2),
-                'Reason': reason
-            }
-            self.trade_reasons.append(trade_entry)
+        for entry in self.trade_reasons:
+            if entry['Time'].date() == trade_date and entry['symbol'] == symbol:
+                entry['Buy Signal'] = buy_signal
+                entry['Reason'] = reason
 
         return buy_signal
     
@@ -908,17 +873,18 @@ class TradingLogic:
         if df.shape[0] < 2:
             print("❌ 데이터가 부족해서 조건 계산 불가")
             return False
-
+        
         last = df.iloc[-1]
         prev = df.iloc[-2]
+        trade_date = last.name.date()
         last_close_price = float(last['Close'])
         prev_close_price = float(prev['Close'])
         
         # 조건 2: EMA_10이 EMA_50 상향 돌파
         cross_up = (
-            prev_close_price <= prev['EMA_50'] and
-            last_close_price > prev['EMA_50'] and
-            last_close_price > prev_close_price
+            prev['EMA_10'] <= prev['EMA_50'] and
+            last['EMA_50'] > prev['EMA_50'] 
+            
         )
 
         # 조건 3: EMA_10, EMA_20, EMA_50 기울기 ≥ 0
@@ -929,6 +895,10 @@ class TradingLogic:
 
         # 최종 매수 조건
         buy_signal = cross_up and slope_up
+        
+        for entry in self.trade_reasons:
+            if entry['Time'].date() == trade_date:
+                entry['Buy Signal'] = buy_signal
 
         return buy_signal    
 

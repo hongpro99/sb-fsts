@@ -385,8 +385,9 @@ class AutoTradingBot:
 
             df = indicator.cal_rsi_df(df)
             df = indicator.cal_macd_df(df)
-            print(f"macd : {df['macd']}")
             df = indicator.cal_stochastic_df(df)
+            print(f"stochastic_k : {df['stochastic_k']}")
+            print(f"stochastic_d : {df['stochastic_d']}")
             df = indicator.cal_mfi_df(df)
             
             trade_entry = {

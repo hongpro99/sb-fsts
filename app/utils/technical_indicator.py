@@ -139,23 +139,37 @@ class TechnicalIndicator:
         return df
     
 
-    def cal_stochastic_df(self, df, k_window=14, d_window=3):
+    def cal_stochastic_df(self, df, k_period=14, k_smoothing=3, d_period=3, round_digits=2):
         """
-        •	현재 종가가 최근 N일 동안의 고점과 저점 사이에서 어디쯤 위치하는지를 나타내는 지표.
-        •	K% = (현재 종가 - 최저가) / (최고가 - 최저가) * 100
-        •	D% = K%의 3일 이동 평균
+        Stochastic Slow (14,3,3) 계산 함수
+        - Fast %K: (종가 - 최저가) / (최고가 - 최저가) * 100
+        - Slow %K: Fast %K의 k_smoothing일 단순이동평균
+        - Slow %D: Slow %K의 d_period일 단순이동평균
+
+        :param df: OHLC DataFrame (필수 컬럼: 'High', 'Low', 'Close')
+        :return: df with 'slow_k', 'slow_d' 컬럼 추가
+        테스트 결과 비슷함
         """
 
-        df['low_min'] = df['Low'].rolling(window=k_window).min()
-        df['high_max'] = df['High'].rolling(window=k_window).max()
+        # Fast %K 계산
+        low_min = df['Low'].rolling(window=k_period, min_periods=1).min()
+        high_max = df['High'].rolling(window=k_period, min_periods=1).max()
+        fast_k = (df['Close'] - low_min) / (high_max - low_min) * 100
 
-        df['stochastic_k'] = (100 * ((df['Close'] - df['low_min']) / (df['high_max'] - df['low_min'] + 1e-10))).round(2)
-        df['stochastic_d'] = (df['stochastic_k'].rolling(window=d_window).mean()).round(2)  # 3일 이동 평균
+        # Slow %K: Fast %K의 EMA
+        slow_k = fast_k.ewm(span=k_smoothing, adjust=True).mean()
+
+        # Slow %D: Slow %K의 EMA
+        slow_d = slow_k.ewm(span=d_period, adjust=True).mean()
+
+        # 결과 반올림
+        df['stochastic_k'] = slow_k.round(round_digits)
+        df['stochastic_d'] = slow_d.round(round_digits)
 
         return df
 
 
-    def cal_ema_df(self, df, period):
+    def cal_ema_df(self, df, period, round_digits=1):
         """
             DataFrame에서 EMA(지수이동평균)를 계산하여 추가합니다.
             :param df: 입력 DataFrame
@@ -168,7 +182,8 @@ class TechnicalIndicator:
         
         ema_column_name = f'EMA_{period}'
         
-        df[ema_column_name] = (df['Close'].ewm(span=period, adjust=False).mean())
+        df[ema_column_name] = df['Close'].ewm(span=period, adjust=False).mean()
+        df[ema_column_name] = df[ema_column_name].round(round_digits)
         
         return df
     
