@@ -21,7 +21,7 @@ app = FastAPI()
 scheduler = BackgroundScheduler(timezone=timezone('Asia/Seoul'))
 
 scheduler.add_job(auto_trading_scheduler.scheduled_trading_task, 'cron', day_of_week='mon-fri', hour='15', minute='10')  # 월~금 3시 10분에 실행
-scheduler.add_job(auto_trading_scheduler.scheduled_single_buy_task, 'cron', hour='20', minute='5')  # 월~금 3시 10분에 실행
+# scheduler.add_job(auto_trading_scheduler.scheduled_single_buy_task, 'cron', hour='20', minute='5')  # 월~금 3시 10분에 실행
 # scheduler.add_job(auto_trading_scheduler.scheduled_trading_task, 'cron', day_of_week='mon-fri', hour='20', minute='43')  # 월~금 3시 10분에 실행 
 
 scheduler.start()
