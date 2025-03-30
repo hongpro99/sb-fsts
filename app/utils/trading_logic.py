@@ -882,8 +882,8 @@ class TradingLogic:
         
         # 조건 2: EMA_10이 EMA_50 상향 돌파
         cross_up = (
-            prev['EMA_10'] <= prev['EMA_50'] and
-            last['EMA_50'] > prev['EMA_50'] 
+            prev['EMA_10'] < prev['EMA_50'] and
+            last['EMA_10'] > prev['EMA_50'] 
             
         )
 
