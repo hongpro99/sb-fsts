@@ -799,7 +799,8 @@ class AutoTradingBot:
                 symbol=symbol,
                 symbol_name=symbol_name,
                 ohlc_data=ohlc_data,
-                trading_bot_name=trading_bot_name
+                trading_bot_name=trading_bot_name,
+                target_trade_value_krw=target_trade_value_krw
             )
 
         for trading_logic in sell_trading_logic:
@@ -833,7 +834,8 @@ class AutoTradingBot:
                 symbol=symbol,
                 symbol_name=symbol_name,
                 ohlc_data=ohlc_data,
-                trading_bot_name=trading_bot_name
+                trading_bot_name=trading_bot_name,
+                target_trade_value_krw=target_trade_value_krw
             )
 
         # 마지막 직전 봉 음봉, 양봉 계산
@@ -864,11 +866,11 @@ class AutoTradingBot:
         return None
     
 
-    def _trade_kis(self, buy_yn, sell_yn, volume, d_1, avg_volume_20_days, trading_logic, symbol, symbol_name, ohlc_data, trading_bot_name):
+    def _trade_kis(self, buy_yn, sell_yn, volume, d_1, avg_volume_20_days, trading_logic, symbol, symbol_name, ohlc_data, trading_bot_name, target_trade_value_krw):
 
         if buy_yn:                     
             # 매수 함수 구현
-            # trade()
+            self._trade_place_order(symbol, target_trade_value_krw)
 
             self.send_discord_webhook(f"[{trading_logic}] {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW", "trading")
 
@@ -979,10 +981,29 @@ class AutoTradingBot:
             self.send_discord_webhook(error_message, "trading")
 
 
-    def get_quote(self, symbol):
+    def _get_quote(self, symbol):
         quote: KisQuote = self.kis.stock(symbol).quote()
         return quote
-    
+
+
+    def _trade_place_order(self, symbol, target_trade_value_krw):
+        
+        quote = self._get_quote.get_quote(symbol=symbol)
+        qty = math.floor(target_trade_value_krw / quote.close) # 주식 매매 개수
+        buy_price = None         # 시장가 매수 (지정가 입력 시 가격 설정)
+
+        print(f"[{datetime.now()}] 자동 매수 실행: 종목 {symbol}, 수량 {qty}주")
+
+        try:
+            self.kis.place_order(
+                symbol=symbol,
+                qty=qty,
+                buy_price=buy_price,   # 시장가 매수
+                order_type="buy"
+            )
+        except Exception as e:
+            print(f"❌ 매수 실패: {e}")
+
 
     # 컷 로스 (손절)
     def cut_loss(self, target_trade_value_usdt):
