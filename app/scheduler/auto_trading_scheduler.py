@@ -62,7 +62,7 @@ def scheduled_trading_task():
 
     # 매수/매도 로직 설정
     # JSON 파일 읽기
-    file_path = "./dashboard_web/trading_logic.json"
+    file_path = "trading_logic.json"
     with open(file_path, "r", encoding="utf-8") as file:
         trading_logic = json.load(file)
 
