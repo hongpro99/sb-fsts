@@ -56,7 +56,7 @@ def scheduled_trading_task():
     # 당일로부터 1년전 기간으로 차트 분석
     end_date = date.today()
     start_date = end_date - timedelta(days=365)
-    target_trade_value_krw = 1000000  # 매수 목표 거래 금액
+    target_trade_value_krw = 100000  # 매수 목표 거래 금액
     trading_bot_name = 'test_bot'
     interval = 'day'
 
@@ -76,7 +76,7 @@ def scheduled_trading_task():
     # trading_logic 리스트 설정
     buy_trading_logic = list(available_buy_logic.values())
     sell_trading_logic = list(available_sell_logic.values())
-
+    
     for stock in result:
         symbol = stock.symbol
         symbol_name = stock.symbol_name
@@ -106,17 +106,6 @@ def scheduled_trading_task():
                 if retries >= max_retries:
                     print(f"Skipping {symbol_name} after {max_retries} failed attempts.")
 
-        # trading_bot.trade(
-        #     trading_bot_name=trading_bot_name,
-        #     buy_trading_logic=buy_trading_logic,
-        #     sell_trading_logic=sell_trading_logic,
-        #     symbol=symbol,
-        #     symbol_name=symbol_name,
-        #     start_date=start_date,
-        #     end_date=end_date,
-        #     target_trade_value_krw=target_trade_value_krw,
-        #     interval=interval
-        # )
 
 
 def scheduled_single_buy_task():
@@ -125,24 +114,26 @@ def scheduled_single_buy_task():
     """
 
     # ✅ 인스턴스 생성
-    trading_bot = AutoTradingBot(id="id1", virtual=False)
+    trading_bot = AutoTradingBot(id="id2", virtual=False)
 
     # ✅ 매수할 종목 정보 (원하는 종목으로 변경 가능)
-    symbol = "005930"        # 삼성전자
-    target_trade_value_krw = 1000
+    symbol = "054180"        # 삼성전자
+    target_trade_value_krw = 300
 
-    quote = trading_bot.get_quote(symbol=symbol)
-    qty = math.floor(target_trade_value_krw / quote.close) # 주식 매매 개수
+    quote = trading_bot._get_quote(symbol=symbol)
+    #qty = math.floor(target_trade_value_krw / quote.close) # 주식 매매 개수
+    qty = 1
     buy_price = None         # 시장가 매수 (지정가 입력 시 가격 설정)
-
+    sell_price = None
+    
     print(f"[{datetime.now()}] 자동 매수 실행: 종목 {symbol}, 수량 {qty}주")
 
     try:
         trading_bot.place_order(
             symbol=symbol,
             qty=qty,
-            buy_price=buy_price,   # 시장가 매수
-            order_type="buy"
+            sell_price=sell_price,   # 시장가 매수
+            order_type="sell"
         )
     except Exception as e:
         print(f"❌ 매수 실패: {e}")

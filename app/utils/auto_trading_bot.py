@@ -868,17 +868,24 @@ class AutoTradingBot:
 
     def _trade_kis(self, buy_yn, sell_yn, volume, d_1, avg_volume_20_days, trading_logic, symbol, symbol_name, ohlc_data, trading_bot_name, target_trade_value_krw):
 
-        if buy_yn:                     
-            # 매수 함수 구현
-            self._trade_place_order(symbol, target_trade_value_krw)
+        if buy_yn:
+            # 매수 주문은 특정 로직에서만 실행
+            if trading_logic == 'ema_breakout_trading2':
+                self._trade_place_order(symbol, target_trade_value_krw)
 
-            self.send_discord_webhook(f"[{trading_logic}] {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW", "trading")
+            # 알림 전송 및 히스토리 기록은 모든 매수 로직에 대해 실행
+            self.send_discord_webhook(
+                f"[{trading_logic}] {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW", 
+                "trading"
+            )
 
-            # trade history 에 추가
             position = 'BUY'
-            quantity = 1 # 임시
-
-            self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
+            quantity = 1  # 임시
+            
+            self._insert_trading_history(
+                trading_logic, position, trading_bot_name, ohlc_data[-1].close, 
+                quantity, symbol, symbol_name
+            )
         
         if sell_yn:
             # 매도 함수 구현
@@ -887,7 +894,9 @@ class AutoTradingBot:
             position = 'SELL'
             quantity = 1 # 임시
 
-            self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name)
+            self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close,
+                quantity, symbol, symbol_name
+            )
 
 
     def _insert_trading_history(self, trading_logic, position, trading_bot_name, price, quantity, symbol, symbol_name, data_type='test'):
@@ -995,7 +1004,7 @@ class AutoTradingBot:
         print(f"[{datetime.now()}] 자동 매수 실행: 종목 {symbol}, 수량 {qty}주")
 
         try:
-            self.kis.place_order(
+            self.place_order(
                 symbol=symbol,
                 qty=qty,
                 buy_price=buy_price,   # 시장가 매수

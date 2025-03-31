@@ -633,7 +633,7 @@ def setup_sidebar(sql_executer):
     
     st.sidebar.header("Simulation Settings")
 
-    id = 'id1'
+    id = 'id2'
 
     # AutoTradingBot 및 SQLExecutor 객체 생성
     sql_executor = SQLExecutor()
@@ -705,7 +705,7 @@ def setup_sidebar(sql_executer):
     ohlc_mode = "continuous" if ohlc_mode_checkbox else "default"
     
     # ✅ 실제 투자 조건 체크박스
-    real_trading_enabled = st.sidebar.checkbox("💰 실제 투자자본 설정", key="real_trading_enabled")
+    real_trading_enabled = st.sidebar.checkbox("💰 실제 투자자본 설정", key="real_trading_enabled2")
     real_trading_yn = "Y" if real_trading_enabled else "N"
     
         # ✅ 매수 퍼센트 입력

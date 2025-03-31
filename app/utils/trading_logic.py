@@ -119,9 +119,7 @@ class TradingLogic:
         rsi_values = [rsi for rsi in rsi_values if rsi is not None]
 
         # ✅ NaN 제거 후 데이터 확인
-        print(f"📌 NaN 제거 후 rsi_values 길이: {len(rsi_values)}")
         if len(rsi_values) < 2:
-            print("🚨 rsi_values 데이터가 부족하여 매매 신호를 계산할 수 없음")
             return False, False  # 기본값 반환
         
         previous_rsi = rsi_values[-2]
@@ -800,7 +798,6 @@ class TradingLogic:
         prev = df.iloc[-2]
         trade_date = last.name.date()
         close_price = float(last['Close'])
-        volume = last['Volume']
 
         # 개별 조건
         breaks_above_ema60 = (prev['Close'] < prev['EMA_60']) and (last['Close'] > last['EMA_60'])
@@ -874,15 +871,15 @@ class TradingLogic:
             print("❌ 데이터가 부족해서 조건 계산 불가")
             return False
         
+        # 5일 평균 거래량
+        df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+        
         last = df.iloc[-1]
         prev = df.iloc[-2]
         trade_date = last.name.date()
         last_close_price = float(last['Close'])
         prev_close_price = float(prev['Close'])
-        
-        # 5일 평균 거래량
-        df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
-        
+    
         # 조건 2: EMA_10이 EMA_50 상향 돌파
         cross_up = (
             prev['EMA_10'] < prev['EMA_50'] and
