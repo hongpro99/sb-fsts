@@ -499,6 +499,9 @@ class AutoTradingBot:
                         
                     elif trading_logic == 'bottom_rebound_trading':
                         buy_yn = logic.bottom_rebound_trading(df)
+                        
+                    elif trading_logic == 'sma_breakout_trading':
+                        buy_yn = logic.sma_breakout_trading(df, symbol)                    
                     
                     # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
                     #if buy_yn and d_1 is not None and volume > d_1.volume and d_1.volume > avg_volume_20_days:
