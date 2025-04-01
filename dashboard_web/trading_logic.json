@@ -19,7 +19,8 @@
         "볼린저+지수이동평균선": "bollinger+ema",
         "지수이동평균선 확인2": "ema_breakout_trading2",
         "상승추세형 매수": "trend_entry_trading",
-        "저점반등형 매수": "bottom_rebound_trading"
+        "저점반등형 매수": "bottom_rebound_trading",
+        "단순이동평균" : "sma_breakout_trading"
         
     },
     "available_sell_logic": {

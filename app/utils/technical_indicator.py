@@ -187,4 +187,19 @@ class TechnicalIndicator:
         
         return df
     
-    
+    def cal_sma_df(self, df, period, round_digits=1):
+        """
+        DataFrame에서 SMA(단순이동평균)를 계산하여 추가합니다.
+        
+        :param df: 입력 DataFrame
+        :param period: SMA 주기
+        :param round_digits: 반올림 자릿수 (기본값: 1)
+        :return: SMA 컬럼이 추가된 DataFrame
+        """
+        
+        sma_column_name = f'SMA_{period}'
+        
+        df[sma_column_name] = df['Close'].rolling(window=period).mean()
+        df[sma_column_name] = df[sma_column_name].round(round_digits)
+        
+        return df

@@ -381,7 +381,11 @@ class AutoTradingBot:
             df = indicator.cal_ema_df(df, 20)
             df = indicator.cal_ema_df(df, 50)
             df = indicator.cal_ema_df(df, 60)
-
+            
+            #sma
+            df = indicator.cal_sma_df(df, 5)
+            df = indicator.cal_sma_df(df, 20)
+            df = indicator.cal_sma_df(df, 40)
 
             df = indicator.cal_rsi_df(df)
             df = indicator.cal_macd_df(df)
@@ -404,6 +408,9 @@ class AutoTradingBot:
                 'EMA_20': df['EMA_20'].iloc[-1],
                 'EMA_50': df['EMA_50'].iloc[-1],
                 'EMA_60': df['EMA_60'].iloc[-1],
+                'SMA_5' : df['SMA_5'].iloc[-1],
+                'SMA_20' : df['SMA_20'].iloc[-1],
+                'SMA_40' : df['SMA_40'].iloc[-1],                
             }
             trade_reasons.append(trade_entry)
                         
@@ -485,7 +492,7 @@ class AutoTradingBot:
                         buy_yn = buy_yn1 or buy_yn2
                         
                     elif trading_logic == 'ema_breakout_trading2':
-                        buy_yn = logic.ema_breakout_trading2(df)
+                        buy_yn = logic.ema_breakout_trading2(df, symbol)
                         
                     elif trading_logic == 'trend_entry_trading':
                         buy_yn = logic.trend_entry_trading(df)
@@ -778,7 +785,7 @@ class AutoTradingBot:
             elif trading_logic == 'stochastic_trading':
                 buy_yn, _ = logic.stochastic_trading(df, symbol)
             elif trading_logic == 'ema_breakout_trading2':
-                buy_yn = logic.ema_breakout_trading2(df)    
+                buy_yn = logic.ema_breakout_trading2(df, symbol)    
             elif trading_logic == 'trend_entry_trading':
                 buy_yn = logic.trend_entry_trading(df)
             elif trading_logic == 'bottom_rebound_trading':
@@ -810,11 +817,9 @@ class AutoTradingBot:
                 # 볼린저 밴드 계산
                 _, sell_yn = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
             elif trading_logic == 'rsi_trading':
-                buy_yn, _ = logic.rsi_trading(candle, df['rsi'], symbol)
+                _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol)
             elif trading_logic == 'mfi_trading':
                 _, sell_yn = logic.mfi_trading(df, symbol)
-            elif trading_logic == 'ema_breakout_trading':
-                buy_yn = logic.ema_breakout_trading(df, symbol)
             elif trading_logic == 'top_reversal_sell_trading':
                 sell_yn = logic.top_reversal_sell_trading(df)            
             elif trading_logic == 'downtrend_sell_trading':

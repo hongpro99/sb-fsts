@@ -103,7 +103,7 @@ class TradingLogic:
         
         return buy_signal, sell_signal
 
-    def rsi_trading(self, candle, rsi_values, symbol, buy_threshold= 35, sell_threshold= 75):
+    def rsi_trading(self, candle, rsi_values, symbol, buy_threshold= 35, sell_threshold= 73):
         """
         RSI를 기반으로 매수/매도 신호를 계산하는 함수.
         
@@ -158,7 +158,7 @@ class TradingLogic:
 
         for entry in self.trade_reasons:
             if entry['Time'].date() == trade_date and entry['symbol'] == symbol:
-                entry['Buy Signal'] = buy_signal
+                #entry['Buy Signal'] = buy_signal
                 entry['Sell Signal'] = sell_signal
                 entry['Reason'] = reason           
             
@@ -773,68 +773,63 @@ class TradingLogic:
 
         return buy_signal, sell_signal
         
-    def ema_breakout_trading2(self, df, symbol):
+    def ema_breakout_trading(self, df, symbol):
         """
-        EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
+        ✅ EMA60 돌파 기반 매수 신호 생성 및 사유 기록
         조건:
-        ① 직전 시점: EMA_50 > EMA_20 > EMA_10
-        ② 현재 시점: EMA_10이 EMA_50을 아래에서 위로 돌파
-        ③ 현재 EMA_10, EMA_20, EMA_50의 기울기 ≥ 0
-        ④ 거래량이 5일 평균 이상
+        ① 종가가 EMA60을 아래에서 위로 돌파
+        ② 종가가 EMA60 위에서 마감
+        ③ 거래량이 5일 평균보다 큼
+        ④ EMA20 기울기가 양수
         """
 
         if df.shape[0] < 2:
-            print("❌ 데이터가 부족해서 ema_breakout_trading2 조건 계산 불가")
+            print("❌ 데이터가 부족해서 ema_breakout_trading 조건 계산 불가")
             return False
 
-        # 5일 평균 거래량
-        if 'Volume_MA5' not in df.columns:
-            df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+        # EMA20 기울기
+        df['EMA20_slope'] = df['EMA_20'] - df['EMA_20'].shift(5)
 
+        # 5일 평균 거래량
+        df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+
+        # 조건 계산
         last = df.iloc[-1]
         prev = df.iloc[-2]
         trade_date = last.name.date()
-        last_close_price = float(last['Close'])
-        prev_close_price = float(prev['Close'])
+        close_price = float(last['Close'])
 
-        # 조건 1: 이전 시점에서 EMA 배열 (EMA_50 > EMA_20 > EMA_10)
-        ema_alignment = prev['EMA_50'] > prev['EMA_20'] > prev['EMA_10']
-
-        # 조건 2: EMA_10이 EMA_50 상향 돌파
-        cross_up = (
-            prev['EMA_10'] < prev['EMA_50'] and
-            last['EMA_10'] > last['EMA_50']
-        )
-
-        # 조건 3: EMA 기울기 양수
-        ema10_slope = last['EMA_10'] - prev['EMA_10']
-        ema20_slope = last['EMA_20'] - prev['EMA_20']
-        ema50_slope = last['EMA_50'] - prev['EMA_50']
-        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0
-
-        # 조건 4: 거래량 증가
+        # 개별 조건
+        breaks_above_ema60 = (prev['Close'] < prev['EMA_60']) and (last['Close'] > last['EMA_60'])
+        close_above_ema60 = last['Close'] > last['EMA_60']
         volume_up = last['Volume'] > last['Volume_MA5']
+        ema20_up = last['EMA20_slope'] > 0
 
-        # 최종 조건
-        buy_signal = ema_alignment and cross_up and slope_up and volume_up
+        # 최종 매수 신호
+        buy_signal = breaks_above_ema60 and close_above_ema60 and volume_up and ema20_up
+
+        # 가격 차이 계산
+        price_diff = last['Close'] - last['EMA_60']
+        price_diff_pct = (price_diff / last['EMA_60']) * 100
 
         # 매매 사유 작성
         if buy_signal:
             reason = (
-                f"EMA 배열 돌파 매수 신호 발생: "
-                f"[이전 EMA] 50>{prev['EMA_50']:.2f}, 20>{prev['EMA_20']:.2f}, 10>{prev['EMA_10']:.2f}, "
-                f"[현재 EMA10 상향 돌파 EMA50] {prev['EMA_10']:.2f} → {last['EMA_10']:.2f} vs EMA50 {last['EMA_50']:.2f}, "
-                f"[기울기] EMA10: {ema10_slope:.2f}, EMA20: {ema20_slope:.2f}, EMA50: {ema50_slope:.2f}, "
-                f"[거래량] {last['Volume']:.0f} > 5일평균 {last['Volume_MA5']:.0f}"
+                f"매수 신호 발생: "
+                f"이전 종가 {prev['Close']:.2f} < EMA60 {prev['EMA_60']:.2f}, "
+                f"현재 종가 {last['Close']:.2f} > EMA60 {last['EMA_60']:.2f}, "
+                f"거래량 증가 ({last['Volume']:.0f} > {last['Volume_MA5']:.0f}), "
+                f"EMA20 상승 ({last['EMA20_slope']:.2f}), "
+                f"가격차 {price_diff:.2f}원 ({price_diff_pct:.2f}%)"
             )
         else:
-            reason = "EMA 배열 돌파 조건 불충족"
+            reason = "EMA60 돌파 조건 불충족"
 
-        # trade_reasons에 결과 기록
         for entry in self.trade_reasons:
             if entry['Time'].date() == trade_date and entry['symbol'] == symbol:
                 entry['Buy Signal'] = buy_signal
                 entry['Buy Reason'] = reason
+                
 
         return buy_signal
     
@@ -864,49 +859,63 @@ class TradingLogic:
 
         return buy_signal, sell_signal
     
-    def ema_breakout_trading2(self, df):
+    def ema_breakout_trading2(self, df, symbol):
         """
-        EMA 배열 + 상향 돌파 기반 매수 신호 생성
+        EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
         조건:
-        ① 직전 시점: EMA_50 > EMA_20 > EMA_10
         ② 현재 시점: EMA_10이 EMA_50을 아래에서 위로 돌파
-        ③ 현재 EMA_20, EMA_50의 기울기 ≥ 0
+        ③ 현재 EMA_10, EMA_20, EMA_50의 기울기 ≥ 0
+        ④ 거래량이 5일 평균 이상
         """
 
         if df.shape[0] < 2:
-            print("❌ 데이터가 부족해서 조건 계산 불가")
+            print("❌ 데이터가 부족해서 ema_breakout_trading2 조건 계산 불가")
             return False
-        
+
         # 5일 평균 거래량
-        df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
-        
+        if 'Volume_MA5' not in df.columns:
+            df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+
         last = df.iloc[-1]
         prev = df.iloc[-2]
         trade_date = last.name.date()
         last_close_price = float(last['Close'])
         prev_close_price = float(prev['Close'])
-    
+
         # 조건 2: EMA_10이 EMA_50 상향 돌파
         cross_up = (
             prev['EMA_10'] < prev['EMA_50'] and
-            last['EMA_10'] > prev['EMA_50'] 
-            
+            last['EMA_10'] > last['EMA_50']
         )
 
-        # 조건 3: EMA_10, EMA_20, EMA_50 기울기 ≥ 0
+        # 조건 3: EMA 기울기 양수
+        ema10_slope = last['EMA_10'] - prev['EMA_10']
         ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema50_slope = last['EMA_50'] - prev['EMA_50']
-        ema10_slope = last['EMA_10'] - prev['EMA_10']
-        volume_up = last['Volume'] > last['Volume_MA5']
-        
-        slope_up = ema20_slope >0 and ema50_slope >0 and ema10_slope >0
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0
 
-        # 최종 매수 조건
+        # 조건 4: 거래량 증가
+        volume_up = last['Volume'] > last['Volume_MA5']
+
+        # 최종 조건
         buy_signal = cross_up and slope_up and volume_up
-        
+
+        # 매매 사유 작성
+        if buy_signal:
+            reason = (
+                f"매수 신호 발생: "
+                f"[현재 EMA10 상향 돌파 EMA50] {prev['EMA_10']:.2f} → {last['EMA_10']:.2f} vs EMA50 {last['EMA_50']:.2f}, "
+                f"[기울기] EMA10: {ema10_slope:.2f}, EMA20: {ema20_slope:.2f}, EMA50: {ema50_slope:.2f}, "
+                f"[거래량] {last['Volume']:.0f} > 5일평균 {last['Volume_MA5']:.0f}"
+            )
+        else:
+            reason = "EMA 배열 돌파 조건 불충족"
+
+        # trade_reasons에 결과 기록
         for entry in self.trade_reasons:
-            if entry['Time'].date() == trade_date:
+            if entry['Time'].date() == trade_date and entry['symbol'] == symbol:
                 entry['Buy Signal'] = buy_signal
+                entry['Buy Reason'] = reason
 
         return buy_signal    
 
@@ -1078,3 +1087,56 @@ class TradingLogic:
         sell_signal = prev_overbought and breakdown_today and macd_falling
 
         return sell_signal
+    
+    def sma_breakout_trading(self, df, symbol):
+        """
+        ✅ 단순이동평균(SMA) 기반 매수 신호 로직
+        조건:
+        ① SMA_5가 SMA_40을 아래에서 위로 돌파
+        ② SMA_5, SMA_20, SMA_40 기울기 ≥ 0
+        ③ 현재 거래량이 5일 평균 이상
+        """
+
+        if df.shape[0] < 2:
+            print("❌ 데이터가 부족해서 SMA 매수 조건 계산 불가")
+            return False
+
+        # 필수 컬럼 계산
+        df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        trade_date = last.name.date()
+
+        # 조건 ①: SMA_5가 SMA_40을 아래에서 위로 돌파 (골든크로스)
+        cross_up = prev['SMA_5'] < prev['SMA_40'] and last['SMA_5'] > last['SMA_40']
+
+        # 조건 ②: SMA_5, SMA_20, SMA_40의 기울기 ≥ 0
+        slope_5 = last['SMA_5'] - prev['SMA_5']
+        slope_20 = last['SMA_20'] - prev['SMA_20']
+        slope_40 = last['SMA_40'] - prev['SMA_40']
+        slope_up = slope_5 >= 0 and slope_20 >= 0 and slope_40 >= 0
+
+        # 조건 ③: 거래량 증가
+        volume_up = last['Volume'] > last['Volume_MA5']
+
+        # 최종 매수 조건
+        buy_signal = cross_up and slope_up and volume_up
+
+        # 매수 사유 설명
+        if buy_signal:
+            reason = (
+                f"매수 신호 발생: SMA5→40 골든크로스, "
+                f"기울기(10:{slope_5:.2f}, 20:{slope_20:.2f}, 40:{slope_40:.2f}), "
+                f"거래량 {last['Volume']:.0f} > 평균 {last['Volume_MA5']:.0f}"
+            )
+        else:
+            reason = "SMA 기반 조건 불충족"
+
+        # 매매 사유 기록
+        for entry in self.trade_reasons:
+            if entry['Time'].date() == trade_date and entry['symbol'] == symbol:
+                entry['Buy Signal'] = buy_signal
+                entry['Buy Reason'] = reason
+
+        return buy_signal    
