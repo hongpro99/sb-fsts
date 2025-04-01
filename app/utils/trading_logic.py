@@ -103,7 +103,7 @@ class TradingLogic:
         
         return buy_signal, sell_signal
 
-    def rsi_trading(self, candle, rsi_values, symbol, buy_threshold= 35, sell_threshold= 73):
+    def rsi_trading(self, candle, rsi_values, symbol, buy_threshold= 35, sell_threshold= 70):
         """
         RSI를 기반으로 매수/매도 신호를 계산하는 함수.
         

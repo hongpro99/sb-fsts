@@ -576,8 +576,6 @@ def rename_tradingLogic(trade_history):
             entry['trading_logic'] = '흑운형'
         elif entry.get('trading_logic') == 'mfi_trading':
             entry['trading_logic'] = 'mfi 확인'
-        elif entry.get('trading_logic') == 'rsi+check_wick':
-            entry['trading_logic'] = 'rsi+꼬리'
         elif entry.get('trading_logic') == 'stochastic_trading':
             entry['trading_logic'] = '스토캐스틱'
         elif entry.get('trading_logic') == 'macd_trading':
@@ -706,6 +704,11 @@ def setup_sidebar(sql_executer):
     ohlc_mode_checkbox = st.sidebar.checkbox("차트 연결 모드")  # True / False 반환
     ohlc_mode = "continuous" if ohlc_mode_checkbox else "default"
     
+    #✅ rsi 조건값 입력
+    rsi_buy_threshold = st.sidebar.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1)
+    rsi_sell_threshold = st.sidebar.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1)
+    rsi_period = st.sidebar.number_input("📈 RSI 기간 설정", min_value=0, max_value=100, value=25, step=1)
+    
     # ✅ 설정 값을 딕셔너리 형태로 반환
     return {
         "id": id,
@@ -720,7 +723,10 @@ def setup_sidebar(sql_executer):
         "sell_trading_logic": selected_sellTrading_logic,
         "buy_condition_yn": buy_condition_yn,
         "buy_percentage": buy_percentage,
-        "ohlc_mode": ohlc_mode
+        "ohlc_mode": ohlc_mode,
+        "rsi_buy_threshold" : rsi_buy_threshold,
+        "rsi_sell_threshold" : rsi_sell_threshold,
+        "rsi_period" : rsi_period
     }
     
 def setup_my_page():
@@ -799,10 +805,11 @@ def setup_my_page():
     if buy_condition_yn == "Y":
         buy_percentage = st.number_input("💵 퍼센트 (%) 입력", min_value=0.0, max_value=100.0, value=3.0, step=0.1, key="buy_percentage")
 
-    # ✅ rsi 조건값 입력
-    # st.subheader("🎯 RSI 조건값 설정")
-    # rsi_buy_threshold = st.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1, key="rsi_buy_threshold")
-    # rsi_sell_threshold = st.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1, key="rsi_sell_threshold")
+    #✅ rsi 조건값 입력
+    st.subheader("🎯 RSI 조건값 설정")
+    rsi_buy_threshold = st.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1, key = 'rsi_buy_threshold')
+    rsi_sell_threshold = st.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1, key = 'rsi_sell_threshold')
+    rsi_period = st.number_input("📈 RSI 기간 설정", min_value=0, max_value=100, value=25, step=1, key = 'rsi_period')
 
     # ✅ 설정 저장 버튼
     if st.button("✅ 설정 저장"):
@@ -818,7 +825,10 @@ def setup_my_page():
             "selected_sellTrading_logic": selected_sellTrading_logic,
             "buy_condition_yn": buy_condition_yn,
             "buy_percentage": buy_percentage,
-            "initial_capital": initial_capital
+            "initial_capital": initial_capital,
+            "rsi_buy_threshold" : rsi_buy_threshold,
+            "rsi_sell_threshold" : rsi_sell_threshold,
+            "rsi_period" : rsi_period
         }
         st.success("✅ 설정이 저장되었습니다!")
 
@@ -923,6 +933,9 @@ def main():
                     interval=sidebar_settings["interval"],
                     buy_percentage=sidebar_settings["buy_percentage"],
                     ohlc_mode = sidebar_settings["ohlc_mode"],
+                    rsi_buy_threshold= sidebar_settings['rsi_buy_threshold'],
+                    rsi_sell_threshold= sidebar_settings['rsi_sell_threshold'],
+                    rsi_period= sidebar_settings['rsi_period']
                     
                 )
                 # 시뮬레이션 결과를 session_state에 저장
@@ -1022,7 +1035,6 @@ def main():
         if st.button("선택 종목 시뮬레이션 실행"):
             
             my_page_settings = st.session_state["my_page_settings"]
-            initial_capital = my_page_settings['initial_capital']
             st.write("🔄 선택한 종목에 대해 시뮬레이션을 실행합니다.")
 
             # ✅ 진행률 바 추가
@@ -1047,7 +1059,10 @@ def main():
                             sell_trading_logic=my_page_settings["selected_sellTrading_logic"],
                             interval=my_page_settings["interval"],
                             buy_percentage=my_page_settings["buy_percentage"],
-                            initial_capital= my_page_settings['initial_capital']
+                            initial_capital= my_page_settings['initial_capital'],
+                            rsi_buy_threshold = my_page_settings['rsi_buy_threshold'],
+                            rsi_sell_threshold = my_page_settings['rsi_sell_threshold'],
+                            rsi_period = my_page_settings['rsi_period']
                         )
 
                         if trading_history:
@@ -1095,6 +1110,7 @@ def main():
                 avg_realized_roi = df_results["realized_roi"].replace("%", "", regex=True).astype(float).mean()
                 avg_unrealized_roi = df_results["unrealized_roi"].replace("%", "", regex=True).astype(float).mean()
                 
+                initial_capital = my_page_settings['initial_capital']
                 # ✅ 초기 자본 대비 평균 손익률 계산 (초기 자본이 0이 아닐 경우에만 계산)
                 if initial_capital is not None and initial_capital > 0:
                     avg_realized_roi_per_capital = (total_realized_pnl / initial_capital) * 100

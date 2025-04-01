@@ -305,7 +305,7 @@ class AutoTradingBot:
     
 
     def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None,
-                        interval='day', buy_percentage = None, ohlc_mode = 'default', initial_capital=None):
+                        interval='day', buy_percentage = None, ohlc_mode = 'default', initial_capital=None, rsi_buy_threshold = 30, rsi_sell_threshold = 70, rsi_period = 25):
         
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval, ohlc_mode) #클래스 객체, .사용
         # trade_reasons = logic.trade_reasons
@@ -387,7 +387,7 @@ class AutoTradingBot:
             df = indicator.cal_sma_df(df, 20)
             df = indicator.cal_sma_df(df, 40)
 
-            df = indicator.cal_rsi_df(df)
+            df = indicator.cal_rsi_df(df, rsi_period)
             df = indicator.cal_macd_df(df)
             df = indicator.cal_stochastic_df(df)
             df = indicator.cal_mfi_df(df)
@@ -397,8 +397,8 @@ class AutoTradingBot:
                 'Time': timestamp,
                 'price': close_price,
                 'volume': volume,
-                'mfi': df['mfi'].iloc[-1],
                 'rsi': df['rsi'].iloc[-1],
+                'mfi': df['mfi'].iloc[-1],
                 'macd': df['macd'].iloc[-1],
                 'macd_signal': df['macd_signal'].iloc[-1],
                 'macd_histogram': df['macd_histogram'].iloc[-1],
@@ -434,7 +434,7 @@ class AutoTradingBot:
                         buy_yn, _ = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         
                     elif trading_logic == 'rsi_trading':            
-                        buy_yn, _ = logic.rsi_trading(candle, df['rsi'], symbol)
+                        buy_yn, _ = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
 
                     elif trading_logic == 'penetrating':
                         buy_yn = logic.penetrating(candle, d_1, d_2, closes)
@@ -462,20 +462,13 @@ class AutoTradingBot:
                                                 
                     elif trading_logic == 'mfi_trading':
                         buy_yn, _ = logic.mfi_trading(df, symbol)    
-                    #rsi와 check_wick and 조건
-                    elif trading_logic == 'rsi+check_wick':
-                        # 볼린저 밴드 계산
-                        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        _, buy_yn1 = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-                        buy_yn2, _ = logic.rsi_trading(candle, df['rsi'], symbol)
-                        buy_yn = buy_yn1 and buy_yn2
                         
                     elif trading_logic == 'stochastic_trading':
                         buy_yn, _ = logic.stochastic_trading(df, symbol)
                         
                     elif trading_logic == 'rsi+mfi':
                         buy_yn1, _ = logic.mfi_trading(df)
-                        buy_yn2, _ = logic.rsi_trading(candle, df['rsi'], symbol)
+                        buy_yn2, _ = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
                         buy_yn = buy_yn1 and buy_yn2
                         
                     elif trading_logic == 'ema_breakout_trading':
@@ -590,7 +583,7 @@ class AutoTradingBot:
                         sell_yn = logic.dark_cloud(candle, d_1, d_2)
                         
                     elif trading_logic == 'rsi_trading':
-                        _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol)
+                        _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
                         
                     elif trading_logic == 'check_wick':            
                         # 볼린저 밴드 계산
@@ -600,14 +593,6 @@ class AutoTradingBot:
                     elif trading_logic == 'mfi_trading':
                         _, sell_yn = logic.mfi_trading(df, symbol)
                         
-                    #rsi와 check_wick and 조건
-                    elif trading_logic == 'rsi+check_wick':
-                        # 볼린저 밴드 계산
-                        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        sell_yn1, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-                        _, sell_yn2 = logic.rsi_trading(candle, df['rsi'], symbol)
-                        sell_yn = sell_yn1 and sell_yn2
-                        
                     elif trading_logic == 'stochastic_trading':
                         _, sell_yn = logic.stochastic_trading(df, symbol)
                         
@@ -616,7 +601,7 @@ class AutoTradingBot:
                         
                     elif trading_logic == 'rsi+mfi':
                         _, sell_yn1 = logic.mfi_trading(df)
-                        _, sell_yn2 = logic.rsi_trading(candle, df['rsi'], symbol)
+                        _, sell_yn2 = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
                         sell_yn = sell_yn1 and sell_yn2
                         
                     elif trading_logic == 'bollinger_band_trading':
@@ -675,6 +660,8 @@ class AutoTradingBot:
         print(f"매도 날짜: {trading_history['sell_dates']}")
         print(f"총 실현손익: {trading_history['realized_pnl']}KRW")
         print(f"미실현 손익 (Unrealized PnL): {trading_history['unrealized_pnl']}KRW")
+        print(f"실현 손익률 (realized_roi): {trading_history['realized_roi']}%")
+        print(f"총 실현 손익률 (unrealized_roi): {trading_history['unrealized_roi']}%")
         
         return result_data, trading_history, trade_reasons
 

@@ -68,22 +68,15 @@ class TechnicalIndicator:
         
         return df
 
-    def cal_rsi_df(self, df, period=14):
+    def cal_rsi_df(self, df, period=25):
         """
+        단순이동평균으로 계산한 표준 RSI
         delta = 오늘 종가 - 어제 종가
-
         gain = 양의 delta (음수는 0으로)
-
         loss = 음의 delta의 절댓값 (양수는 0으로)
-
         avg_gain = 14일간 평균 gain
-
         avg_loss = 14일간 평균 loss
-
         RS = avg_gain / avg_loss
-
-        RSI = 100 - (100 / (1 + RS)
-        테스트 결과 값이 정확히 계산됨
         """
         
         delta = df['Close'].diff(1)  # 종가 변화량
@@ -203,3 +196,4 @@ class TechnicalIndicator:
         df[sma_column_name] = df[sma_column_name].round(round_digits)
         
         return df
+    
