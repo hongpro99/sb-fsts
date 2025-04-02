@@ -763,7 +763,7 @@ class AutoTradingBot:
             buy_yn = False # 각 로직에 대한 매수 신호 초기화
 
             if trading_logic == 'check_wick':            
-                buy_yn, _ = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                buy_yn, _ = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
             elif trading_logic == 'rsi_trading':
                 buy_yn, _ = logic.rsi_trading(candle, df['rsi'], symbol)
             elif trading_logic == 'mfi_trading':
@@ -801,7 +801,7 @@ class AutoTradingBot:
             
             if trading_logic == 'check_wick':            
                 # 볼린저 밴드 계산
-                _, sell_yn = logic.check_wick(candle, previous_closes, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                _, sell_yn = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
             elif trading_logic == 'rsi_trading':
                 _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol)
             elif trading_logic == 'mfi_trading':
