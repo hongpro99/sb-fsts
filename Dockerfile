@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 애플리케이션 코드 복사
 # 프로젝트 depth 일치 시키도록 /app/app 설정
 COPY ./app /app/app
-COPY ./dashboard_web/trading_logic.json /app/app/trading_logic.json
+# COPY ./dashboard_web/trading_logic.json /app/app/trading_logic.json
 
 EXPOSE 7000
 
