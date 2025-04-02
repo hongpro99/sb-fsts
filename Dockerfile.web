@@ -16,7 +16,7 @@ COPY ./dashboard_web /app/dashboard_web
 EXPOSE 8500
 
 # 환경 변수 설정
-ENV STREAMLIT_THEME_BASE="light"
+ENV STREAMLIT_THEME_BASE="dark"
 
 # streamlit 서버 실행
 CMD ["streamlit", "run", "dashboard_web/main.py", "--server.port", "8500"]

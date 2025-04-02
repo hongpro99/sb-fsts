@@ -7,6 +7,7 @@ from app.utils.database import get_db, get_db_session
 from app.utils.crud_sql import SQLExecutor
 from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.dynamodb.model.stock_symbol_model import StockSymbol
+from app.utils.dynamodb.model.user_info_model import UserInfo
 
 # db = get_db()
 sql_executor = SQLExecutor()
@@ -35,7 +36,7 @@ def scheduled_trading_task():
     
     # TO-DO
     # 매수 로직 여기에 추가
-    trading_bot = AutoTradingBot(id="id1")
+    trading_bot = AutoTradingBot(id="schedulerbot")
     
     # sql_executor = SQLExecutor()
 
@@ -61,23 +62,15 @@ def scheduled_trading_task():
     trading_bot_name = 'test_bot'
     interval = 'day'
 
-    # 매수/매도 로직 설정
-    # JSON 파일 읽기
-    file_path = "./dashboard_web/trading_logic.json"
-    with open(file_path, "r", encoding="utf-8") as file:
-        trading_logic = json.load(file)
+    # 특정 trading_bot_name의 데이터 조회
+    history = UserInfo.query("schedulerbot")
 
-    # 사용 예시
-    available_buy_logic = trading_logic["available_buy_logic"]
-    available_sell_logic = trading_logic["available_sell_logic"]
-    
-    #print(list(available_buy_logic.values()))
-    #print(list(available_sell_logic.values()))
-    
-    # trading_logic 리스트 설정
-    buy_trading_logic = list(available_buy_logic.values())
-    sell_trading_logic = list(available_sell_logic.values())
-    
+    for trade in history:
+        print(f"- buy_trading_logic: {trade.buy_trading_logic}, sell_trading_logic : {trade.sell_trading_logic}")
+        
+        buy_trading_logic = trade.buy_trading_logic
+        sell_trading_logic = trade.sell_trading_logic
+        
     for stock in result:
         symbol = stock.symbol
         symbol_name = stock.symbol_name

@@ -703,6 +703,7 @@ class AutoTradingBot:
 
     # 실시간 매매 함수
     def trade(self, trading_bot_name, buy_trading_logic, sell_trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw, interval='day'):
+        #buy_trading_logic, sell_trading_logic => list
         
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
         trade_amount = target_trade_value_krw  # 매매 금액 (krw)

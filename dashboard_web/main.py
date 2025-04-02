@@ -789,7 +789,7 @@ def setup_sidebar(sql_executer):
         selected_indicators.append("sma_20")
     if st.sidebar.checkbox("SMA 40", value=False):
         selected_indicators.append("sma_40")                
-    if st.sidebar.checkbox("볼린저 밴드", value=False):
+    if st.sidebar.checkbox("bollinger band", value=False):
         selected_indicators.append("bollinger")
         
     # ✅ 설정 값을 딕셔너리 형태로 반환

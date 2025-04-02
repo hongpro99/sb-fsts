@@ -1,5 +1,5 @@
 from pynamodb.models import Model
-from pynamodb.attributes import UnicodeAttribute, NumberAttribute
+from pynamodb.attributes import UnicodeAttribute, NumberAttribute, ListAttribute
 import time
 import uuid
 
@@ -22,3 +22,5 @@ class UserInfo(Model):
     virtual_app_key =  UnicodeAttribute(null=True)
     virtual_secret_key =  UnicodeAttribute(null=True)
     virtual_account =  UnicodeAttribute(null=True)
+    buy_trading_logic = ListAttribute(of=UnicodeAttribute)
+    sell_trading_logic = ListAttribute(of=UnicodeAttribute)
