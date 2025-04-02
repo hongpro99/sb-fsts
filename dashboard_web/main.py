@@ -29,7 +29,7 @@ from app.utils.dynamodb.model.user_info_model import UserInfo
 #보조지표 클래스 선언
 logic = TradingLogic()
 
-def draw_lightweight_chart(data_df):
+def draw_lightweight_chart(data_df, selected_indicators):
 
     # 차트 color
     COLOR_BULL = 'rgba(236, 57, 72, 1)' # #26a69a
@@ -54,6 +54,10 @@ def draw_lightweight_chart(data_df):
     ema_20 = json.loads(data_df.dropna(subset=['ema_20']).rename(columns={"ema_20": "value"}).to_json(orient="records"))
     ema_50 = json.loads(data_df.dropna(subset=['ema_50']).rename(columns={"ema_50": "value"}).to_json(orient="records"))
     
+    sma_5 = json.loads(data_df.dropna(subset=['sma_5']).rename(columns={"sma_5": "value"}).to_json(orient="records"))
+    sma_20 = json.loads(data_df.dropna(subset=['sma_20']).rename(columns={"sma_20": "value"}).to_json(orient="records"))
+    sma_40 = json.loads(data_df.dropna(subset=['sma_40']).rename(columns={"sma_40": "value"}).to_json(orient="records"))
+    
 
     rsi = json.loads(data_df.dropna(subset=['rsi']).rename(columns={"rsi": "value"}).to_json(orient="records"))
     macd = json.loads(data_df.dropna(subset=['macd']).rename(columns={"macd": "value"}).to_json(orient="records"))
@@ -66,7 +70,7 @@ def draw_lightweight_chart(data_df):
     temp_df = data_df
     temp_df['color'] = np.where(temp_df['open'] > temp_df['close'], COLOR_BEAR, COLOR_BULL)  # bull or bear
     volume = json.loads(temp_df.rename(columns={"volume": "value",}).to_json(orient = "records"))
-
+    
     # 매매 마커 추가
     markers = []
     for _, row in buy_signal_df.iterrows():
@@ -195,7 +199,7 @@ def draw_lightweight_chart(data_df):
             }
         },
         {
-            "height": 150,  # RSI 차트 높이 설정
+            "height": 150,  # MACD 차트 높이 설정
             "layout": {
                 "background": {"type": "solid", "color": 'white'},
                 "textColor": "black"
@@ -223,7 +227,7 @@ def draw_lightweight_chart(data_df):
             }
         },
         {
-            "height": 150,  # RSI 차트 높이 설정
+            "height": 150,  # Stocastic 차트 높이 설정
             "layout": {
                 "background": {"type": "solid", "color": 'white'},
                 "textColor": "black"
@@ -251,7 +255,7 @@ def draw_lightweight_chart(data_df):
             }
         },
         {
-            "height": 150,  # RSI 차트 높이 설정
+            "height": 150,  # MFI 차트 높이 설정
             "layout": {
                 "background": {"type": "solid", "color": 'white'},
                 "textColor": "black"
@@ -282,83 +286,6 @@ def draw_lightweight_chart(data_df):
 
     seriesCandlestickChart = [
         {
-            "type": 'Line',
-            "data": bollinger_band_upper,  # 상단 데이터
-            "options": {
-                "color": 'rgba(0, 0, 0, 1)',  # 노란색
-                "lineWidth": 0.5,
-                "priceScaleId": "right",
-                "lastValueVisible": False, # 가격 레이블 숨기기
-                "priceLineVisible": False, # 가격 라인 숨기기
-            },
-        },
-        # {
-        #     "type": 'Line',
-        #     "data": bollinger_band_middle,  # 중단 밴드 데이터
-        #     "options": {
-        #         "color": 'rgba(0, 0, 0, 1)',  # 노란색
-        #         "lineWidth": 0.5,
-        #         "priceScaleId": "right",
-        #         "lastValueVisible": False, # 가격 레이블 숨기기
-        #         "priceLineVisible": False, # 가격 라인 숨기기
-        #     },
-        # },
-        {
-            "type": 'Line',
-            "data": bollinger_band_lower,  # 하단 밴드 데이터
-            "options": {
-                "color": 'rgba(0, 0, 0, 1)',  # 노란색
-                "lineWidth": 0.5,
-                "priceScaleId": "right",
-                "lastValueVisible": False, # 가격 레이블 숨기기
-                "priceLineVisible": False, # 가격 라인 숨기기
-            },
-        },
-        {
-            "type": 'Line',
-            "data": ema_60,  # 하단 밴드 데이터
-            "options": {
-                "color": 'rgba(0, 170, 170, 1)', #청록색
-                "lineWidth": 2,
-                "priceScaleId": "right",
-                "lastValueVisible": False, # 가격 레이블 숨기기
-                "priceLineVisible": False, # 가격 라인 숨기기
-            },
-        },
-        {
-            "type": 'Line',
-            "data": ema_10,  # 10일 EMA
-            "options": {
-                "color": 'rgba(255, 0, 0, 1)',  # 빨간색
-                "lineWidth": 2,
-                "priceScaleId": "right",
-                "lastValueVisible": False,
-                "priceLineVisible": False,
-                },
-        },
-        {
-            "type": 'Line',
-            "data": ema_20,  # 20일 EMA
-            "options": {
-                "color": 'rgba(0, 255, 0, 1)',  # 초록색
-                "lineWidth": 2,
-                "priceScaleId": "right",
-                "lastValueVisible": False,
-                "priceLineVisible": False,
-                },
-        },
-        {
-            "type": 'Line',
-            "data": ema_50,  # 50일 EMA
-            "options": {
-                "color": 'rgba(0, 0, 255, 1)',  # 파란색
-                "lineWidth": 2,
-                "priceScaleId": "right",
-                "lastValueVisible": False,
-                "priceLineVisible": False,
-                },
-        },
-        {
             "type": 'Candlestick',
             "data": candles,
             "options": {
@@ -371,7 +298,142 @@ def draw_lightweight_chart(data_df):
             "markers": markers
         },
     ]
+    
+    # Bollinger Band
+    if "bollinger" in selected_indicators:
+        seriesCandlestickChart.extend([
+            {
+                "type": 'Line',
+                "data": bollinger_band_upper,
+                "options": {
+                    "color": 'rgba(0, 0, 0, 1)',
+                    "lineWidth": 0.5,
+                    "priceScaleId": "right",
+                    "lastValueVisible": False,
+                    "priceLineVisible": False,
+                },
+            },
+            {
+            "type": 'Line',
+            "data": bollinger_band_middle,  # 중단 밴드 데이터
+            "options": {
+                "color": 'rgba(0, 0, 0, 1)',  # 노란색
+                "lineWidth": 0.5,
+                "priceScaleId": "right",
+                "lastValueVisible": False, # 가격 레이블 숨기기
+                "priceLineVisible": False, # 가격 라인 숨기기
+                },
+            },
+            {
+                "type": 'Line',
+                "data": bollinger_band_lower,
+                "options": {
+                    "color": 'rgba(0, 0, 0, 1)',
+                    "lineWidth": 0.5,
+                    "priceScaleId": "right",
+                    "lastValueVisible": False,
+                    "priceLineVisible": False,
+                },
+            },
+        ])
+        
+        # EMA 10
+    if "ema_10" in selected_indicators:
+        seriesCandlestickChart.append({
+            "type": 'Line',
+            "data": ema_10,
+            "options": {
+                "color": 'rgba(255, 0, 0, 1)',
+                "lineWidth": 2,
+                "priceScaleId": "right",
+                "lastValueVisible": False,
+                "priceLineVisible": False,
+            },
+        })
+        
+                # EMA 20
+    if "ema_20" in selected_indicators:
+        seriesCandlestickChart.append({
+            "type": 'Line',
+            "data": ema_20,
+            "options": {
+                "color": 'rgba(0, 255, 0, 1)',  # 초록색
+                "lineWidth": 2,
+                "priceScaleId": "right",
+                "lastValueVisible": False,
+                "priceLineVisible": False,
+            },
+        })
 
+        # EMA 50
+    if "ema_50" in selected_indicators:
+        seriesCandlestickChart.append({
+            "type": 'Line',
+            "data": ema_50,
+            "options": {
+                "color": 'rgba(0, 0, 255, 1)',  # 파란색
+                "lineWidth": 2,
+                "priceScaleId": "right",
+                "lastValueVisible": False,
+                "priceLineVisible": False,
+            },
+        })
+        
+        # EMA 60
+    if "ema_60" in selected_indicators:
+        seriesCandlestickChart.append({
+            "type": 'Line',
+            "data": ema_60,
+            "options": {
+                "color": 'rgba(0, 170, 170, 1)', #청록색
+                "lineWidth": 2,
+                "priceScaleId": "right",
+                "lastValueVisible": False, # 가격 레이블 숨기기
+                "priceLineVisible": False, # 가격 라인 숨기기
+            },
+        })
+
+        # sma_5
+    if "sma_5" in selected_indicators:
+        seriesCandlestickChart.append({
+            "type": 'Line',
+            "data": sma_5,
+            "options": {
+                "color": 'purple', #청록색
+                "lineWidth": 1.5,
+                "priceScaleId": "right",
+                "lastValueVisible": False, # 가격 레이블 숨기기
+                "priceLineVisible": False, # 가격 라인 숨기기
+            },
+        })
+        
+        # sma_20
+    if "sma_20" in selected_indicators:
+        seriesCandlestickChart.append({
+            "type": 'Line',
+            "data": sma_20,
+            "options": {
+                "color": 'teal', #청록색
+                "lineWidth": 1,
+                "priceScaleId": "right",
+                "lastValueVisible": False, # 가격 레이블 숨기기
+                "priceLineVisible": False, # 가격 라인 숨기기
+            },
+        })
+        
+        # sma_40
+    if "sma_40" in selected_indicators:
+        seriesCandlestickChart.append({
+            "type": 'Line',
+            "data": sma_40,
+            "options": {
+                "color": 'orange', #청록색
+                "lineWidth": 1.5,
+                "priceScaleId": "right",
+                "lastValueVisible": False, # 가격 레이블 숨기기
+                "priceLineVisible": False, # 가격 라인 숨기기
+            },
+        })                
     seriesVolumeChart = [
         {
             "type": 'Histogram',
@@ -537,7 +599,7 @@ def draw_lightweight_chart(data_df):
         {
             "chart": chartMultipaneOptions[5],
             "series": seriesMfiChart
-        },        
+        },             
     ], 'multipane')
 
 def rename_tradingLogic(trade_history):
@@ -709,6 +771,27 @@ def setup_sidebar(sql_executer):
     rsi_sell_threshold = st.sidebar.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1)
     rsi_period = st.sidebar.number_input("📈 RSI 기간 설정", min_value=0, max_value=100, value=25, step=1)
     
+    # 📌 Streamlit 체크박스 입력
+    st.sidebar.subheader("📊 차트 지표 선택")
+    # 체크박스로 사용자 선택 받기
+    selected_indicators = []
+    if st.sidebar.checkbox("EMA 10", value=True):
+        selected_indicators.append("ema_10")
+    if st.sidebar.checkbox("EMA 20", value=True):
+        selected_indicators.append("ema_20")
+    if st.sidebar.checkbox("EMA 50", value=True):
+        selected_indicators.append("ema_50")        
+    if st.sidebar.checkbox("EMA 60", value=True):
+        selected_indicators.append("ema_60")
+    if st.sidebar.checkbox("SMA 5", value=False):
+        selected_indicators.append("sma_5")
+    if st.sidebar.checkbox("SMA 20", value=False):
+        selected_indicators.append("sma_20")
+    if st.sidebar.checkbox("SMA 40", value=False):
+        selected_indicators.append("sma_40")                
+    if st.sidebar.checkbox("볼린저 밴드", value=False):
+        selected_indicators.append("bollinger")
+        
     # ✅ 설정 값을 딕셔너리 형태로 반환
     return {
         "id": id,
@@ -726,7 +809,8 @@ def setup_sidebar(sql_executer):
         "ohlc_mode": ohlc_mode,
         "rsi_buy_threshold" : rsi_buy_threshold,
         "rsi_sell_threshold" : rsi_sell_threshold,
-        "rsi_period" : rsi_period
+        "rsi_period" : rsi_period,
+        "selected_indicators" : selected_indicators
     }
     
 def setup_my_page():
@@ -970,8 +1054,9 @@ def main():
                 mime="text/csv"
             )
             
+            selected_indicators = sidebar_settings['selected_indicators'] # 차트 지표 선택 리스트
             # TradingView 차트 그리기
-            draw_lightweight_chart(data_df)
+            draw_lightweight_chart(data_df, selected_indicators)
             
             # -- Trading History 처리 --
             if not trading_history:

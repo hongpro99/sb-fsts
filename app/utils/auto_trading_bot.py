@@ -154,15 +154,10 @@ class AutoTradingBot:
         df['Upper'] = df['Middle'] + (df['Close'].rolling(window=20).std() * 2)
         df['Lower'] = df['Middle'] - (df['Close'].rolling(window=20).std() * 2)
 
-        # MA 계산
-        df['SMA_60'] = np.nan
-        df['SMA_120'] = np.nan
-        df['SMA_200'] = np.nan
-
-        df['SMA_5'] = df['Close'].rolling(window=5).mean()
-        df['SMA_60'] = df['Close'].rolling(window=60).mean()
-        df['SMA_120'] = df['Close'].rolling(window=120).mean()
-        df['SMA_200'] = df['Close'].rolling(window=200).mean()
+        #sma
+        df = indicator.cal_sma_df(df, 5)
+        df = indicator.cal_sma_df(df, 20)
+        df = indicator.cal_sma_df(df, 40)
 
         #ema
         df = indicator.cal_ema_df(df, 10)
@@ -194,13 +189,13 @@ class AutoTradingBot:
             mpf.make_addplot(df['SMA_5'], color='black', linestyle='-', label='SMA 5'),
         ]
 
-        # MA 를 그릴 수 있는 경우에만
-        if df['SMA_60'].notna().any():
-            add_plot.append(mpf.make_addplot(df['SMA_60'], color='red', linestyle='-', label='SMA 60'))
-        if df['SMA_120'].notna().any():
-            add_plot.append(mpf.make_addplot(df['SMA_120'], color='purple', linestyle='-', label='SMA 120'))
-        if df['SMA_200'].notna().any():
-            add_plot.append(mpf.make_addplot(df['SMA_200'], color='gray', linestyle='-', label='SMA 200'))
+        # # MA 를 그릴 수 있는 경우에만
+        # if df['SMA_60'].notna().any():
+        #     add_plot.append(mpf.make_addplot(df['SMA_60'], color='red', linestyle='-', label='SMA 60'))
+        # if df['SMA_120'].notna().any():
+        #     add_plot.append(mpf.make_addplot(df['SMA_120'], color='purple', linestyle='-', label='SMA 120'))
+        # if df['SMA_200'].notna().any():
+        #     add_plot.append(mpf.make_addplot(df['SMA_200'], color='gray', linestyle='-', label='SMA 200'))
 
         # signal이 존재할 때만 가능
         if len(buy_signals) > 0:
