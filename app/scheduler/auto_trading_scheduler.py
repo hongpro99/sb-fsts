@@ -56,7 +56,7 @@ def scheduled_trading_task():
     
     # 당일로부터 1년전 기간으로 차트 분석
     end_date = date.today()
-    start_date = end_date - timedelta(days=365)
+    start_date = end_date - timedelta(days=180)
     target_trade_value_krw = 1000000
     # 매수 목표 거래 금액
     trading_bot_name = 'test_bot'

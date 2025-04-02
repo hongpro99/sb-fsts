@@ -706,32 +706,41 @@ class AutoTradingBot:
         #buy_trading_logic, sell_trading_logic => list
         
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
-        trade_amount = target_trade_value_krw  # 매매 금액 (krw)
 
-        closes = [float(candle.close) for candle in ohlc_data[:-1]]
-        previous_closes = [float(candle.close) for candle in ohlc_data[:-2]]  # 마지막 봉을 제외한 종가들
+        # OHLC 데이터 전체를 기반으로 DataFrame 구성
+        timestamps = [candle.time for candle in ohlc_data]
+        ohlc = [
+            [candle.time, float(candle.open), float(candle.high), float(candle.low), float(candle.close), float(candle.volume)]
+            for candle in ohlc_data
+        ]
 
-        timestamps = []
-        ohlc = []
+        # 캔들 차트 데이터프레임 생성
+        df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
+
+        # 지표 계산 (전체 df에 대해)
+        df = indicator.cal_ema_df(df, 10)
+        df = indicator.cal_ema_df(df, 20)
+        df = indicator.cal_ema_df(df, 50)
+        df = indicator.cal_ema_df(df, 60)
+        df = indicator.cal_rsi_df(df)
+        df = indicator.cal_macd_df(df)
+        df = indicator.cal_stochastic_df(df)
+        df = indicator.cal_mfi_df(df)
         
-        # 마지막 봉 데이터 (마지막 봉이란 당일)
+        # 볼린저 밴드 계산용 종가 리스트
+        close_prices = df['Close'].tolist()
+        bollinger_band = indicator.cal_bollinger_band(close_prices[:-1], close_prices[-1])
+        
+        # 마지막 봉 기준 데이터 추출
         candle = ohlc_data[-1]
-        open_price = float(candle.open)
-        high_price = float(candle.high)
-        low_price = float(candle.low)
-        close_price = float(candle.close)
-        volume = float(candle.volume)
-        timestamp = candle.time
-        timestamp_str = timestamp.date().isoformat()
-        
-        # 마지막 직전 봉 데이터
-        previous_candle = ohlc_data[-2]
-        prev_open_price = float(previous_candle.open)
-        prev_close_price = float(previous_candle.close)
+        candle_time = candle.time
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
 
-        # 이전 캔들
-        d_1 = ohlc_data[-2]  # 직전 봉
-        d_2 = ohlc_data[-3]  # 전전 봉
+        close_price = float(last['Close'])
+        prev_price = float(prev['Close'])
+        close_open_price = float(last['Open'])
+        volume = float(last['Volume'])
 
         recent_20_days_volume = []
         avg_volume_20_days = 0
@@ -739,31 +748,14 @@ class AutoTradingBot:
         if len(ohlc_data) >= 21:
             recent_20_days_volume = [float(c.volume) for c in ohlc_data[-20:]]
             avg_volume_20_days = sum(recent_20_days_volume) / len(recent_20_days_volume)
-        
-        
-        ohlc.append([timestamp_str, open_price, high_price, low_price, close_price, volume])
-        previous_closes.append(close_price)
             
-        # 캔들 차트 데이터프레임 생성
-        df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
-        # 볼린저 밴드 계산
-        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-        
-        df = indicator.cal_ema_df(df, 10)
-        df = indicator.cal_ema_df(df, 20)
-        df = indicator.cal_ema_df(df, 50)
-        df = indicator.cal_ema_df(df, 60)
-
-        df = indicator.cal_rsi_df(df)
-        df = indicator.cal_macd_df(df)
-        df = indicator.cal_stochastic_df(df)
-        df = indicator.cal_mfi_df(df)
-
         for trading_logic in buy_trading_logic:
             buy_yn = False # 각 로직에 대한 매수 신호 초기화
 
             if trading_logic == 'check_wick':            
-                buy_yn, _ = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                previous_closes = df['Close'].iloc[:-1].tolist()
+                buy_yn, _ = logic.check_wick(candle, previous_closes, symbol,
+                                            bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
             elif trading_logic == 'rsi_trading':
                 buy_yn, _ = logic.rsi_trading(candle, df['rsi'], symbol)
             elif trading_logic == 'mfi_trading':
@@ -786,7 +778,7 @@ class AutoTradingBot:
                 buy_yn=buy_yn,
                 sell_yn=False,
                 volume=volume,
-                d_1=d_1,
+                prev=prev,
                 avg_volume_20_days=avg_volume_20_days,
                 trading_logic=trading_logic,
                 symbol=symbol,
@@ -800,8 +792,9 @@ class AutoTradingBot:
             sell_yn = False
             
             if trading_logic == 'check_wick':            
-                # 볼린저 밴드 계산
-                _, sell_yn = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+                previous_closes = df['Close'].iloc[:-1].tolist()
+                _, sell_yn = logic.check_wick(candle, previous_closes, symbol,
+                                            bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
             elif trading_logic == 'rsi_trading':
                 _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol)
             elif trading_logic == 'mfi_trading':
@@ -819,7 +812,7 @@ class AutoTradingBot:
                 buy_yn=False,
                 sell_yn=sell_yn,
                 volume=volume,
-                d_1=d_1,
+                prev=prev,
                 avg_volume_20_days=avg_volume_20_days,
                 trading_logic=trading_logic,
                 symbol=symbol,
@@ -830,10 +823,10 @@ class AutoTradingBot:
             )
 
         # 마지막 직전 봉 음봉, 양봉 계산
-        is_bearish_prev_candle = prev_close_price < prev_open_price  # 음봉 확인
-        is_bullish_prev_candle = prev_close_price > prev_open_price  # 양봉 확인
+        is_bearish_prev_candle = close_price < close_open_price  # 음봉 확인
+        is_bullish_prev_candle = close_price > close_open_price  # 양봉 확인
 
-        print(f'마지막 직전 봉 : {prev_close_price - prev_open_price}. 양봉 : {is_bullish_prev_candle}, 음봉 : {is_bearish_prev_candle}')
+        print(f'마지막 직전 봉 : {close_price - close_open_price}. 양봉 : {is_bullish_prev_candle}, 음봉 : {is_bearish_prev_candle}')
 
         # if trading_logic == "penetrating":
         #     buy_yn = logic.penetrating(candle, d_1, d_2)            
@@ -857,7 +850,7 @@ class AutoTradingBot:
         return None
     
 
-    def _trade_kis(self, buy_yn, sell_yn, volume, d_1, avg_volume_20_days, trading_logic, symbol, symbol_name, ohlc_data, trading_bot_name, target_trade_value_krw):
+    def _trade_kis(self, buy_yn, sell_yn, volume, prev, avg_volume_20_days, trading_logic, symbol, symbol_name, ohlc_data, trading_bot_name, target_trade_value_krw):
 
         if buy_yn:
             # 매수 주문은 특정 로직에서만 실행
