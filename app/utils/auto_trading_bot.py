@@ -16,6 +16,7 @@ from app.utils.dynamodb.crud import DynamoDBExecutor
 from app.utils.database import get_db, get_db_session
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
 from app.utils.dynamodb.model.user_info_model import UserInfo
+from pykis import KisBalance
 
 
 # 보조지표 클래스 선언
@@ -110,7 +111,9 @@ class AutoTradingBot:
         if bot_type == 'trading':
             webhook_url = 'https://discord.com/api/webhooks/1324331095583363122/wbpm4ZYV4gRZhaSywRp28ZWQrp_hJf8iiitISJrNYtAyt5NmBccYWAeYgcGd5pzh4jRK'  # 복사한 Discord 웹훅 URL로 변경
             username = "Stock Trading Bot"
-
+        if bot_type == 'alarm':
+            webhook_url = 'https://discord.com/api/webhooks/1313346849838596106/6Rn_8BNDeL9bMYfFtqscpu4hPah5c2RsNl0rBiPoSw_Qb9RXgDdVHoHmwEuStPv_ufnV'
+            username = 'Stock Alarm Bot'
         data = {
             "content": message,
             "username": username,  # 원하는 이름으로 설정 가능
@@ -979,24 +982,92 @@ class AutoTradingBot:
         return quote
 
 
-    def _trade_place_order(self, symbol, target_trade_value_krw):
-        
-        quote = self._get_quote.get_quote(symbol=symbol)
-        qty = math.floor(target_trade_value_krw / quote.close) # 주식 매매 개수
-        buy_price = None         # 시장가 매수 (지정가 입력 시 가격 설정)
+    def _trade_place_order(self, symbol, target_trade_value_krw, max_allocation=0.01):
+        quote = self._get_quote(symbol=symbol)
+        qty = math.floor(target_trade_value_krw / quote.close)
+        buy_price = None  # 시장가 매수
 
-        print(f"[{datetime.now()}] 자동 매수 실행: 종목 {symbol}, 수량 {qty}주")
+        if qty <= 0:
+            print(f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}")
+            return
+
+        # ✅ 예수금 조회 (inquire_balance() 사용)
+        deposit = AutoTradingBot.inquire_balance()
+
+        order_amount = qty * quote.close
+        buying_limit = deposit * max_allocation
+        
+        if order_amount > buying_limit:
+            print(f"[{datetime.now()}] 🚫 매수 생략: 주문금액 {order_amount:,}원이 예수금의 {max_allocation*100:.0f}% 초과")
+            return
+
+        print(f"[{datetime.now()}] ✅ 자동 매수 실행: 종목 {symbol}, 수량 {qty}주, 주문 금액 {order_amount:,}원")
 
         try:
             self.place_order(
                 symbol=symbol,
                 qty=qty,
-                buy_price=buy_price,   # 시장가 매수
+                buy_price=buy_price,
                 order_type="buy"
             )
         except Exception as e:
-            print(f"❌ 매수 실패: {e}")
+            print(f"[{datetime.now()}] ❌ 매수 실패: {e}")
+            
+    def inquire_balance(self):
+        """잔고 정보를 디스코드 웹훅으로 전송"""
+        
+                # 주 계좌 객체를 가져옵니다.
+        account = self.kis.account()
 
+        balance: KisBalance = account.balance()
+
+        print(repr(balance)) # repr을 통해 객체의 주요 내용을 확인할 수 있습니다.
+        
+        try:
+        #     # 기본 잔고 정보
+        #     message = (
+        #         f"📃 주식 잔고 정보\n"
+        #         f"계좌 번호: {balance.account_number}\n"
+        #         f"총 구매 금액: {balance.purchase_amount:,.0f} KRW\n"
+        #         f"현재 평가 금액: {balance.current_amount:,.0f} KRW\n"
+        #         f"총 평가 손익: {balance.profit:,.0f} KRW\n"
+        #         f"총 수익률: {balance.profit_rate/ 100:.2%}\n\n"
+        #     )
+            
+            
+        #     # 보유 종목 정보 추가
+        #     message += "📊 보유 종목 정보:\n"
+        #     for stock in balance.stocks:
+        #         message += (
+        #             f"종목명: {stock.symbol} (시장: {stock.market})\n"
+        #             f"수량: {stock.qty:,}주\n"
+        #             f"평균 단가: {stock.price:,.0f} KRW\n"
+        #             f"평가 금액: {stock.amount:,.0f} KRW\n"
+        #             f"평가 손익: {stock.profit:,.0f} KRW\n"
+        #             f"수익률: {stock.profit_rate /100:.2%}\n\n"
+        #         )
+                
+            
+            
+            # 예수금 정보 추가
+            message += "💰 예수금 정보:\n"
+            for currency, deposit in balance.deposits.items():
+                message += (
+                    f"통화: {currency}\n"
+                    f"금액: {deposit.amount:,.0f} {currency}\n"
+                    f"환율: {deposit.exchange_rate}\n\n"
+                )
+
+            # 디스코드 웹훅으로 메시지 전송
+            #self.send_discord_webhook(message, "alarm")
+
+        except Exception as e:
+            # 오류 메시지 처리
+            error_message = f"❌ 잔고 정보를 처리하는 중 오류 발생: {e}"
+            print(error_message)
+            #self.send_discord_webhook(error_message, "alarm")
+
+        return deposit.amount
 
     # 컷 로스 (손절)
     def cut_loss(self, target_trade_value_usdt):

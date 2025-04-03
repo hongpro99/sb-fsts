@@ -13,17 +13,17 @@ from app.utils.dynamodb.model.user_info_model import UserInfo
 sql_executor = SQLExecutor()
 
 
-def scheduled_trading_schedulerbot_task():
-    scheduled_trading(id="schedulerbot")
+# def scheduled_trading_schedulerbot_task():
+#     scheduled_trading(id="schedulerbot")
 
-def scheduled_trading_id1_task():
-    scheduled_trading(id="id1")
+# def scheduled_trading_id1_task():
+#     scheduled_trading(id="id1")
 
-def scheduled_trading_id2_task():
-    scheduled_trading(id="id2")
+# def scheduled_trading_id2_task():
+#     scheduled_trading(id="id2")
 
 def scheduled_trading_bnuazz15_task():
-    scheduled_trading(id="bnuazz15")
+    scheduled_trading(id="bnuazz15", virtual = True)
 
 
 def send_discord_webhook(message, bot_type):
@@ -46,11 +46,11 @@ def send_discord_webhook(message, bot_type):
         print(f"메시지 전송 실패: {response.status_code}, {response.text}")
 
 
-def scheduled_trading(id):
+def scheduled_trading(id, virtual):
     
     # TO-DO
     # 매수 로직 여기에 추가
-    trading_bot = AutoTradingBot(id=id)
+    trading_bot = AutoTradingBot(id=id, virtual=virtual)
     
     # sql_executor = SQLExecutor()
 
@@ -72,6 +72,7 @@ def scheduled_trading(id):
     end_date = date.today()
     start_date = end_date - timedelta(days=180)
     target_trade_value_krw = 1000000
+    
     # 매수 목표 거래 금액
     trading_bot_name = 'test_bot'
     interval = 'day'
