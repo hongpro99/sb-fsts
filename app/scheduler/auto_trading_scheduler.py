@@ -13,8 +13,8 @@ from app.utils.dynamodb.model.user_info_model import UserInfo
 sql_executor = SQLExecutor()
 
 
-# def scheduled_trading_schedulerbot_task():
-#     scheduled_trading(id="schedulerbot")
+def scheduled_trading_schedulerbot_task():
+    scheduled_trading(id="schedulerbot", virtual= False, max_allocation = 0.9)
 
 # def scheduled_trading_id1_task():
 #     scheduled_trading(id="id1")
@@ -23,8 +23,7 @@ sql_executor = SQLExecutor()
 #     scheduled_trading(id="id2")
 
 def scheduled_trading_bnuazz15_task():
-    scheduled_trading(id="bnuazz15", virtual = True)
-
+    scheduled_trading(id="bnuazz15", virtual = True, max_allocation = 0.01)
 
 def send_discord_webhook(message, bot_type):
     if bot_type == 'trading':
@@ -46,7 +45,7 @@ def send_discord_webhook(message, bot_type):
         print(f"메시지 전송 실패: {response.status_code}, {response.text}")
 
 
-def scheduled_trading(id, virtual):
+def scheduled_trading(id, virtual = False, max_allocation = 0.01):
     
     # TO-DO
     # 매수 로직 여기에 추가
@@ -71,6 +70,7 @@ def scheduled_trading(id, virtual):
     # 당일로부터 1년전 기간으로 차트 분석
     end_date = date.today()
     start_date = end_date - timedelta(days=180)
+    
     target_trade_value_krw = 1000000
     
     # 매수 목표 거래 금액
@@ -86,12 +86,14 @@ def scheduled_trading(id, virtual):
         buy_trading_logic = trade.buy_trading_logic
         sell_trading_logic = trade.sell_trading_logic
         
-    for stock in result:
+    # ✅ enumerate로 종목 번호 부여 (1부터 시작)
+    for i, stock in enumerate(result, start=1):
         symbol = stock.symbol
-        symbol_name = stock.symbol_name
+        original_symbol_name = stock.symbol_name
+        symbol_name = f"[{i}]{original_symbol_name}"  # 종목명에 번호 붙이기
 
-        max_retries = 5  # 최대 재시도 횟수
-        retries = 0  # 재시도 횟수 초기화
+        max_retries = 5
+        retries = 0
 
         print(f'------ {symbol_name} 주식 자동 트레이딩을 시작합니다. ------')
 
@@ -106,7 +108,8 @@ def scheduled_trading(id, virtual):
                     start_date=start_date,
                     end_date=end_date,
                     target_trade_value_krw=target_trade_value_krw,
-                    interval=interval
+                    interval=interval,
+                    max_allocation = max_allocation
                 )
                 break
             except Exception as e:

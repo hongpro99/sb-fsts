@@ -17,6 +17,7 @@ from app.utils.database import get_db, get_db_session
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
 from app.utils.dynamodb.model.user_info_model import UserInfo
 from pykis import KisBalance
+from decimal import Decimal
 
 
 # 보조지표 클래스 선언
@@ -705,7 +706,7 @@ class AutoTradingBot:
     
 
     # 실시간 매매 함수
-    def trade(self, trading_bot_name, buy_trading_logic, sell_trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw, interval='day'):
+    def trade(self, trading_bot_name, buy_trading_logic, sell_trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw, interval='day', max_allocation = 0.01):
         #buy_trading_logic, sell_trading_logic => list
         
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
@@ -729,6 +730,11 @@ class AutoTradingBot:
         df = indicator.cal_macd_df(df)
         df = indicator.cal_stochastic_df(df)
         df = indicator.cal_mfi_df(df)
+    
+        #sma
+        df = indicator.cal_sma_df(df, 5)
+        df = indicator.cal_sma_df(df, 20)
+        df = indicator.cal_sma_df(df, 40)
         
         # 볼린저 밴드 계산용 종가 리스트
         close_prices = df['Close'].tolist()
@@ -773,7 +779,8 @@ class AutoTradingBot:
                 buy_yn = logic.bottom_rebound_trading(df)
             elif trading_logic == 'ema_breakout_trading':
                 buy_yn = logic.ema_breakout_trading(df, symbol)
-                
+            elif trading_logic == 'sma_breakout_trading':
+                buy_yn = logic.sma_breakout_trading(df, symbol)    
                 
             print(f'{trading_logic} 로직 buy_signal = {buy_yn}')
 
@@ -788,7 +795,8 @@ class AutoTradingBot:
                 symbol_name=symbol_name,
                 ohlc_data=ohlc_data,
                 trading_bot_name=trading_bot_name,
-                target_trade_value_krw=target_trade_value_krw
+                target_trade_value_krw=target_trade_value_krw,
+                max_allocation = max_allocation
             )
 
         for trading_logic in sell_trading_logic:
@@ -822,7 +830,8 @@ class AutoTradingBot:
                 symbol_name=symbol_name,
                 ohlc_data=ohlc_data,
                 trading_bot_name=trading_bot_name,
-                target_trade_value_krw=target_trade_value_krw
+                target_trade_value_krw=target_trade_value_krw,
+                max_allocation = max_allocation
             )
 
         # 마지막 직전 봉 음봉, 양봉 계산
@@ -853,14 +862,14 @@ class AutoTradingBot:
         return None
     
 
-    def _trade_kis(self, buy_yn, sell_yn, volume, prev, avg_volume_20_days, trading_logic, symbol, symbol_name, ohlc_data, trading_bot_name, target_trade_value_krw):
+    def _trade_kis(self, buy_yn, sell_yn, volume, prev, avg_volume_20_days, trading_logic, symbol, symbol_name, ohlc_data, trading_bot_name, target_trade_value_krw, max_allocation):
 
         if buy_yn:
             # 매수 주문은 특정 로직에서만 실행
-            if trading_logic == 'ema_breakout_trading2' or trading_logic == 'ema_breakout_trading' or trading_logic == 'rsi_trading' or trading_logic == 'sma_breakout_trading':
-                self._trade_place_order(symbol, target_trade_value_krw)
+            if trading_logic == 'ema_breakout_trading2' or trading_logic == 'ema_breakout_trading' or trading_logic == 'sma_breakout_trading':
+                self._trade_place_order(symbol, target_trade_value_krw, max_allocation)
 
-            # 알림 전송 및 히스토리 기록은 모든 매수 로직에 대해 실행
+            #알림 전송 및 히스토리 기록은 모든 매수 로직에 대해 실행
             self.send_discord_webhook(
                 f"[{trading_logic}] {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW", 
                 "trading"
@@ -985,6 +994,9 @@ class AutoTradingBot:
     def _trade_place_order(self, symbol, target_trade_value_krw, max_allocation=0.01):
         quote = self._get_quote(symbol=symbol)
         qty = math.floor(target_trade_value_krw / quote.close)
+        print(f"target_trade_value_krw : {target_trade_value_krw}")
+        print(f"quote.close : {quote.close}")
+        print(f"qty : {qty}")
         buy_price = None  # 시장가 매수
 
         if qty <= 0:
@@ -992,10 +1004,11 @@ class AutoTradingBot:
             return
 
         # ✅ 예수금 조회 (inquire_balance() 사용)
-        deposit = AutoTradingBot.inquire_balance()
+        deposit = self.inquire_balance()
+        print(f"deposit: {deposit}")
 
         order_amount = qty * quote.close
-        buying_limit = deposit * max_allocation
+        buying_limit = deposit * Decimal(str(max_allocation))
         
         if order_amount > buying_limit:
             print(f"[{datetime.now()}] 🚫 매수 생략: 주문금액 {order_amount:,}원이 예수금의 {max_allocation*100:.0f}% 초과")
@@ -1024,28 +1037,28 @@ class AutoTradingBot:
         print(repr(balance)) # repr을 통해 객체의 주요 내용을 확인할 수 있습니다.
         
         try:
-        #     # 기본 잔고 정보
-        #     message = (
-        #         f"📃 주식 잔고 정보\n"
-        #         f"계좌 번호: {balance.account_number}\n"
-        #         f"총 구매 금액: {balance.purchase_amount:,.0f} KRW\n"
-        #         f"현재 평가 금액: {balance.current_amount:,.0f} KRW\n"
-        #         f"총 평가 손익: {balance.profit:,.0f} KRW\n"
-        #         f"총 수익률: {balance.profit_rate/ 100:.2%}\n\n"
-        #     )
+            # 기본 잔고 정보
+            message = (
+                f"📃 주식 잔고 정보\n"
+                f"계좌 번호: {balance.account_number}\n"
+                f"총 구매 금액: {balance.purchase_amount:,.0f} KRW\n"
+                f"현재 평가 금액: {balance.current_amount:,.0f} KRW\n"
+                f"총 평가 손익: {balance.profit:,.0f} KRW\n"
+                f"총 수익률: {balance.profit_rate/ 100:.2%}\n\n"
+            )
             
             
-        #     # 보유 종목 정보 추가
-        #     message += "📊 보유 종목 정보:\n"
-        #     for stock in balance.stocks:
-        #         message += (
-        #             f"종목명: {stock.symbol} (시장: {stock.market})\n"
-        #             f"수량: {stock.qty:,}주\n"
-        #             f"평균 단가: {stock.price:,.0f} KRW\n"
-        #             f"평가 금액: {stock.amount:,.0f} KRW\n"
-        #             f"평가 손익: {stock.profit:,.0f} KRW\n"
-        #             f"수익률: {stock.profit_rate /100:.2%}\n\n"
-        #         )
+            # 보유 종목 정보 추가
+            message += "📊 보유 종목 정보:\n"
+            for stock in balance.stocks:
+                message += (
+                    f"종목명: {stock.symbol} (시장: {stock.market})\n"
+                    f"수량: {stock.qty:,}주\n"
+                    f"평균 단가: {stock.price:,.0f} KRW\n"
+                    f"평가 금액: {stock.amount:,.0f} KRW\n"
+                    f"평가 손익: {stock.profit:,.0f} KRW\n"
+                    f"수익률: {stock.profit_rate /100:.2%}\n\n"
+                )
                 
             
             
@@ -1065,6 +1078,7 @@ class AutoTradingBot:
             # 오류 메시지 처리
             error_message = f"❌ 잔고 정보를 처리하는 중 오류 발생: {e}"
             print(error_message)
+            return None
             #self.send_discord_webhook(error_message, "alarm")
 
         return deposit.amount
