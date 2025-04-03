@@ -744,19 +744,19 @@ class TradingLogic:
             reason = (f"[기본 매도] 데드크로스: %K {prev_k:.2f} → {current_k:.2f}, "
                     f"%D {prev_d:.2f} → {current_d:.2f}, 과매수 영역 하락")
 
-        # ✅ 보완 매수 조건 (강한 신호)
-        if (current_k > current_d) and (prev_k <= prev_d) and (current_k <= 30):
-            buy_signal = True
-            signal_strength = "strong"
-            reason = (f"[강한 매수] 30 이하 골든크로스: %K {prev_k:.2f} → {current_k:.2f}, "
-                    f"%D {prev_d:.2f} → {current_d:.2f}")
+        # # ✅ 보완 매수 조건 (강한 신호)
+        # if (current_k > current_d) and (prev_k <= prev_d) and (current_k <= 30):
+        #     buy_signal = True
+        #     signal_strength = "strong"
+        #     reason = (f"[강한 매수] 30 이하 골든크로스: %K {prev_k:.2f} → {current_k:.2f}, "
+        #             f"%D {prev_d:.2f} → {current_d:.2f}")
 
-        # ✅ 보완 매도 조건 (강한 신호)
-        elif (current_k < current_d) and (prev_k >= prev_d) and (current_k >= 70):
-            sell_signal = True
-            signal_strength = "strong"
-            reason = (f"[강한 매도] 70 이상 데드크로스: %K {prev_k:.2f} → {current_k:.2f}, "
-                    f"%D {prev_d:.2f} → {current_d:.2f}")
+        # # ✅ 보완 매도 조건 (강한 신호)
+        # elif (current_k < current_d) and (prev_k >= prev_d) and (current_k >= 70):
+        #     sell_signal = True
+        #     signal_strength = "strong"
+        #     reason = (f"[강한 매도] 70 이상 데드크로스: %K {prev_k:.2f} → {current_k:.2f}, "
+        #             f"%D {prev_d:.2f} → {current_d:.2f}")
 
         # ✅ 신호 없음
         else:
