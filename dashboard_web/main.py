@@ -940,7 +940,7 @@ def main():
     sidebar_settings = setup_sidebar(sql_executor)
     
     # 탭 생성
-    tabs = st.tabs(["🏠 거래 내역", "🏠실제 투자 거래 내역" "📈 시뮬레이션 그래프", "📊 Data Analysis Page", "📊 KOSPI200 Simulation", "🛠 마이페이지 설정"])
+    tabs = st.tabs(["🏠 거래 내역", "📈 시뮬레이션 그래프", "📊 Data Analysis Page", "📊 KOSPI200 Simulation", "🛠 마이페이지 설정"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
@@ -995,62 +995,8 @@ def main():
     # -- 시뮬레이션 결과를 저장할 세션 상태 초기화 --
     if "simulation_result" not in st.session_state:
         st.session_state.simulation_result = None
-
-    # 각 탭의 내용 구성
+    
     with tabs[1]:
-        st.header("🏠 실제 봇 거래 내역")
-        
-        data = {
-            "Trading Bot Name": [],
-            "Trading Logic": [],
-            "Trade Date": [],
-            "Symbol Name": [],
-            "Symbol": [],
-            "Position": [],
-            "Price": [],
-            "Quantity": []
-        }
-
-        result = list(TradingHistory.scan())
-
-        sorted_result = sorted(
-            result,
-            key=lambda x: (x.trading_logic, -x.trade_date, x.symbol_name) #trade_date 최신 순
-        )
-        
-        for row in sorted_result:
-            # 초 단위로 변환
-            sec_timestamp = row.trade_date / 1000
-            # 포맷 변환
-            formatted_trade_date = datetime.fromtimestamp(sec_timestamp).strftime('%Y-%m-%d %H:%M:%S')
-
-            data["Trading Bot Name"].append(row.trading_bot_name)
-            data["Trading Logic"].append(row.trading_logic)
-            data["Trade Date"].append(formatted_trade_date)
-            data["Symbol Name"].append(row.symbol_name)
-            data["Symbol"].append(row.symbol)
-            data["Position"].append(row.position)
-            data["Price"].append(f"{row.price:,.0f}")
-            data["Quantity"].append(f"{row.quantity:,.0f}")
-
-        df = pd.DataFrame(data)
-        
-        # AgGrid로 테이블 표시
-        grid_response = AgGrid(
-            df,
-            editable=True,  # 셀 편집 가능
-            sortable=True,  # 정렬 가능
-            filter=True,    # 필터링 가능
-            resizable=True, # 크기 조절 가능
-            theme='dark',   # 테마 변경 가능 ('light', 'dark', 'blue', 등)
-            fit_columns_on_grid_load=True  # 열 너비 자동 조정
-        )
-
-    # -- 시뮬레이션 결과를 저장할 세션 상태 초기화 --
-    if "simulation_result" not in st.session_state:
-        st.session_state.simulation_result = None
-            
-    with tabs[2]:
         st.header("📈 종목 시뮬레이션")
         
         if st.sidebar.button("개별 종목 시뮬레이션 실행", key = 'simulation_button'):
@@ -1154,7 +1100,7 @@ def main():
 
 
 
-    with tabs[3]:
+    with tabs[2]:
         st.header("📊 데이터 분석 페이지")
         
         # 데이터
@@ -1167,7 +1113,7 @@ def main():
         st.pyplot(fig)
         
         #새로 추가된 코스피 200 시뮬레이션 탭
-    with tabs[4]:
+    with tabs[3]:
         st.header("📊 선택한 종목 시뮬레이션 결과")
 
         # ✅ 시뮬레이션 실행 버튼
@@ -1287,7 +1233,7 @@ def main():
             else:
                 st.write("⚠️ 시뮬레이션 결과가 없습니다.")
                 
-    with tabs[5]:  # 🛠 마이페이지 설정
+    with tabs[4]:  # 🛠 마이페이지 설정
         setup_my_page()            
     
 
