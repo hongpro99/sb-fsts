@@ -865,9 +865,10 @@ class AutoTradingBot:
     def _trade_kis(self, buy_yn, sell_yn, volume, prev, avg_volume_20_days, trading_logic, symbol, symbol_name, ohlc_data, trading_bot_name, target_trade_value_krw, max_allocation):
 
         if buy_yn:
+            order_type = 'buy'
             # 매수 주문은 특정 로직에서만 실행
             if trading_logic == 'ema_breakout_trading2' or trading_logic == 'ema_breakout_trading' or trading_logic == 'sma_breakout_trading' or trading_logic == 'rsi_trading':
-                self._trade_place_order(symbol, target_trade_value_krw, max_allocation)
+                self._trade_place_order(symbol, target_trade_value_krw, order_type, max_allocation)
 
             #알림 전송 및 히스토리 기록은 모든 매수 로직에 대해 실행
             self.send_discord_webhook(
@@ -884,6 +885,10 @@ class AutoTradingBot:
             )
         
         if sell_yn:
+            order_type = 'sell'
+            # 매도 주문은 특정 로직에서만 실행
+            if trading_logic == 'rsi_trading':
+                self._trade_place_order(symbol, target_trade_value_krw, order_type, max_allocation)
             # 매도 함수 구현
             self.send_discord_webhook(f"[{trading_logic}] {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
             # trade history 에 추가
@@ -947,7 +952,7 @@ class AutoTradingBot:
 
         return result
 
-    def place_order(self, symbol, qty, buy_price=None, sell_price=None, order_type="buy"):
+    def place_order(self, symbol, qty, order_type, buy_price=None, sell_price=None):
         """주식 매수/매도 주문 함수
         Args:
             symbol (str): 종목 코드
@@ -991,40 +996,66 @@ class AutoTradingBot:
         return quote
 
 
-    def _trade_place_order(self, symbol, target_trade_value_krw, max_allocation=0.01):
+    def _trade_place_order(self, symbol, target_trade_value_krw, order_type, max_allocation=0.01):
         quote = self._get_quote(symbol=symbol)
-        qty = math.floor(target_trade_value_krw / quote.close)
-        print(f"target_trade_value_krw : {target_trade_value_krw}")
-        print(f"quote.close : {quote.close}")
-        print(f"qty : {qty}")
         buy_price = None  # 시장가 매수
+        sell_price = None # 시장가 매도
 
-        if qty <= 0:
-            print(f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}")
-            return
+        if order_type == 'buy':
+            qty = math.floor(target_trade_value_krw / quote.close)
+            
+            if qty <= 0:
+                print(f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}")
+                return
 
-        # ✅ 예수금 조회 (inquire_balance() 사용)
-        deposit = self.inquire_balance()
-        print(f"deposit: {deposit}")
+            # ✅ 예수금 조회 (inquire_balance() 사용)
+            deposit = self.inquire_balance()
+            order_amount = qty * quote.close
+            buying_limit = deposit * Decimal(str(max_allocation))
+            
+            if order_amount > buying_limit:
+                print(f"[{datetime.now()}] 🚫 매수 생략: 주문금액 {order_amount:,}원이 예수금의 {max_allocation*100:.0f}% 초과")
+                return
 
-        order_amount = qty * quote.close
-        buying_limit = deposit * Decimal(str(max_allocation))
-        
-        if order_amount > buying_limit:
-            print(f"[{datetime.now()}] 🚫 매수 생략: 주문금액 {order_amount:,}원이 예수금의 {max_allocation*100:.0f}% 초과")
-            return
+            print(f"[{datetime.now()}] ✅ 자동 매수 실행: 종목 {symbol}, 수량 {qty}주, 주문 금액 {order_amount:,}원")
 
-        print(f"[{datetime.now()}] ✅ 자동 매수 실행: 종목 {symbol}, 수량 {qty}주, 주문 금액 {order_amount:,}원")
+            try:
+                self.place_order(
+                    symbol=symbol,
+                    qty=qty,
+                    order_type="buy",
+                    buy_price=buy_price
 
-        try:
-            self.place_order(
-                symbol=symbol,
-                qty=qty,
-                buy_price=buy_price,
-                order_type="buy"
-            )
-        except Exception as e:
-            print(f"[{datetime.now()}] ❌ 매수 실패: {e}")
+                )
+            except Exception as e:
+                print(f"[{datetime.now()}] ❌ 매수 실패: {e}")
+            
+        elif order_type == 'sell':
+            # ✅ 보유 종목에서 해당 symbol 찾아서 수량 확인
+            holdings = self.get_holdings()
+            holding = next((item for item in holdings if item[0] == symbol), None) #holding => 튜플
+
+            if not holding:
+                print(f"[{datetime.now()}] 🚫 매도 생략: {symbol} 보유 수량 없음")
+                return
+
+            qty = holding[1] #수량을 저장, holding[0]은 종목 코드
+
+            print(f"[{datetime.now()}] ✅ 자동 매도 실행: 종목 {symbol}, 수량 {qty}주 (시장가 매도)")
+
+            try:
+                self.place_order(
+                    symbol=symbol,
+                    qty=qty,
+                    order_type='sell',
+                    sell_price=sell_price
+                )
+                
+            except Exception as e:
+                print(f"[{datetime.now()}] ❌ 매도 실패: {e}")
+
+        else:
+            print(f"[{datetime.now()}] ❌ 잘못된 주문 타입입니다: {order_type}")
             
     def inquire_balance(self):
         """잔고 정보를 디스코드 웹훅으로 전송"""
@@ -1082,6 +1113,18 @@ class AutoTradingBot:
             #self.send_discord_webhook(error_message, "alarm")
 
         return deposit.amount
+
+    def get_holdings(self):
+        """보유 종목의 (symbol, qty) 튜플 리스트 반환"""
+        account = self.kis.account()
+        balance = account.balance()
+
+        holdings = [
+            (stock.symbol, stock.qty)
+            for stock in balance.stocks
+            if stock.qty > 0
+        ]
+        return holdings
 
     # 컷 로스 (손절)
     def cut_loss(self, target_trade_value_usdt):

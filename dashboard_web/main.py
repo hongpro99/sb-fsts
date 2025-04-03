@@ -5,7 +5,7 @@ import streamlit as st
 import matplotlib.pyplot as plt
 from io import BytesIO
 import seaborn as sns
-from st_aggrid import AgGrid
+from st_aggrid import AgGrid, GridUpdateMode
 import pandas as pd
 from datetime import datetime, date, timedelta
 import pytz
@@ -982,13 +982,13 @@ def main():
         df = pd.DataFrame(data)
         
         # AgGrid로 테이블 표시
-        grid_response = AgGrid(
+        AgGrid(
             df,
             editable=True,  # 셀 편집 가능
             sortable=True,  # 정렬 가능
             filter=True,    # 필터링 가능
             resizable=True, # 크기 조절 가능
-            theme='dark',   # 테마 변경 가능 ('light', 'dark', 'blue', 등)
+            theme='streamlit',   # 테마 변경 가능 ('light', 'dark', 'blue', 등)
             fit_columns_on_grid_load=True  # 열 너비 자동 조정
         )
 
@@ -1175,13 +1175,17 @@ def main():
                 # 원하는 컬럼 순서 지정
                 reorder_columns = [
                     "symbol", "average_price",
-                    "realized_pnl", "unrealized_pnl", "realized_roi", "unrealized_roi", "total_cost",
-                    "buy_count", "sell_count", "buy_dates", "sell_dates", "total_quantity", "history", "created_at"
+                    "realized_pnl", "unrealized_pnl", "realized_roi", "unrealized_roi",
+                    "buy_count", "sell_count", "buy_dates", "sell_dates", "total_quantity", "created_at"
                 ]
                 
                 # ✅ 데이터가 있는 컬럼만 유지
                 df_results = df_results[[col for col in reorder_columns if col in df_results.columns]]
 
+                df_results["buy_dates"] = df_results["buy_dates"].apply(lambda x: ", ".join(x) if isinstance(x, list) else x)
+                df_results["sell_dates"] = df_results["sell_dates"].apply(lambda x: ", ".join(x) if isinstance(x, list) else x)
+                #df_results["history"] = None  # 혹은 df_results.drop(columns=["history"], inplace=True)
+                
                 # 수익률 컬럼이 존재하면 % 형식 변환
                 for col in ["realized_roi", "unrealized_roi"]:
                     if col in df_results.columns:
@@ -1214,6 +1218,7 @@ def main():
                 if initial_capital is not None:
                     st.write(f"**📊 초기 자본 대비 평균 실현 손익률:** {avg_realized_roi_per_capital:.2f}%")
                     st.write(f"**📉 초기 자본 대비 평균 총 손익률:** {avg_total_roi_per_capital:.2f}%")
+                    
                 # ✅ 개별 종목별 결과 표시
                 st.subheader("📋 종목별 시뮬레이션 결과")
                 AgGrid(
@@ -1223,7 +1228,10 @@ def main():
                     filter=True,
                     resizable=True,
                     theme='streamlit',
-                    fit_columns_on_grid_load=True
+                    autoWidth=True,
+                    height=600,
+                    reload_data=False,
+                    update_mode=GridUpdateMode.NO_UPDATE  # ✅ 핵심! 클릭해도 아무 일 없음
                 )
 
                 # ✅ 실패한 종목이 있다면 표시
