@@ -15,6 +15,8 @@ from app.utils.crud_sql import SQLExecutor
 from app.utils.dynamodb.crud import DynamoDBExecutor
 from app.utils.database import get_db, get_db_session
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
+from app.utils.dynamodb.model.auto_trading_model import AutoTrading
+from app.utils.dynamodb.model.auto_trading_balance_model import AutoTradingBalance
 from app.utils.dynamodb.model.user_info_model import UserInfo
 from pykis import KisBalance
 from decimal import Decimal
@@ -750,6 +752,7 @@ class AutoTradingBot:
         prev_price = float(prev['Close'])
         close_open_price = float(last['Open'])
         volume = float(last['Volume'])
+        previous_closes = df['Close'].iloc[:-1].tolist()
 
         recent_20_days_volume = []
         avg_volume_20_days = 0
@@ -762,7 +765,6 @@ class AutoTradingBot:
             buy_yn = False # 각 로직에 대한 매수 신호 초기화
 
             if trading_logic == 'check_wick':            
-                previous_closes = df['Close'].iloc[:-1].tolist()
                 buy_yn, _ = logic.check_wick(candle, previous_closes, symbol,
                                             bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
             elif trading_logic == 'rsi_trading':
@@ -780,7 +782,13 @@ class AutoTradingBot:
             elif trading_logic == 'ema_breakout_trading':
                 buy_yn = logic.ema_breakout_trading(df, symbol)
             elif trading_logic == 'sma_breakout_trading':
-                buy_yn = logic.sma_breakout_trading(df, symbol)    
+                buy_yn = logic.sma_breakout_trading(df, symbol)
+            elif trading_logic == 'bollinger_band_trading':
+                bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
+                buy_yn, _ = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)
+            elif trading_logic == 'macd_trading':
+                buy_yn, _ = logic.macd_trading(candle, df, symbol)    
+                    
                 
             print(f'{trading_logic} 로직 buy_signal = {buy_yn}')
 
@@ -803,7 +811,6 @@ class AutoTradingBot:
             sell_yn = False
             
             if trading_logic == 'check_wick':            
-                previous_closes = df['Close'].iloc[:-1].tolist()
                 _, sell_yn = logic.check_wick(candle, previous_closes, symbol,
                                             bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
             elif trading_logic == 'rsi_trading':
@@ -816,6 +823,11 @@ class AutoTradingBot:
                 sell_yn = logic.downtrend_sell_trading(df)
             elif trading_logic == 'stochastic_trading':
                 _, sell_yn = logic.stochastic_trading(df, symbol)
+            elif trading_logic == 'bollinger_band_trading':
+                bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
+                _, sell_yn = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)
+            elif trading_logic == 'macd_trading':
+                _, sell_yn = logic.macd_trading(candle, df, symbol)
                 
             print(f'{trading_logic} 로직 sell_signal = {sell_yn}')
 
@@ -867,8 +879,8 @@ class AutoTradingBot:
         if buy_yn:
             order_type = 'buy'
             # 매수 주문은 특정 로직에서만 실행
-            if trading_logic == 'ema_breakout_trading2' or trading_logic == 'ema_breakout_trading' or trading_logic == 'sma_breakout_trading' or trading_logic == 'rsi_trading':
-                self._trade_place_order(symbol, target_trade_value_krw, order_type, max_allocation)
+            if trading_logic == 'ema_breakout_trading2' or trading_logic == 'ema_breakout_trading' or trading_logic == 'sma_breakout_trading':
+                self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
 
             #알림 전송 및 히스토리 기록은 모든 매수 로직에 대해 실행
             self.send_discord_webhook(
@@ -888,7 +900,7 @@ class AutoTradingBot:
             order_type = 'sell'
             # 매도 주문은 특정 로직에서만 실행
             if trading_logic == 'rsi_trading':
-                self._trade_place_order(symbol, target_trade_value_krw, order_type, max_allocation)
+                self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
             # 매도 함수 구현
             self.send_discord_webhook(f"[{trading_logic}] {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
             # trade history 에 추가
@@ -951,8 +963,52 @@ class AutoTradingBot:
         #     result = sql_executor.execute_upsert(db, query, params)
 
         return result
+    
+    def _insert_auto_trading(self, trading_bot_name,trading_logic,symbol,symbol_name,position,price,quantity):
+        # 한국 시간대 기준 timestamp
+        kst = timezone("Asia/Seoul")
+        now = datetime.now(kst)
+        created_at = int(now.timestamp() * 1000)
+        trade_date = int(now.strftime("%Y%m%d"))
 
-    def place_order(self, symbol, qty, order_type, buy_price=None, sell_price=None):
+        data_model = AutoTrading(
+            trading_bot_name=trading_bot_name,
+            created_at=created_at,
+            updated_at=None,
+            trading_logic=trading_logic,
+            trade_date=trade_date,
+            symbol=symbol,
+            symbol_name=symbol_name,
+            position=position,
+            price=float(price),
+            quantity=float(quantity)
+        )
+
+        dynamodb_executor = DynamoDBExecutor()
+        result = dynamodb_executor.execute_save(data_model)
+        print(f'[자동매매 로그 저장] execute_save 결과 = {result}')
+
+    def _upsert_account_balance(self,trading_bot_name,symbol,symbol_name,quantity,avg_price,amount,profit,profit_rate):
+        kst = timezone("Asia/Seoul")
+        updated_at = int(datetime.now(kst).timestamp() * 1000)
+
+        data_model = AutoTradingBalance(
+            trading_bot_name=trading_bot_name,
+            symbol=symbol,
+            updated_at=updated_at,
+            symbol_name=symbol_name,
+            quantity=float(quantity),
+            avg_price=float(avg_price),
+            amount=float(amount),
+            profit=float(profit),
+            profit_rate=float(profit_rate),
+        )
+
+        dynamodb_executor = DynamoDBExecutor()
+        result = dynamodb_executor.execute_save(data_model)
+        print(f'[잔고 저장] execute_save 결과 = {result}')
+    
+    def place_order(self, symbol, symbol_name, qty, order_type, buy_price=None, sell_price=None, trading_bot_name = 'schedulerbot'):
         """주식 매수/매도 주문 함수
         Args:
             symbol (str): 종목 코드
@@ -970,15 +1026,33 @@ class AutoTradingBot:
                     order = stock.buy(price=buy_price, qty=qty)  # price 값이 있으면 지정가 매수
                 else:
                     order = stock.buy(qty=qty)  # 시장가 매수
-                message = f"📈 매수 주문 완료! 종목: {symbol}, 수량: {qty}, 가격: {'시장가' if not buy_price else buy_price}"
+                message = f"📈 매수 주문 완료! 종목: {symbol}, 종목명: {symbol_name} 수량: {qty}, 가격: {'시장가' if not buy_price else buy_price}"
             elif order_type == "sell":
                 if sell_price:
                     order = stock.sell(price=sell_price)  # 지정가 매도
                 else:
                     order = stock.sell()  # 시장가 매도
-                message = f"📉 매도 주문 완료! 종목: {symbol}, 수량: {qty}, 가격: {'시장가' if not sell_price else sell_price}"
+                message = f"📉 매도 주문 완료! 종목: {symbol}, 종목명: {symbol_name} 수량: {qty}, 가격: {'시장가' if not sell_price else sell_price}"
             else:
                 raise ValueError("Invalid order_type. Must be 'buy' or 'sell'.")
+
+            holdings = self.get_holdings_with_details()
+
+            # 주문한 종목 정보만 찾기
+            holding = next((h for h in holdings if h['symbol'] == symbol), None)
+
+            if holding:
+                self._upsert_account_balance(
+                    trading_bot_name=trading_bot_name,
+                    symbol=holding['symbol'],
+                    symbol_name=holding['symbol_name'],
+                    #market = market,
+                    quantity=holding['quantity'],
+                    avg_price=holding['price'],
+                    amount=holding['amount'],
+                    profit=holding['profit'],
+                    profit_rate=holding['profit_rate']
+                )
 
             # 디스코드로 주문 결과 전송
             self.send_discord_webhook(message, "trading")
@@ -996,7 +1070,7 @@ class AutoTradingBot:
         return quote
 
 
-    def _trade_place_order(self, symbol, target_trade_value_krw, order_type, max_allocation=0.01):
+    def _trade_place_order(self, symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name):
         quote = self._get_quote(symbol=symbol)
         buy_price = None  # 시장가 매수
         sell_price = None # 시장가 매도
@@ -1017,14 +1091,16 @@ class AutoTradingBot:
                 print(f"[{datetime.now()}] 🚫 매수 생략: 주문금액 {order_amount:,}원이 예수금의 {max_allocation*100:.0f}% 초과")
                 return
 
-            print(f"[{datetime.now()}] ✅ 자동 매수 실행: 종목 {symbol}, 수량 {qty}주, 주문 금액 {order_amount:,}원")
+            print(f"[{datetime.now()}] ✅ 자동 매수 실행: 종목 {symbol_name}, 수량 {qty}주, 주문 금액 {order_amount:,}원")
 
             try:
                 self.place_order(
                     symbol=symbol,
+                    symbol_name = symbol_name,
                     qty=qty,
                     order_type="buy",
-                    buy_price=buy_price
+                    buy_price=buy_price,
+                    trading_bot_name = trading_bot_name
 
                 )
             except Exception as e:
@@ -1041,14 +1117,16 @@ class AutoTradingBot:
 
             qty = holding[1] #수량을 저장, holding[0]은 종목 코드
 
-            print(f"[{datetime.now()}] ✅ 자동 매도 실행: 종목 {symbol}, 수량 {qty}주 (시장가 매도)")
+            print(f"[{datetime.now()}] ✅ 자동 매도 실행: 종목 {symbol_name}, 수량 {qty}주 (시장가 매도)")
 
             try:
                 self.place_order(
                     symbol=symbol,
+                    symbol_name = symbol_name,
                     qty=qty,
                     order_type='sell',
-                    sell_price=sell_price
+                    sell_price=sell_price,
+                    trading_bot_name = trading_bot_name
                 )
                 
             except Exception as e:
@@ -1124,6 +1202,28 @@ class AutoTradingBot:
             for stock in balance.stocks
             if stock.qty > 0
         ]
+        return holdings
+
+    def get_holdings_with_details(self):
+
+        account = self.kis.account()
+        balance = account.balance()
+
+        holdings = []
+        for stock in balance.stocks:
+            if stock.qty > 0:
+                holding = {
+                    'symbol': stock.symbol,
+                    'symbol_name': stock.name,
+                    'market': stock.market,
+                    'quantity': int(stock.qty),
+                    'price': int(stock.price),             # 평균 단가
+                    'amount': int(stock.amount),           # 평가 금액
+                    'profit': int(stock.profit),           # 평가 손익
+                    'profit_rate': float(stock.profit_rate), # 수익률 (ex: 2.78)
+                }
+                holdings.append(holding)
+
         return holdings
 
     # 컷 로스 (손절)

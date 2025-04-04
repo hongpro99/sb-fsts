@@ -14,7 +14,7 @@ sql_executor = SQLExecutor()
 
 
 def scheduled_trading_schedulerbot_task():
-    scheduled_trading(id="schedulerbot", virtual= False, max_allocation = 0.9)
+    scheduled_trading(id="schedulerbot", virtual= False, max_allocation = 0.9, trading_bot_name = 'schedulerbot')
 
 # def scheduled_trading_id1_task():
 #     scheduled_trading(id="id1")
@@ -23,7 +23,7 @@ def scheduled_trading_schedulerbot_task():
 #     scheduled_trading(id="id2")
 
 def scheduled_trading_bnuazz15_task():
-    scheduled_trading(id="bnuazz15", virtual = True, max_allocation = 0.01)
+    scheduled_trading(id="bnuazz15", virtual = True, max_allocation = 0.01, trading_bot_name = 'bnuazz15bot')
 
 def send_discord_webhook(message, bot_type):
     if bot_type == 'trading':
@@ -45,7 +45,7 @@ def send_discord_webhook(message, bot_type):
         print(f"메시지 전송 실패: {response.status_code}, {response.text}")
 
 
-def scheduled_trading(id, virtual = False, max_allocation = 0.01):
+def scheduled_trading(id, virtual = False, max_allocation = 0.01, trading_bot_name = 'schedulerbot'):
     
     # TO-DO
     # 매수 로직 여기에 추가
@@ -74,10 +74,10 @@ def scheduled_trading(id, virtual = False, max_allocation = 0.01):
     target_trade_value_krw = 1000000
     
     # 매수 목표 거래 금액
-    trading_bot_name = 'test_bot'
+    trading_bot_name = trading_bot_name
     interval = 'day'
 
-    # 특정 trading_bot_name의 데이터 조회
+    # 특정 trading_bot_name의 데이터 조회, 임시로
     history = UserInfo.query("schedulerbot")
 
     for trade in history:
