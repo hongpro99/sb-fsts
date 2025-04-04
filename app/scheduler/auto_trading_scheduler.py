@@ -71,7 +71,7 @@ def scheduled_trading(id, virtual = False, max_allocation = 0.01, trading_bot_na
     end_date = date.today()
     start_date = end_date - timedelta(days=180)
     
-    target_trade_value_krw = 1000000
+    target_trade_value_krw = 100000
     
     # 매수 목표 거래 금액
     trading_bot_name = trading_bot_name
@@ -117,6 +117,8 @@ def scheduled_trading(id, virtual = False, max_allocation = 0.01, trading_bot_na
                 print(f"Error occurred while trading {symbol_name} (Attempt {retries}/{max_retries}): {e}")
                 if retries >= max_retries:
                     print(f"Skipping {symbol_name} after {max_retries} failed attempts.")
+                    
+    AutoTradingBot._upsert_account_balance(trading_bot_name)
 
 
 

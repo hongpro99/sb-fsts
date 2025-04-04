@@ -790,7 +790,7 @@ class AutoTradingBot:
                 buy_yn, _ = logic.macd_trading(candle, df, symbol)    
                     
                 
-            print(f'{trading_logic} 로직 buy_signal = {buy_yn}')
+            #print(f'{trading_logic} 로직 buy_signal = {buy_yn}')
 
             self._trade_kis(
                 buy_yn=buy_yn,
@@ -829,7 +829,7 @@ class AutoTradingBot:
             elif trading_logic == 'macd_trading':
                 _, sell_yn = logic.macd_trading(candle, df, symbol)
                 
-            print(f'{trading_logic} 로직 sell_signal = {sell_yn}')
+            #print(f'{trading_logic} 로직 sell_signal = {sell_yn}')
 
             self._trade_kis(
                 buy_yn=False,
@@ -988,25 +988,34 @@ class AutoTradingBot:
         result = dynamodb_executor.execute_save(data_model)
         print(f'[자동매매 로그 저장] execute_save 결과 = {result}')
 
-    def _upsert_account_balance(self,trading_bot_name,symbol,symbol_name,quantity,avg_price,amount,profit,profit_rate):
+    def _upsert_account_balance(self, trading_bot_name):
         kst = timezone("Asia/Seoul")
         updated_at = int(datetime.now(kst).timestamp() * 1000)
 
-        data_model = AutoTradingBalance(
-            trading_bot_name=trading_bot_name,
-            symbol=symbol,
-            updated_at=updated_at,
-            symbol_name=symbol_name,
-            quantity=float(quantity),
-            avg_price=float(avg_price),
-            amount=float(amount),
-            profit=float(profit),
-            profit_rate=float(profit_rate),
-        )
-
+        holdings = self.get_holdings_with_details()
+        
         dynamodb_executor = DynamoDBExecutor()
-        result = dynamodb_executor.execute_save(data_model)
-        print(f'[잔고 저장] execute_save 결과 = {result}')
+    
+        for holding in holdings:
+            try:
+                model = AutoTradingBalance(  # 👈 클래스명 다시 확인: AutoTradingBalance가 아니라 AccountBalance 맞을 가능성 높음
+                    trading_bot_name=trading_bot_name,
+                    symbol=holding['symbol'],
+                    updated_at=updated_at,
+                    symbol_name=holding['symbol_name'],
+                    market=holding['market'],
+                    quantity=holding['quantity'],
+                    avg_price=holding['price'],
+                    amount=holding['amount'],
+                    profit=holding['profit'],
+                    profit_rate=holding['profit_rate'],
+                )
+
+                dynamodb_executor.execute_save(model)
+                print(f'[잔고 저장] {holding["symbol"]}')
+
+            except Exception as e:
+                print(f"❌ 잔고 저장 실패 ({holding['symbol_name']}): {e}")
     
     def place_order(self, symbol, symbol_name, qty, order_type, buy_price=None, sell_price=None, trading_bot_name = 'schedulerbot'):
         """주식 매수/매도 주문 함수
@@ -1035,24 +1044,6 @@ class AutoTradingBot:
                 message = f"📉 매도 주문 완료! 종목: {symbol}, 종목명: {symbol_name} 수량: {qty}, 가격: {'시장가' if not sell_price else sell_price}"
             else:
                 raise ValueError("Invalid order_type. Must be 'buy' or 'sell'.")
-
-            holdings = self.get_holdings_with_details()
-
-            # 주문한 종목 정보만 찾기
-            holding = next((h for h in holdings if h['symbol'] == symbol), None)
-
-            if holding:
-                self._upsert_account_balance(
-                    trading_bot_name=trading_bot_name,
-                    symbol=holding['symbol'],
-                    symbol_name=holding['symbol_name'],
-                    #market = market,
-                    quantity=holding['quantity'],
-                    avg_price=holding['price'],
-                    amount=holding['amount'],
-                    profit=holding['profit'],
-                    profit_rate=holding['profit_rate']
-                )
 
             # 디스코드로 주문 결과 전송
             self.send_discord_webhook(message, "trading")
@@ -1142,8 +1133,6 @@ class AutoTradingBot:
         account = self.kis.account()
 
         balance: KisBalance = account.balance()
-
-        print(repr(balance)) # repr을 통해 객체의 주요 내용을 확인할 수 있습니다.
         
         try:
             # 기본 잔고 정보

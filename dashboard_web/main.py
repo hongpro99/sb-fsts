@@ -24,6 +24,7 @@ from app.utils.trading_logic import TradingLogic
 from app.utils.dynamodb.model.stock_symbol_model import StockSymbol
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
 from app.utils.dynamodb.model.user_info_model import UserInfo
+from app.utils.dynamodb.model.auto_trading_balance_model import AutoTradingBalance
 
 
 #보조지표 클래스 선언
@@ -940,7 +941,7 @@ def main():
     sidebar_settings = setup_sidebar(sql_executor)
     
     # 탭 생성
-    tabs = st.tabs(["🏠 거래 내역", "📈 시뮬레이션 그래프", "📊 Data Analysis Page", "📊 KOSPI200 Simulation", "🛠 마이페이지 설정"])
+    tabs = st.tabs(["🏠 거래 내역", "📈 시뮬레이션 그래프", "📊 Data Analysis Page", "📊 KOSPI200 Simulation", "🛠 마이페이지 설정", "자동 트레이딩 봇 잔고"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
@@ -1228,7 +1229,7 @@ def main():
                     filter=True,
                     resizable=True,
                     theme='streamlit',
-                    autoWidth=True,
+                    fit_columns_on_grid_load=True,  # 열 너비 자동 조정
                     height=600,
                     reload_data=False,
                     update_mode=GridUpdateMode.NO_UPDATE  # ✅ 핵심! 클릭해도 아무 일 없음
@@ -1244,6 +1245,56 @@ def main():
     with tabs[4]:  # 🛠 마이페이지 설정
         setup_my_page()            
     
+    with tabs[5]:
+        st.header("🏠 자동 트레이딩 봇 잔고")
+        
+        data = {
+            "Trading Bot Name": [],
+            "Symbol Name": [],
+            "Symbol": [],
+            "Avg Price": [],
+            "Profit": [],
+            "Profit Rate": [],
+            "Quantity": [],
+            "Market": []
+        }
+
+        auto_trading_balance = list(AutoTradingBalance.scan())
+
+        # sorted_result = sorted(
+        #     result,
+        #     key=lambda x: (x.trading_logic, -x.trade_date, x.symbol_name) #trade_date 최신 순
+        # )
+        
+        # for row in sorted_result:
+        #     # 초 단위로 변환
+        #     sec_timestamp = row.trade_date / 1000
+        #     # 포맷 변환
+        #     formatted_trade_date = datetime.fromtimestamp(sec_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+        for balance in auto_trading_balance:
+            data["Trading Bot Name"].append(balance.trading_bot_name)
+            data["Symbol Name"].append(balance.symbol_name)
+            data["Symbol"].append(balance.symbol)
+            data["Avg Price"].append(balance.avg_price)
+            data["Profit"].append(balance.profit)
+            data["Profit Rate"].append(balance.profit_rate)
+            data["Quantity"].append(balance.quantity)
+            data["Market"].append(balance.market)
+
+        df = pd.DataFrame(data)
+        
+        # AgGrid로 테이블 표시
+        AgGrid(
+            df,
+            editable=True,
+            sortable=True,
+            filter=True,
+            resizable=True,
+            theme='streamlit',
+            fit_columns_on_grid_load=True,  # 열 너비 자동 조정
+            reload_data=False,
+            update_mode=GridUpdateMode.NO_UPDATE  # ✅ 핵심! 클릭해도 아무 일 없음
+        )
 
 if __name__ == "__main__":
         # Streamlit 실행 시 로그인 여부 확인

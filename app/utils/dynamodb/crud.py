@@ -58,8 +58,12 @@ class DynamoDBExecutor:
                 created_at = int(time.time() * 1000)  # ✅ 밀리세컨드 단위로 SK 생성
 
                 with TransactWrite(connection=connection) as transaction:
-                    # transaction.save(data_model, condition=(TradingHistory.created_at.does_not_exist()))
-                    transaction.save(data_model, condition=(type(data_model).created_at.does_not_exist()))
+                    model_class = type(data_model)
+
+                    if hasattr(model_class, 'created_at'):
+                        transaction.save(data_model, condition=(model_class.created_at.does_not_exist()))
+                    else:
+                        transaction.save(data_model)  # 조건 없이 저장
                     print(f"✅ 트랜잭션 성공: {created_at}")
                     return True  # 성공적으로 저장되면 종료
 
