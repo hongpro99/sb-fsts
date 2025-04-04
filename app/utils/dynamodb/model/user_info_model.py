@@ -24,3 +24,5 @@ class UserInfo(Model):
     virtual_account =  UnicodeAttribute(null=True)
     buy_trading_logic = ListAttribute(of=UnicodeAttribute)
     sell_trading_logic = ListAttribute(of=UnicodeAttribute)
+    target_trade_value_krw = NumberAttribute()
+    max_allocation = NumberAttribute()

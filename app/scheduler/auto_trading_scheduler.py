@@ -14,7 +14,7 @@ sql_executor = SQLExecutor()
 
 
 def scheduled_trading_schedulerbot_task():
-    scheduled_trading(id="schedulerbot", virtual= False, max_allocation = 0.9, trading_bot_name = 'schedulerbot')
+    scheduled_trading(id="schedulerbot", virtual= False, trading_bot_name = 'schedulerbot')
 
 # def scheduled_trading_id1_task():
 #     scheduled_trading(id="id1")
@@ -23,7 +23,7 @@ def scheduled_trading_schedulerbot_task():
 #     scheduled_trading(id="id2")
 
 def scheduled_trading_bnuazz15_task():
-    scheduled_trading(id="bnuazz15", virtual = True, max_allocation = 0.01, trading_bot_name = 'bnuazz15bot')
+    scheduled_trading(id="bnuazz15", virtual = True, trading_bot_name = 'bnuazz15bot')
 
 def send_discord_webhook(message, bot_type):
     if bot_type == 'trading':
@@ -45,7 +45,7 @@ def send_discord_webhook(message, bot_type):
         print(f"메시지 전송 실패: {response.status_code}, {response.text}")
 
 
-def scheduled_trading(id, virtual = False, max_allocation = 0.01, trading_bot_name = 'schedulerbot'):
+def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     
     # TO-DO
     # 매수 로직 여기에 추가
@@ -71,7 +71,7 @@ def scheduled_trading(id, virtual = False, max_allocation = 0.01, trading_bot_na
     end_date = date.today()
     start_date = end_date - timedelta(days=180)
     
-    target_trade_value_krw = 100000
+    #target_trade_value_krw = 100000
     
     # 매수 목표 거래 금액
     trading_bot_name = trading_bot_name
@@ -85,40 +85,44 @@ def scheduled_trading(id, virtual = False, max_allocation = 0.01, trading_bot_na
         
         buy_trading_logic = trade.buy_trading_logic
         sell_trading_logic = trade.sell_trading_logic
-        
+        target_trade_value_krw = trade.target_trade_value_krw
+        max_allocation = trade.max_allocation
+
+        print(f"target_trade_value_krw : {target_trade_value_krw}")
+        print(f"max_allocation : {max_allocation}")
     # ✅ enumerate로 종목 번호 부여 (1부터 시작)
-    for i, stock in enumerate(result, start=1):
-        symbol = stock.symbol
-        original_symbol_name = stock.symbol_name
-        symbol_name = f"[{i}]{original_symbol_name}"  # 종목명에 번호 붙이기
+    # for i, stock in enumerate(result, start=1):
+    #     symbol = stock.symbol
+    #     original_symbol_name = stock.symbol_name
+    #     symbol_name = f"[{i}]{original_symbol_name}"  # 종목명에 번호 붙이기
 
-        max_retries = 5
-        retries = 0
+    #     max_retries = 5
+    #     retries = 0
 
-        print(f'------ {symbol_name} 주식 자동 트레이딩을 시작합니다. ------')
+    #     print(f'------ {symbol_name} 주식 자동 트레이딩을 시작합니다. ------')
 
-        while retries < max_retries:
-            try:
-                trading_bot.trade(
-                    trading_bot_name=trading_bot_name,
-                    buy_trading_logic=buy_trading_logic,
-                    sell_trading_logic=sell_trading_logic,
-                    symbol=symbol,
-                    symbol_name=symbol_name,
-                    start_date=start_date,
-                    end_date=end_date,
-                    target_trade_value_krw=target_trade_value_krw,
-                    interval=interval,
-                    max_allocation = max_allocation
-                )
-                break
-            except Exception as e:
-                retries += 1
-                print(f"Error occurred while trading {symbol_name} (Attempt {retries}/{max_retries}): {e}")
-                if retries >= max_retries:
-                    print(f"Skipping {symbol_name} after {max_retries} failed attempts.")
+    #     while retries < max_retries:
+    #         try:
+    #             trading_bot.trade(
+    #                 trading_bot_name=trading_bot_name,
+    #                 buy_trading_logic=buy_trading_logic,
+    #                 sell_trading_logic=sell_trading_logic,
+    #                 symbol=symbol,
+    #                 symbol_name=symbol_name,
+    #                 start_date=start_date,
+    #                 end_date=end_date,
+    #                 target_trade_value_krw=target_trade_value_krw,
+    #                 interval=interval,
+    #                 max_allocation = max_allocation
+    #             )
+    #             break
+    #         except Exception as e:
+    #             retries += 1
+    #             print(f"Error occurred while trading {symbol_name} (Attempt {retries}/{max_retries}): {e}")
+    #             if retries >= max_retries:
+    #                 print(f"Skipping {symbol_name} after {max_retries} failed attempts.")
                     
-    AutoTradingBot._upsert_account_balance(trading_bot_name)
+    trading_bot._upsert_account_balance(trading_bot_name)
 
 
 
