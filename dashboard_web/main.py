@@ -1229,7 +1229,7 @@ def main():
                     filter=True,
                     resizable=True,
                     theme='streamlit',
-                    fit_columns_on_grid_load=True,  # 열 너비 자동 조정
+                    autowidth=True,  # 열 너비 자동 조정
                     height=600,
                     reload_data=False,
                     update_mode=GridUpdateMode.NO_UPDATE  # ✅ 핵심! 클릭해도 아무 일 없음
