@@ -5,7 +5,7 @@ import streamlit as st
 import matplotlib.pyplot as plt
 from io import BytesIO
 import seaborn as sns
-from st_aggrid import AgGrid, GridUpdateMode
+from st_aggrid import AgGrid, GridUpdateMode, GridOptionsBuilder
 import pandas as pd
 from datetime import datetime, date, timedelta
 import pytz
@@ -711,8 +711,23 @@ def setup_sidebar(sql_executer):
     target_trade_value_krw = st.sidebar.number_input("Target Trade Value (KRW)", value=1000000, step=100000)
 
     result = list(StockSymbol.scan(
-        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
+        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'NASDAQ') )
     ))
+    
+    type_order = {
+    'kospi200': 1,
+    'NASDAQ': 0,
+    'kosdaq150': 2
+    }#type 순서
+
+    #종목을 type 순서로 정렬한 후 이름순으로 정렬
+    sorted_items = sorted(
+    result,
+    key=lambda x: (
+        type_order.get(getattr(x, 'type', ''),99), 
+        getattr(x, 'symbol_name', ''))
+    )
+    
 
     # Dropdown 메뉴를 통해 데이터 선택
     symbol_options = {
@@ -720,7 +735,7 @@ def setup_sidebar(sql_executer):
         # "대한항공": "003490",
     }
 
-    for stock in result:
+    for stock in sorted_items:
         key = stock.symbol_name  # 'a' 값을 키로
         value = stock.symbol  # 'b' 값을 값으로
         symbol_options[key] = value  # 딕셔너리에 추가
@@ -839,11 +854,25 @@ def setup_my_page():
     if real_trading_yn == "Y":
         initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key="initial_capital")
     # ✅ DB에서 종목 리스트 가져오기
-    kosdaq150_result = list(StockSymbol.scan(
-        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
+    result = list(StockSymbol.scan(
+        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'NASDAQ'))
     ))
+    
+    type_order = {
+    'kospi200': 1,
+    'NASDAQ': 0,
+    'kosdaq150': 2
+    }#type 순서
 
-    symbol_options = {row.symbol_name: row.symbol for row in kosdaq150_result}
+    #종목을 type 순서로 정렬한 후 이름순으로 정렬
+    sorted_items = sorted(
+    result,
+    key=lambda x: (
+        type_order.get(getattr(x, 'type', ''),99), 
+        getattr(x, 'symbol_name', ''))
+    )
+
+    symbol_options = {row.symbol_name: row.symbol for row in sorted_items}
     stock_names = list(symbol_options.keys())
     
     # ✅ "전체 선택" 및 "선택 해제" 버튼 추가
@@ -941,7 +970,7 @@ def main():
     sidebar_settings = setup_sidebar(sql_executor)
     
     # 탭 생성
-    tabs = st.tabs(["🏠 거래 내역", "📈 시뮬레이션 그래프", "📊 Data Analysis Page", "📊 KOSPI200 Simulation", "🛠 마이페이지 설정", "자동 트레이딩 봇 잔고"])
+    tabs = st.tabs(["🏠 Bot transaction history", "📈 Simulation Graph", "📊 Data Analysis Page", "📊 KOSPI200 Simulation", "🛠 Settings", "📈Auto Trading Bot Balance"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
@@ -1219,7 +1248,7 @@ def main():
                 if initial_capital is not None:
                     st.write(f"**📊 초기 자본 대비 평균 실현 손익률:** {avg_realized_roi_per_capital:.2f}%")
                     st.write(f"**📉 초기 자본 대비 평균 총 손익률:** {avg_total_roi_per_capital:.2f}%")
-                    
+                
                 # ✅ 개별 종목별 결과 표시
                 st.subheader("📋 종목별 시뮬레이션 결과")
                 AgGrid(
@@ -1229,9 +1258,7 @@ def main():
                     filter=True,
                     resizable=True,
                     theme='streamlit',
-                    autowidth=True,  # 열 너비 자동 조정
-                    height=600,
-                    reload_data=False,
+                    fit_columns_on_grid_load=True,
                     update_mode=GridUpdateMode.NO_UPDATE  # ✅ 핵심! 클릭해도 아무 일 없음
                 )
 
@@ -1241,6 +1268,7 @@ def main():
 
             else:
                 st.write("⚠️ 시뮬레이션 결과가 없습니다.")
+        
                 
     with tabs[4]:  # 🛠 마이페이지 설정
         setup_my_page()            
@@ -1292,7 +1320,6 @@ def main():
             resizable=True,
             theme='streamlit',
             fit_columns_on_grid_load=True,  # 열 너비 자동 조정
-            reload_data=False,
             update_mode=GridUpdateMode.NO_UPDATE  # ✅ 핵심! 클릭해도 아무 일 없음
         )
 
