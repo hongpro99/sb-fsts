@@ -81,7 +81,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     #interval = 'day'
 
     # 특정 trading_bot_name의 데이터 조회, 임시로
-    history = UserInfo.query(id)
+    history = UserInfo.query('schedulerbot')
 
     for trade in history:
         print(f"- buy_trading_logic: {trade.buy_trading_logic}, sell_trading_logic : {trade.sell_trading_logic}")
