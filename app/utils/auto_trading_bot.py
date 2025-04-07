@@ -532,7 +532,6 @@ class AutoTradingBot:
 
                         if buy_quantity > 0:
                             total_trade_cost = buy_quantity * close_price
-                            print(f"✅ {buy_quantity}주 매수 진행 (가격: {close_price}, 총액: {total_trade_cost:,.0f} KRW)")
 
                             # 예수금 차감
                             if real_trading:
