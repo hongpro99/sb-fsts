@@ -24,6 +24,9 @@ def scheduled_trading_schedulerbot_task():
 
 def scheduled_trading_bnuazz15_task():
     scheduled_trading(id="bnuazz15", virtual = True, trading_bot_name = 'bnuazz15bot')
+    
+def scheduled_trading_weeklybot_task():
+    scheduled_trading(id="weeklybot", virtual = True, trading_bot_name = 'weeklybot')
 
 def send_discord_webhook(message, bot_type):
     if bot_type == 'trading':
@@ -78,7 +81,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     interval = 'day'
 
     # 특정 trading_bot_name의 데이터 조회, 임시로
-    history = UserInfo.query("schedulerbot")
+    history = UserInfo.query(id)
 
     for trade in history:
         print(f"- buy_trading_logic: {trade.buy_trading_logic}, sell_trading_logic : {trade.sell_trading_logic}")
@@ -88,8 +91,6 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
         target_trade_value_krw = trade.target_trade_value_krw
         max_allocation = trade.max_allocation
 
-        print(f"target_trade_value_krw : {target_trade_value_krw}")
-        print(f"max_allocation : {max_allocation}")
     #✅ enumerate로 종목 번호 부여 (1부터 시작)
     for i, stock in enumerate(result, start=1):
         symbol = stock.symbol
