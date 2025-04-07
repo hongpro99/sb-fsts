@@ -26,3 +26,4 @@ class UserInfo(Model):
     sell_trading_logic = ListAttribute(of=UnicodeAttribute, null=True)
     target_trade_value_krw = NumberAttribute()
     max_allocation = NumberAttribute()
+    interval = UnicodeAttribute()

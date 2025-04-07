@@ -78,7 +78,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     
     # 매수 목표 거래 금액
     trading_bot_name = trading_bot_name
-    interval = 'day'
+    #interval = 'day'
 
     # 특정 trading_bot_name의 데이터 조회, 임시로
     history = UserInfo.query(id)
@@ -90,6 +90,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
         sell_trading_logic = trade.sell_trading_logic
         target_trade_value_krw = trade.target_trade_value_krw
         max_allocation = trade.max_allocation
+        interval = trade.interval
 
     #✅ enumerate로 종목 번호 부여 (1부터 시작)
     for i, stock in enumerate(result, start=1):
