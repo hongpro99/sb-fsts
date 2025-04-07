@@ -1010,9 +1010,19 @@ class AutoTradingBot:
         
         dynamodb_executor = DynamoDBExecutor()
     
+        # ✅ 3. 기존 잔고 모두 삭제
+        existing_items = AutoTradingBalance.query(trading_bot_name)
+        for item in existing_items:
+            try:
+                item.delete()
+                print(f'🗑️ 삭제된 종목: {item.symbol}')
+            except Exception as e:
+                print(f'❌ 삭제 실패 ({item.symbol}): {e}')
+
+        # ✅ 4. 현재 잔고 다시 저장
         for holding in holdings:
             try:
-                model = AutoTradingBalance(  # 👈 클래스명 다시 확인: AutoTradingBalance가 아니라 AccountBalance 맞을 가능성 높음
+                model = AutoTradingBalance(
                     trading_bot_name=trading_bot_name,
                     symbol=holding['symbol'],
                     updated_at=updated_at,
@@ -1026,7 +1036,7 @@ class AutoTradingBot:
                 )
 
                 dynamodb_executor.execute_save(model)
-                print(f'[잔고 저장] {holding["symbol"]}')
+                print(f'[💾 잔고 저장] {holding["symbol"]}')
 
             except Exception as e:
                 print(f"❌ 잔고 저장 실패 ({holding['symbol_name']}): {e}")
@@ -1092,6 +1102,7 @@ class AutoTradingBot:
             order_amount = qty * quote.close
             buying_limit = deposit * Decimal(str(max_allocation))
             
+        
             if order_amount > buying_limit:
                 print(f"[{datetime.now()}] 🚫 매수 생략: 주문금액 {order_amount:,}원이 예수금의 {max_allocation*100:.0f}% 초과")
                 return
