@@ -1103,9 +1103,9 @@ class AutoTradingBot:
             buying_limit = deposit * Decimal(str(max_allocation))
             
         
-            if order_amount > buying_limit:
-                print(f"[{datetime.now()}] 🚫 매수 생략: 주문금액 {order_amount:,}원이 예수금의 {max_allocation*100:.0f}% 초과")
-                return
+            # if order_amount > buying_limit:
+            #     print(f"[{datetime.now()}] 🚫 매수 생략: 주문금액 {order_amount:,}원이 예수금의 {max_allocation*100:.0f}% 초과")
+            #     return
 
             print(f"[{datetime.now()}] ✅ 자동 매수 실행: 종목 {symbol_name}, 수량 {qty}주, 주문 금액 {order_amount:,}원")
 

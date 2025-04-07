@@ -14,7 +14,7 @@ sql_executor = SQLExecutor()
 
 
 def scheduled_trading_schedulerbot_task():
-    scheduled_trading(id="schedulerbot", virtual= False, trading_bot_name = 'schedulerbot')
+    scheduled_trading(id='schedulerbot', virtual= False, trading_bot_name = 'schedulerbot')
 
 # def scheduled_trading_id1_task():
 #     scheduled_trading(id="id1")
@@ -23,10 +23,10 @@ def scheduled_trading_schedulerbot_task():
 #     scheduled_trading(id="id2")
 
 def scheduled_trading_bnuazz15_task():
-    scheduled_trading(id="bnuazz15", virtual = True, trading_bot_name = 'bnuazz15bot')
+    scheduled_trading(id='bnuazz15', virtual = True, trading_bot_name = 'bnuazz15bot')
     
 def scheduled_trading_weeklybot_task():
-    scheduled_trading(id="weeklybot", virtual = True, trading_bot_name = 'weeklybot')
+    scheduled_trading(id='weeklybot', virtual = True, trading_bot_name = 'weeklybot')
 
 def send_discord_webhook(message, bot_type):
     if bot_type == 'trading':
@@ -81,7 +81,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     #interval = 'day'
 
     # 특정 trading_bot_name의 데이터 조회, 임시로
-    history = UserInfo.query('schedulerbot')
+    history = UserInfo.query(id) # schedulerbot은 왜 id 대신 직접 schedulerbot을 넣어야 하는가?
 
     for trade in history:
         print(f"- buy_trading_logic: {trade.buy_trading_logic}, sell_trading_logic : {trade.sell_trading_logic}")
