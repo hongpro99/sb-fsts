@@ -92,37 +92,37 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
         max_allocation = trade.max_allocation
         interval = trade.interval
 
-    # #✅ enumerate로 종목 번호 부여 (1부터 시작)
-    # for i, stock in enumerate(result, start=1):
-    #     symbol = stock.symbol
-    #     original_symbol_name = stock.symbol_name
-    #     symbol_name = f"[{i}]{original_symbol_name}"  # 종목명에 번호 붙이기
+    #✅ enumerate로 종목 번호 부여 (1부터 시작)
+    for i, stock in enumerate(result, start=1):
+        symbol = stock.symbol
+        original_symbol_name = stock.symbol_name
+        symbol_name = f"[{i}]{original_symbol_name}"  # 종목명에 번호 붙이기
 
-    #     max_retries = 5
-    #     retries = 0
+        max_retries = 5
+        retries = 0
 
-    #     print(f'------ {symbol_name} 주식 자동 트레이딩을 시작합니다. ------')
+        print(f'------ {symbol_name} 주식 자동 트레이딩을 시작합니다. ------')
 
-    #     while retries < max_retries:
-    #         try:
-    #             trading_bot.trade(
-    #                 trading_bot_name=trading_bot_name,
-    #                 buy_trading_logic=buy_trading_logic,
-    #                 sell_trading_logic=sell_trading_logic,
-    #                 symbol=symbol,
-    #                 symbol_name=symbol_name,
-    #                 start_date=start_date,
-    #                 end_date=end_date,
-    #                 target_trade_value_krw=target_trade_value_krw,
-    #                 interval=interval,
-    #                 max_allocation = max_allocation
-    #             )
-    #             break
-    #         except Exception as e:
-    #             retries += 1
-    #             print(f"Error occurred while trading {symbol_name} (Attempt {retries}/{max_retries}): {e}")
-    #             if retries >= max_retries:
-    #                 print(f"Skipping {symbol_name} after {max_retries} failed attempts.")
+        while retries < max_retries:
+            try:
+                trading_bot.trade(
+                    trading_bot_name=trading_bot_name,
+                    buy_trading_logic=buy_trading_logic,
+                    sell_trading_logic=sell_trading_logic,
+                    symbol=symbol,
+                    symbol_name=symbol_name,
+                    start_date=start_date,
+                    end_date=end_date,
+                    target_trade_value_krw=target_trade_value_krw,
+                    interval=interval,
+                    max_allocation = max_allocation
+                )
+                break
+            except Exception as e:
+                retries += 1
+                print(f"Error occurred while trading {symbol_name} (Attempt {retries}/{max_retries}): {e}")
+                if retries >= max_retries:
+                    print(f"Skipping {symbol_name} after {max_retries} failed attempts.")
                     
     trading_bot._upsert_account_balance(trading_bot_name)
 
