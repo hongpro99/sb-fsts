@@ -18,3 +18,5 @@ seaborn
 streamlit-aggrid
 streamlit-lightweight-charts
 pynamodb
+feedparser
+openai

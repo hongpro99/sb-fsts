@@ -711,13 +711,14 @@ def setup_sidebar(sql_executer):
     target_trade_value_krw = st.sidebar.number_input("Target Trade Value (KRW)", value=1000000, step=100000)
 
     result = list(StockSymbol.scan(
-        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'NASDAQ') )
+        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'NASDAQ') | (StockSymbol.type == 'etf') )
     ))
     
     type_order = {
     'kospi200': 1,
     'NASDAQ': 0,
-    'kosdaq150': 2
+    'kosdaq150': 2,
+    'etf': 3
     }#type 순서
 
     #종목을 type 순서로 정렬한 후 이름순으로 정렬
