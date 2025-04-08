@@ -27,6 +27,9 @@ def scheduled_trading_bnuazz15_task():
     
 def scheduled_trading_weeklybot_task():
     scheduled_trading(id='weeklybot', virtual = True, trading_bot_name = 'weeklybot')
+    
+def scheduled_trading_bnuazz15bot_real_task():
+    scheduled_trading(id='bnuazz15bot_real', virtual = False, trading_bot_name = 'bnuazz15bot_real')
 
 def send_discord_webhook(message, bot_type):
     if bot_type == 'trading':
@@ -53,6 +56,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     # TO-DO
     # 매수 로직 여기에 추가
     trading_bot = AutoTradingBot(id=id, virtual=virtual)
+    print(f"{trading_bot_name}의 자동 트레이딩을 시작합니다")
     
     # sql_executor = SQLExecutor()
 
@@ -83,9 +87,10 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     # 특정 trading_bot_name의 데이터 조회, 임시로
     history = UserInfo.query(id) # schedulerbot은 왜 id 대신 직접 schedulerbot을 넣어야 하는가?
 
+
     for trade in history:
         print(f"- buy_trading_logic: {trade.buy_trading_logic}, sell_trading_logic : {trade.sell_trading_logic}")
-        
+
         buy_trading_logic = trade.buy_trading_logic
         sell_trading_logic = trade.sell_trading_logic
         target_trade_value_krw = trade.target_trade_value_krw
