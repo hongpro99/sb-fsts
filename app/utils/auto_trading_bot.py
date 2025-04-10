@@ -1061,7 +1061,7 @@ class AutoTradingBot:
         if buy_yn:
             order_type = 'buy'
             # 매수 주문은 특정 로직에서만 실행
-            if trading_logic == 'ema_breakout_trading2' or trading_logic == 'ema_breakout_trading' or trading_logic == 'sma_breakout_trading':
+            if trading_logic == 'ema_breakout_trading2' or trading_logic == 'sma_breakout_trading':
                 self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
 
             #알림 전송 및 히스토리 기록은 모든 매수 로직에 대해 실행

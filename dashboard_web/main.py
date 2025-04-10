@@ -1565,7 +1565,7 @@ def main():
             progress_bar = st.progress(0)
             progress_text = st.empty()
             log_area = st.empty()
-            failed_stocks = []
+            failed_stocks = set()  # 중복 제거 자동 처리
             
             auto_trading_stock = AutoTradingBot(id=my["id"], virtual=False)
 
@@ -1618,7 +1618,7 @@ def main():
 
                     except Exception as e:
                         st.warning(f"⚠️ {stock_name} {current_date.date()} 실패: {e}")
-                        failed_stocks.append(stock_name)
+                        failed_stocks.add(stock_name)
 
                     task += 1
                     progress = task / total_tasks
@@ -1701,7 +1701,7 @@ def main():
                     with col1:
                         st.metric("💰 총 실현 손익", f"{total_realized_pnl:,.0f} KRW")
                         st.metric("📈 총 미실현 손익", f"{total_unrealized_pnl:,.0f} KRW")
-                        # st.metric("📊 평균 실현 손익률", f"{avg_realized_roi:.2f}%")
+                        #st.metric("📊 평균 실현 손익률", f"{avg_realized_roi:.2f}%")
                         #st.metric("📉 평균 총 손익률", f"{avg_unrealized_roi:.2f}%")
 
                     with col2:
@@ -1710,7 +1710,7 @@ def main():
                         
                             #             # ✅ 실패한 종목이 있다면 표시
                     if failed_stocks:
-                        st.warning(f"⚠️ 시뮬레이션 실패 종목 ({len(failed_stocks)}개): {', '.join(failed_stocks)}")
+                        st.warning(f"⚠️ 시뮬레이션 실패 종목 ({len(failed_stocks)}개): {', '.join(sorted(failed_stocks))}")
 
             else:
                 st.write("⚠️ 시뮬레이션 결과가 없습니다.")    
