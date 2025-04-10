@@ -698,6 +698,7 @@ class AutoTradingBot:
         candle = next(c for c in ohlc_data if pd.Timestamp(c.time).tz_localize(None) == candle_time)
         close_price = float(candle.close)
         timestamp_str = candle_time.date().isoformat()
+        
 
         # ✅ 상태 초기화
         trading_history = global_state.copy() if global_state else {}
@@ -706,6 +707,8 @@ class AutoTradingBot:
         trading_history.setdefault('buy_dates', [])
         trading_history.setdefault('sell_dates', [])
 
+        print(f"💰 시뮬 중: {symbol} / 날짜: {timestamp_str} / 사용 자본: {trading_history['initial_capital']:,}")
+        
         state = holding_state.copy() if holding_state else {}
         state.setdefault('total_quantity', 0)
         state.setdefault('average_price', 0)
