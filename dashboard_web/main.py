@@ -1559,7 +1559,8 @@ def main():
             }
 
             results = []
-            total_tasks = len(date_range) * len(symbols)
+            #total_tasks = len(date_range) * len(symbols)
+            total_tasks = sum(len(my["precomputed_ohlc_dict"][symbol]) for symbol in symbols.values())
             task = 0
 
             progress_bar = st.progress(0)
@@ -1568,63 +1569,77 @@ def main():
             failed_stocks = set()  # 중복 제거 자동 처리
             
             auto_trading_stock = AutoTradingBot(id=my["id"], virtual=False)
+            
+            # 실제 거래일 기준 날짜 추출
 
-            for current_date in date_range:
-                for stock_name, symbol in symbols.items():
-                    try:
-                        df = my["precomputed_df_dict"][symbol]
-                        ohlc_data = my["precomputed_ohlc_dict"][symbol]
+            for stock_name, symbol in symbols.items():
+                try:
+                    df = my["precomputed_df_dict"][symbol]
+                    ohlc_data = my["precomputed_ohlc_dict"][symbol]
+                    # 실제 거래일 기준 날짜 추출
+
+                    start_date = pd.Timestamp(my["start_date"]).normalize()
+                    date_range = [
+                        pd.Timestamp(c.time).tz_localize(None).normalize()
+                        for c in ohlc_data
+                        if pd.Timestamp(c.time).tz_localize(None).normalize() >= start_date
+                    ]
+                    
+                    for current_date in date_range:
+                        try:
+                            
+                            trading_history = auto_trading_stock.whole_simulate_trading2(
+                                symbol=symbol,
+                                end_date=current_date,
+                                df=df,
+                                ohlc_data=ohlc_data,
+                                target_trade_value_krw=my["target_trade_value_krw"],
+                                buy_trading_logic=my["selected_buyTrading_logic"],
+                                sell_trading_logic=my["selected_sellTrading_logic"],
+                                interval=my["interval"],
+                                buy_percentage=my["buy_percentage"],
+                                initial_capital=global_state["initial_capital"],
+                                rsi_buy_threshold=my["rsi_buy_threshold"],
+                                rsi_sell_threshold=my["rsi_sell_threshold"],
+                                global_state=global_state,
+                                holding_state=holding_state[symbol],
+                                use_take_profit  = my['use_take_profit'],
+                                take_profit_ratio = my['take_profit_ratio'],
+                                use_stop_loss = my['use_stop_loss'],
+                                stop_loss_ratio =my['stop_loss_ratio']
+                            )
+                            if trading_history is None:
+                                continue  # 데이터 부족한 날은 skip
+                            
+                            trading_history.update({
+                                "symbol": stock_name,
+                                "sim_date": current_date.strftime('%Y-%m-%d'),
+                                "total_quantity": holding_state[symbol]["total_quantity"],
+                                "average_price": holding_state[symbol]["average_price"],
+                                "buy_count": holding_state[symbol]["buy_count"],
+                                "sell_count": holding_state[symbol]["sell_count"],
+                                "buy_dates": holding_state[symbol]["buy_dates"],
+                                "sell_dates": holding_state[symbol]["sell_dates"]
+                            })
+
+                            global_state = trading_history.copy()
+                            results.append(trading_history)
+
+                            log_area.text(f"✅ [{current_date.date()}] {stock_name} 완료")
+
+                        except Exception as e:
+                            st.warning(f"⚠️ {stock_name} {current_date.date()} 실패: {e}")
+                            failed_stocks.add(stock_name)
+
+                        task += 1
+                        progress = task / total_tasks
+                        progress_bar.progress(progress)
+                        progress_text.text(f"{int(progress * 100)}% 완료 ({task}/{total_tasks})")
                         
-                        log_area.text(f"📊 [{current_date.date()}] {stock_name} 시뮬레이션 중...")
-
-                        trading_history = auto_trading_stock.whole_simulate_trading2(
-                            symbol=symbol,
-                            end_date=current_date,
-                            df=df,
-                            ohlc_data=ohlc_data,
-                            target_trade_value_krw=my["target_trade_value_krw"],
-                            buy_trading_logic=my["selected_buyTrading_logic"],
-                            sell_trading_logic=my["selected_sellTrading_logic"],
-                            interval=my["interval"],
-                            buy_percentage=my["buy_percentage"],
-                            initial_capital=global_state["initial_capital"],
-                            rsi_buy_threshold=my["rsi_buy_threshold"],
-                            rsi_sell_threshold=my["rsi_sell_threshold"],
-                            global_state=global_state,
-                            holding_state=holding_state[symbol],
-                            use_take_profit  = my['use_take_profit'],
-                            take_profit_ratio = my['take_profit_ratio'],
-                            use_stop_loss = my['use_stop_loss'],
-                            stop_loss_ratio =my['stop_loss_ratio']
-                        )
-                        if trading_history is None:
-                            continue  # 데이터 부족한 날은 skip
-                        
-                        trading_history.update({
-                            "symbol": stock_name,
-                            "sim_date": current_date.strftime('%Y-%m-%d'),
-                            "total_quantity": holding_state[symbol]["total_quantity"],
-                            "average_price": holding_state[symbol]["average_price"],
-                            "buy_count": holding_state[symbol]["buy_count"],
-                            "sell_count": holding_state[symbol]["sell_count"],
-                            "buy_dates": holding_state[symbol]["buy_dates"],
-                            "sell_dates": holding_state[symbol]["sell_dates"]
-                        })
-
-                        global_state = trading_history.copy()
-                        results.append(trading_history)
-
-                        log_area.text(f"✅ [{current_date.date()}] {stock_name} 완료")
-
-                    except Exception as e:
-                        st.warning(f"⚠️ {stock_name} {current_date.date()} 실패: {e}")
-                        failed_stocks.add(stock_name)
-
-                    task += 1
-                    progress = task / total_tasks
-                    progress_bar.progress(progress)
-                    progress_text.text(f"{int(progress * 100)}% 완료 ({task}/{total_tasks})")
-
+                except Exception as e:
+                    st.warning(f"⚠️ {stock_name} 지표 계산 실패: {e}")
+                    failed_stocks.add(stock_name)
+                    
             signal_logs = []
             
             if results:
