@@ -1489,7 +1489,7 @@ def main():
             interval = my["interval"]
 
             with st.spinner("📈 전체 종목 OHLC 및 지표 계산 중..."):
-                for stock_name, symbol in symbols.items():
+                for stock_name, symbol in my["selected_symbols"].items():
                     try:
                         auto_trading_stock = AutoTradingBot(id=my["id"], virtual=False)
 
@@ -1523,10 +1523,6 @@ def main():
                         df = indicator.cal_macd_df(df)
                         df = indicator.cal_stochastic_df(df)
                         df = indicator.cal_mfi_df(df)
-                        
-                    # ✅ 데이터 길이 검증
-                        if len(df) < 30 or df.isnull().any().any():
-                            raise ValueError("지표 계산 실패 또는 데이터 부족")
 
                         # 유효한 종목만 저장
                         valid_symbols[stock_name] = symbol
