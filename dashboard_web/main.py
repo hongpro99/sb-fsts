@@ -855,7 +855,7 @@ def setup_my_page():
 
     start_date = st.date_input("📅 Start Date", value=date(2023, 1, 1))
     end_date = st.date_input("📅 End Date", value=current_date_kst)
-    target_trade_value_krw = st.number_input("💰 Target Trade Value (KRW)", value=1500000, step=100000)
+    target_trade_value_krw = st.number_input("💰 Target Trade Value (KRW)", value=2000000, step=100000)
 
     # ✅ 실제 투자 조건 체크박스
     real_trading_enabled = st.checkbox("💰 실제 투자자본 설정", key="real_trading_enabled")
@@ -868,12 +868,12 @@ def setup_my_page():
         
     # ✅ DB에서 종목 리스트 가져오기
     result = list(StockSymbol.scan(
-        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'NASDAQ'))
+        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
     ))
     
     type_order = {
     'kospi200': 1,
-    'NASDAQ': 0,
+    #'NASDAQ': 0,
     'kosdaq150': 2
     }#type 순서
 
@@ -931,6 +931,12 @@ def setup_my_page():
     buy_percentage = None
     if buy_condition_yn == "Y":
         buy_percentage = st.number_input("💵 퍼센트 (%) 입력", min_value=0.0, max_value=100.0, value=3.0, step=0.1, key="buy_percentage")
+        
+    use_take_profit = st.checkbox("익절 조건 사용", value=False)
+    take_profit_ratio = st.number_input("익절 기준 (%)", value=5.0, min_value=0.0)
+
+    use_stop_loss = st.checkbox("손절 조건 사용", value=False)
+    stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0)        
 
     #✅ rsi 조건값 입력
     st.subheader("🎯 RSI 조건값 설정")
@@ -955,7 +961,11 @@ def setup_my_page():
             "initial_capital": initial_capital,
             "rsi_buy_threshold" : rsi_buy_threshold,
             "rsi_sell_threshold" : rsi_sell_threshold,
-            "rsi_period" : rsi_period
+            "rsi_period" : rsi_period,
+            "use_take_profit": use_take_profit,
+            "take_profit_ratio": take_profit_ratio,
+            "use_stop_loss": use_stop_loss,
+            "stop_loss_ratio" : stop_loss_ratio 
         }
         st.success("✅ 설정이 저장되었습니다!")
 
@@ -1282,51 +1292,260 @@ def main():
 
     #         else:
     #             st.write("⚠️ 시뮬레이션 결과가 없습니다.")
-    with tabs[3]:            
-        if st.button("✅ 시뮬레이션 실행"):
+    
+    # with tabs[3]:            
+    #     if st.button("✅ 시뮬레이션 실행"):
             
-            my_settings = st.session_state["my_page_settings"]
-            symbols = my_settings["selected_symbols"]
-            interval = my_settings["interval"]
-            start = my_settings["start_date"]
-            end = my_settings["end_date"]                
-            auto_trading_stock = AutoTradingBot(id=my_settings["id"], virtual=False)
-            rsi_period = my_settings['rsi_period']
+    #         my_settings = st.session_state["my_page_settings"]
+    #         symbols = my_settings["selected_symbols"]
+    #         interval = my_settings["interval"]
+    #         start = my_settings["start_date"]
+    #         end = my_settings["end_date"]                
+    #         auto_trading_stock = AutoTradingBot(id=my_settings["id"], virtual=False)
+    #         rsi_period = my_settings['rsi_period']
             
-            df_dict = {}
-            ohlc_dict = {}
+    #         df_dict = {}
+    #         ohlc_dict = {}
             
-            for stock_name, symbol in symbols.items():
+    #         for stock_name, symbol in symbols.items():
                 
-                full_start = start - timedelta(days=180)
-                ohlc_data = auto_trading_stock._get_ohlc(symbol, full_start, end, interval)
+    #             full_start = start - timedelta(days=180)
+    #             ohlc_data = auto_trading_stock._get_ohlc(symbol, full_start, end, interval)
 
-                # DataFrame 변환
-                timestamps = [c.time for c in ohlc_data]
-                ohlc = [[c.time, float(c.open), float(c.high), float(c.low), float(c.close), float(c.volume)] for c in ohlc_data]
-                df = pd.DataFrame(ohlc, columns=["Time", "Open", "High", "Low", "Close", "Volume"], index=pd.DatetimeIndex(timestamps))
-                df.index = df.index.tz_localize(None)
-                indicator = TechnicalIndicator()
-                # 지표 계산
-                df = indicator.cal_ema_df(df, 10)
-                df = indicator.cal_rsi_df(df, rsi_period)
-                df = indicator.cal_macd_df(df)
-                df = indicator.cal_stochastic_df(df)
-                df = indicator.cal_mfi_df(df)
-                df_dict[symbol] = df
-                ohlc_dict[symbol] = ohlc_data
+    #             # DataFrame 변환
+    #             timestamps = [c.time for c in ohlc_data]
+    #             ohlc = [[c.time, float(c.open), float(c.high), float(c.low), float(c.close), float(c.volume)] for c in ohlc_data]
+    #             df = pd.DataFrame(ohlc, columns=["Time", "Open", "High", "Low", "Close", "Volume"], index=pd.DatetimeIndex(timestamps))
+    #             df.index = df.index.tz_localize(None)
+    #             indicator = TechnicalIndicator()
+    #             # 지표 계산
+    #             #ema
+    #             df = indicator.cal_ema_df(df, 10)
+    #             df = indicator.cal_ema_df(df, 20)
+    #             df = indicator.cal_ema_df(df, 50)
+    #             df = indicator.cal_ema_df(df, 60)
+                
+    #             #sma
+    #             df = indicator.cal_sma_df(df, 5)
+    #             df = indicator.cal_sma_df(df, 20)
+    #             df = indicator.cal_sma_df(df, 40)
 
-            # 초기 자본 상태
+    #             df = indicator.cal_rsi_df(df, rsi_period)
+    #             df = indicator.cal_macd_df(df)
+    #             df = indicator.cal_stochastic_df(df)
+    #             df = indicator.cal_mfi_df(df)
+    #             df_dict[symbol] = df
+    #             ohlc_dict[symbol] = ohlc_data
+
+    #         # 초기 자본 상태
+    #         global_state = {
+    #             'initial_capital': my_settings["initial_capital"],
+    #             'realized_pnl': 0,
+    #             'unrealized_pnl': 0,
+    #             'realized_roi': 0,
+    #             'unrealized_roi': 0,
+    #             'history': []
+    #         }
+
+    #         # 종목별 보유 상태
+    #         holding_state = {
+    #             symbol: {
+    #                 'total_quantity': 0,
+    #                 'average_price': 0,
+    #                 'total_cost': 0,
+    #                 'buy_count': 0,
+    #                 'sell_count': 0,
+    #                 'buy_dates': [],
+    #                 'sell_dates': [],
+    #                 'unrealized_pnl': 0,
+    #                 'unrealized_roi': 0
+    #             }
+    #             for symbol in symbols.values()
+    #         }
+
+    #         st.success("✅ 지표 계산 완료. 시뮬레이션을 시작합니다...")
+
+    #         date_range = pd.date_range(start, end)
+    #         all_results = []
+        
+    #         total_tasks = len(date_range) * len(symbols)
+    #         current_task = 0
+    #         progress_bar = st.progress(0)
+    #         progress_text = st.empty()
+    #         all_results = []
+
+    #         for current_date in date_range:
+    #             for stock_name, symbol in symbols.items():
+    #                 try:
+    #                     df = df_dict[symbol]
+    #                     ohlc_data = ohlc_dict[symbol]
+    #                     state = holding_state[symbol]
+
+    #                     trading_history = auto_trading_stock.whole_simulate_trading(
+    #                         symbol=symbol,
+    #                         end_date=current_date,
+    #                         df=df,
+    #                         ohlc_data=ohlc_data,
+    #                         target_trade_value_krw=my_settings["target_trade_value_krw"],
+    #                         buy_trading_logic=my_settings["selected_buyTrading_logic"],
+    #                         sell_trading_logic=my_settings["selected_sellTrading_logic"],
+    #                         interval=interval,
+    #                         buy_percentage=my_settings["buy_percentage"],
+    #                         initial_capital=global_state["initial_capital"],
+    #                         rsi_buy_threshold=my_settings["rsi_buy_threshold"],
+    #                         rsi_sell_threshold=my_settings["rsi_sell_threshold"],
+    #                         total_quantity=state['total_quantity']  # ✅ 종목별 보유 수량 전달
+    #                     )
+
+    #                     trading_history.update({
+    #                         "symbol": stock_name,
+    #                         "sim_date": current_date.strftime('%Y-%m-%d'),
+    #                         "buy_count": state["buy_count"],
+    #                         "sell_count": state["sell_count"],
+    #                         "buy_dates": state["buy_dates"],
+    #                         "sell_dates": state["sell_dates"],
+    #                         "total_quantity": state["total_quantity"]
+    #                     })
+
+    #                     all_results.append(trading_history.copy())
+    #                     global_state = trading_history
+
+    #                 except Exception as e:
+    #                     st.warning(f"⚠️ {stock_name} ({current_date.date()}) 실패: {e}")
+
+    #                 current_task += 1
+    #                 progress = current_task / total_tasks
+    #                 progress_bar.progress(progress)
+    #                 progress_text.text(f"📊 진행 중: {current_task}/{total_tasks} ({progress*100:.1f}%)")
+
+    #         st.success("✅ 시뮬레이션 완료!")
+
+    #         if all_results:
+    #             df_results = pd.DataFrame(all_results)
+
+    #             reorder_columns = [
+    #                 "symbol", "average_price",
+    #                 "realized_pnl", "unrealized_pnl", "realized_roi", "unrealized_roi",
+    #                 "buy_count", "sell_count", "buy_dates", "sell_dates", "total_quantity", "created_at"
+    #             ]
+    #             df_results = df_results[[col for col in reorder_columns if col in df_results.columns]]
+
+    #             df_results["buy_dates"] = df_results["buy_dates"].apply(lambda x: ", ".join(x) if isinstance(x, list) else x)
+    #             df_results["sell_dates"] = df_results["sell_dates"].apply(lambda x: ", ".join(x) if isinstance(x, list) else x)
+
+    #             for col in ["realized_roi", "unrealized_roi"]:
+    #                 if col in df_results.columns:
+    #                     df_results[col] = df_results[col].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
+
+    #             total_realized_pnl = df_results["realized_pnl"].sum()
+    #             total_unrealized_pnl = df_results["unrealized_pnl"].sum()
+
+    #             avg_realized_roi = df_results["realized_roi"].replace("%", "", regex=True).astype(float).mean()
+    #             avg_unrealized_roi = df_results["unrealized_roi"].replace("%", "", regex=True).astype(float).mean()
+
+    #             initial_capital = my_settings["initial_capital"]
+    #             if initial_capital:
+    #                 avg_realized_roi_per_capital = (total_realized_pnl / initial_capital) * 100
+    #                 avg_total_roi_per_capital = ((total_realized_pnl + total_unrealized_pnl) / initial_capital) * 100
+    #             else:
+    #                 avg_realized_roi_per_capital = None
+    #                 avg_total_roi_per_capital = None
+
+    #             st.subheader("📊 전체 종목 손익 요약")
+    #             st.write(f"**💰 총 실현 손익:** {total_realized_pnl:,.2f} KRW")
+    #             st.write(f"**📈 총 미실현 손익:** {total_unrealized_pnl:,.2f} KRW")
+    #             st.write(f"**📊 평균 실현 손익률:** {avg_realized_roi:.2f}%")
+    #             st.write(f"**📉 평균 총 손익률:** {avg_unrealized_roi:.2f}%")
+    #             if initial_capital:
+    #                 st.write(f"**📊 초기 자본 대비 평균 실현 손익률:** {avg_realized_roi_per_capital:.2f}%")
+    #                 st.write(f"**📉 초기 자본 대비 평균 총 손익률:** {avg_total_roi_per_capital:.2f}%")
+
+    #             st.subheader("📋 종목별 시뮬레이션 결과")
+    #             AgGrid(
+    #                 df_results,
+    #                 editable=True,
+    #                 sortable=True,
+    #                 filter=True,
+    #                 resizable=True,
+    #                 theme='streamlit',
+    #                 fit_columns_on_grid_load=True,
+    #                 update_mode=GridUpdateMode.NO_UPDATE
+    #             )
+
+    #         else:
+    #             st.write("⚠️ 시뮬레이션 결과가 없습니다.")
+    
+    with tabs[3]:
+        if st.button("📊 1. OHLC + 지표 사전 계산"):
+            my = st.session_state["my_page_settings"]
+            symbols = my["selected_symbols"]
+
+            precomputed_df_dict = {}
+            precomputed_ohlc_dict = {}
+
+            start_date = my["start_date"] - timedelta(days=180)
+            end_date = my["end_date"]
+            interval = my["interval"]
+
+            with st.spinner("📈 전체 종목 OHLC 및 지표 계산 중..."):
+                for stock_name, symbol in symbols.items():
+                    try:
+                        auto_trading_stock = AutoTradingBot(id=my["id"], virtual=False)
+
+                        # ✅ OHLC 데이터 가져오기
+                        ohlc_data = auto_trading_stock._get_ohlc(symbol, start_date, end_date, interval)
+                        precomputed_ohlc_dict[symbol] = ohlc_data
+
+                        # ✅ OHLC → DataFrame 변환
+                        timestamps = [c.time for c in ohlc_data]
+                        ohlc = [
+                            [c.time, float(c.open), float(c.high), float(c.low), float(c.close), float(c.volume)]
+                            for c in ohlc_data
+                        ]
+                        df = pd.DataFrame(ohlc, columns=["Time", "Open", "High", "Low", "Close", "Volume"], index=pd.DatetimeIndex(timestamps))
+                        df.index = df.index.tz_localize(None)
+                        indicator = TechnicalIndicator()
+                        rsi_period = my['rsi_period']
+                        # ✅ 지표 계산
+                        #ema
+                        df = indicator.cal_ema_df(df, 10)
+                        df = indicator.cal_ema_df(df, 20)
+                        df = indicator.cal_ema_df(df, 50)
+                        df = indicator.cal_ema_df(df, 60)
+                        
+                        #sma
+                        df = indicator.cal_sma_df(df, 5)
+                        df = indicator.cal_sma_df(df, 20)
+                        df = indicator.cal_sma_df(df, 40)
+
+                        df = indicator.cal_rsi_df(df, rsi_period)
+                        df = indicator.cal_macd_df(df)
+                        df = indicator.cal_stochastic_df(df)
+                        df = indicator.cal_mfi_df(df)
+                        
+                        precomputed_df_dict[symbol] = df
+                        print(f"종목: {symbol}, df: {precomputed_df_dict[symbol]}")
+                    except Exception as e:
+                        st.warning(f"⚠️ {stock_name} 지표 계산 실패: {e}")
+
+            # ✅ 세션 상태에 저장
+            my["precomputed_df_dict"] = precomputed_df_dict
+            my["precomputed_ohlc_dict"] = precomputed_ohlc_dict
+
+            st.success("✅ 모든 종목의 지표 계산 완료 및 저장됨!")
+            
+        if st.button("✅ 2. 시뮬레이션 실행"):
+            my = st.session_state["my_page_settings"]
+            symbols = my["selected_symbols"]
+            date_range = pd.date_range(start=my["start_date"], end=my["end_date"])
+
             global_state = {
-                'initial_capital': my_settings["initial_capital"],
+                'initial_capital': my["initial_capital"],
                 'realized_pnl': 0,
-                'unrealized_pnl': 0,
-                'realized_roi': 0,
-                'unrealized_roi': 0,
-                'history': []
+                'buy_dates': [],
+                'sell_dates': [],
             }
 
-            # 종목별 보유 상태
             holding_state = {
                 symbol: {
                     'total_quantity': 0,
@@ -1336,77 +1555,166 @@ def main():
                     'sell_count': 0,
                     'buy_dates': [],
                     'sell_dates': [],
-                    'unrealized_pnl': 0,
-                    'unrealized_roi': 0
-                }
-                for symbol in symbols.values()
+                } for symbol in symbols.values()
             }
 
-            st.success("✅ 지표 계산 완료. 시뮬레이션을 시작합니다...")
-
-            date_range = pd.date_range(start, end)
-            all_results = []
-        
+            results = []
             total_tasks = len(date_range) * len(symbols)
-            current_task = 0
+            task = 0
+
             progress_bar = st.progress(0)
             progress_text = st.empty()
-            all_results = []
+            log_area = st.empty()
+            failed_stocks = []
+            
+            auto_trading_stock = AutoTradingBot(id=my["id"], virtual=False)
 
             for current_date in date_range:
                 for stock_name, symbol in symbols.items():
                     try:
-                        df = df_dict[symbol]
-                        ohlc_data = ohlc_dict[symbol]
-                        state = holding_state[symbol]
+                        df = my["precomputed_df_dict"][symbol]
+                        ohlc_data = my["precomputed_ohlc_dict"][symbol]
+                        
+                        log_area.text(f"📊 [{current_date.date()}] {stock_name} 시뮬레이션 중...")
 
                         trading_history = auto_trading_stock.whole_simulate_trading2(
                             symbol=symbol,
                             end_date=current_date,
                             df=df,
                             ohlc_data=ohlc_data,
-                            target_trade_value_krw=my_settings["target_trade_value_krw"],
-                            buy_trading_logic=my_settings["selected_buyTrading_logic"],
-                            sell_trading_logic=my_settings["selected_sellTrading_logic"],
-                            interval=interval,
-                            buy_percentage=my_settings["buy_percentage"],
+                            target_trade_value_krw=my["target_trade_value_krw"],
+                            buy_trading_logic=my["selected_buyTrading_logic"],
+                            sell_trading_logic=my["selected_sellTrading_logic"],
+                            interval=my["interval"],
+                            buy_percentage=my["buy_percentage"],
                             initial_capital=global_state["initial_capital"],
-                            rsi_buy_threshold=my_settings["rsi_buy_threshold"],
-                            rsi_sell_threshold=my_settings["rsi_sell_threshold"],
-                            trading_state=global_state,
-                            holding_state=state
+                            rsi_buy_threshold=my["rsi_buy_threshold"],
+                            rsi_sell_threshold=my["rsi_sell_threshold"],
+                            global_state=global_state,
+                            holding_state=holding_state[symbol],
+                            use_take_profit  = my['use_take_profit'],
+                            take_profit_ratio = my['take_profit_ratio'],
+                            use_stop_loss = my['use_stop_loss'],
+                            stop_loss_ratio =my['stop_loss_ratio']
                         )
-
+                        if trading_history is None:
+                            continue  # 데이터 부족한 날은 skip
+                        
                         trading_history.update({
                             "symbol": stock_name,
                             "sim_date": current_date.strftime('%Y-%m-%d'),
-                            "buy_count": state["buy_count"],
-                            "sell_count": state["sell_count"],
-                            "buy_dates": state["buy_dates"],
-                            "sell_dates": state["sell_dates"],
-                            "total_quantity": state["total_quantity"]
+                            "total_quantity": holding_state[symbol]["total_quantity"],
+                            "average_price": holding_state[symbol]["average_price"],
+                            "buy_count": holding_state[symbol]["buy_count"],
+                            "sell_count": holding_state[symbol]["sell_count"],
+                            "buy_dates": holding_state[symbol]["buy_dates"],
+                            "sell_dates": holding_state[symbol]["sell_dates"]
                         })
 
-                        all_results.append(trading_history.copy())
-                        global_state = trading_history
+                        global_state = trading_history.copy()
+                        results.append(trading_history)
+
+                        log_area.text(f"✅ [{current_date.date()}] {stock_name} 완료")
 
                     except Exception as e:
-                        st.warning(f"⚠️ {stock_name} ({current_date.date()}) 실패: {e}")
+                        st.warning(f"⚠️ {stock_name} {current_date.date()} 실패: {e}")
+                        failed_stocks.append(stock_name)
 
-                    current_task += 1
-                    progress = current_task / total_tasks
+                    task += 1
+                    progress = task / total_tasks
                     progress_bar.progress(progress)
-                    progress_text.text(f"📊 진행 중: {current_task}/{total_tasks} ({progress*100:.1f}%)")
+                    progress_text.text(f"{int(progress * 100)}% 완료 ({task}/{total_tasks})")
 
-            st.success("✅ 시뮬레이션 완료!")
+            signal_logs = []
+            
+            if results:
+                df_results = pd.DataFrame(results)
 
-            if all_results:
-                df_result = pd.DataFrame(all_results)
-                df_result["realized_roi"] = df_result["realized_roi"].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else "")
-                df_result["unrealized_roi"] = df_result["unrealized_roi"].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else "")
-                st.subheader("📊 시뮬레이션 결과 요약")
-                st.dataframe(df_result)
+                df_results["sim_date"] = pd.to_datetime(df_results["sim_date"])
+                df_results = df_results.sort_values(by=["sim_date", "symbol"]).reset_index(drop=True)
+                df_results["sim_date"] = df_results["sim_date"].dt.strftime("%Y-%m-%d")
+
+                reorder_columns = [
+                    "sim_date", "symbol", "initial_capital", "buy_count", "sell_count", "quantity",
+                    "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi",
+                    "total_quantity", "average_price"
+                ]
+                df_results = df_results[[col for col in reorder_columns if col in df_results.columns]]
+
+                for col in ["realized_roi", "unrealized_roi"]:
+                    if col in df_results.columns:
+                        df_results[col] = df_results[col].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
+
+                st.subheader("📋 시뮬레이션 결과 테이블")
+                st.dataframe(df_results, use_container_width=True)
                 
+                for row in results:
+                    reasons = ", ".join(row.get("signal_reasons", []))
+                    if row.get("buy_signal"):
+                        signal_logs.append({
+                            "sim_date": row["sim_date"],
+                            "symbol": row["symbol"],
+                            "signal": "BUY_SIGNAL",
+                            "reason": reasons
+                        })
+                    if row.get("sell_signal"):
+                        signal_logs.append({
+                            "sim_date": row["sim_date"],
+                            "symbol": row["symbol"],
+                            "signal": "SELL_SIGNAL",
+                            "reason": reasons
+                        })
+
+                if signal_logs:
+                    df_signals = pd.DataFrame(signal_logs)
+                    df_signals["sim_date"] = pd.to_datetime(df_signals["sim_date"])
+                    df_signals = df_signals.sort_values(by=["sim_date", "symbol"]).reset_index(drop=True)
+                    df_signals["sim_date"] = df_signals["sim_date"].dt.strftime("%Y-%m-%d")
+
+                    st.subheader("📌 매매 신호가 발생한 날짜 (거래 여부와 무관)")
+                    st.dataframe(df_signals, use_container_width=True)
+                    
+                    # ✅ 요약 통계 출력
+                if not df_results.empty:
+                    # 마지막 날짜의 unrealized_pnl/roi만 종목별로 추출
+                    df_last_unrealized = df_results.sort_values("sim_date").groupby("symbol").last()
+                    
+                    total_realized_pnl = df_results["realized_pnl"].sum()
+                    total_unrealized_pnl = df_last_unrealized["unrealized_pnl"].sum()
+
+                    # '%' 제거 후 평균 계산
+                    # avg_realized_roi = df_results["realized_roi"].replace("%", "", regex=True).astype(float).mean()
+                    # avg_unrealized_roi = df_last_unrealized["unrealized_roi"].replace("%", "", regex=True).astype(float).mean()
+
+                    initial_capital = my["initial_capital"]
+                    if initial_capital and initial_capital > 0:
+                        avg_realized_roi_per_capital = (total_realized_pnl / initial_capital) * 100
+                        avg_total_roi_per_capital = ((total_realized_pnl + total_unrealized_pnl) / initial_capital) * 100
+                    else:
+                        avg_realized_roi_per_capital = None
+                        avg_total_roi_per_capital = None
+
+                    st.subheader("📊 전체 요약 통계")
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.metric("💰 총 실현 손익", f"{total_realized_pnl:,.0f} KRW")
+                        st.metric("📈 총 미실현 손익", f"{total_unrealized_pnl:,.0f} KRW")
+                        # st.metric("📊 평균 실현 손익률", f"{avg_realized_roi:.2f}%")
+                        #st.metric("📉 평균 총 손익률", f"{avg_unrealized_roi:.2f}%")
+
+                    with col2:
+                        st.metric("📊 초기 자본 대비 평균 실현 손익률", f"{avg_realized_roi_per_capital:.2f}%" if avg_realized_roi_per_capital is not None else "N/A")
+                        st.metric("📉 초기 자본 대비 평균 총 손익률", f"{avg_total_roi_per_capital:.2f}%" if avg_total_roi_per_capital is not None else "N/A")
+                        
+                            #             # ✅ 실패한 종목이 있다면 표시
+                    if failed_stocks:
+                        st.warning(f"⚠️ 시뮬레이션 실패 종목 ({len(failed_stocks)}개): {', '.join(failed_stocks)}")
+
+            else:
+                st.write("⚠️ 시뮬레이션 결과가 없습니다.")    
+
     with tabs[4]:  # 🛠 마이페이지 설정
         setup_my_page()            
     
