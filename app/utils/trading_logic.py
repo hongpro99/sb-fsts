@@ -1139,4 +1139,69 @@ class TradingLogic:
                 entry['Buy Signal'] = buy_signal
                 entry['Buy Reason'] = reason
 
+        return buy_signal
+    
+    def ema_breakout_trading3(self, df, symbol):
+        """
+        복합 조건 기반 매수 시그널 및 사유 기록 (EMA 상승 + 돌파 + 거래량 등)
+        """
+
+        if df.shape[0] < 2:
+            print("❌ 데이터가 부족해서 ema_breakout_trading3 조건 계산 불가")
+            return False
+
+        # 5일 평균 거래량 계산
+        if 'Volume_MA5' not in df.columns:
+            df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        trade_date = last.name.date()
+
+        # 가격 및 EMA 정보
+        close = float(last['Close'])
+        open_price = float(last['Open'])
+        high = float(last['High'])
+        volume = float(last['Volume'])
+        prev_close = float(prev['Close'])
+        ema10, ema20, ema50 = last['EMA_10'], last['EMA_20'], last['EMA_50']
+        prev_ema10, prev_ema20, prev_ema50 = prev['EMA_10'], prev['EMA_20'], prev['EMA_50']
+
+        # 조건들
+        cond1 = ema10 > prev_ema10                      # 10EMA 상승
+        cond2 = ema20 > prev_ema20                      # 20EMA 상승
+        cond3 = ema50 > prev_ema50                      # 50EMA 상승
+        cond4 = prev_close < prev_ema50                 # 전일 종가 < 전일 50EMA
+        cond5 = close > ema50 * 1.02                    # 오늘 종가 > 오늘 50EMA * 1.02
+        cond6 = close > prev_close * 1.05               # 오늘 종가 > 전일 종가 * 1.05
+        cond7 = close > open_price                      # 종가 > 시가
+        cond8 = (high - close) < prev_close * 0.01      # 고가-종가 < 전일 종가의 1%
+        cond9 = volume > last['Volume_MA5']             # 거래량 > 5일 평균
+        cond10 = close < prev_close * 1.15              # 급등 제한 (15% 이상 상승 X)
+
+        buy_signal = all([cond1, cond2, cond3, cond4, cond5, cond6, cond7, cond8, cond9, cond10])
+
+        if buy_signal:
+            reason = (
+                f"✅ 매수 조건 만족:\n"
+                f"EMA10 상승: {prev_ema10:.2f} → {ema10:.2f}, "
+                f"EMA20 상승: {prev_ema20:.2f} → {ema20:.2f}, "
+                f"EMA50 상승: {prev_ema50:.2f} → {ema50:.2f}\n"
+                f"전일 종가({prev_close:.2f}) < 전일 EMA50({prev_ema50:.2f})\n"
+                f"오늘 종가({close:.2f}) > EMA50({ema50:.2f}) * 1.02 = {ema50*1.02:.2f}\n"
+                f"오늘 종가({close:.2f}) > 전일 종가({prev_close:.2f}) * 1.05 = {prev_close*1.05:.2f}\n"
+                f"종가 > 시가: {close:.2f} > {open_price:.2f}, "
+                f"고가-종가({high - close:.2f}) < 전일 종가 * 1%\n"
+                f"거래량({volume:.0f}) > 5일 평균({last['Volume_MA5']:.0f}), "
+                f"급등 제한 조건 통과"
+            )
+        else:
+            reason = "❌ 매수 조건 불충족"
+
+        # trade_reasons에 기록
+        for entry in self.trade_reasons:
+            if entry['Time'].date() == trade_date and entry['symbol'] == symbol:
+                entry['Buy Signal'] = buy_signal
+                entry['Buy Reason'] = reason
+
         return buy_signal    

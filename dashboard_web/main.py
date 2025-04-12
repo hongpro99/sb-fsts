@@ -663,7 +663,9 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'downtrend_sell_trading':
             entry['trading_logic'] =  '하락추세형 매도'
         elif entry.get('trading_logic') == 'sma_breakout_trading':
-            entry['trading_logic'] =  '단순이동평균'                                         
+            entry['trading_logic'] =  '단순이동평균'
+        elif entry.get('trading_logic') == 'ema_breakout_trading3':
+            entry['trading_logic'] =  '지수이동평균선 확인3'                                                     
             
 def login_page():
     """
