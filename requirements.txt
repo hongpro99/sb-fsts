@@ -20,3 +20,4 @@ streamlit-lightweight-charts
 pynamodb
 feedparser
 openai
+beautifulsoup4

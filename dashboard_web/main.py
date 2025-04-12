@@ -855,8 +855,22 @@ def setup_my_page():
 
     start_date = st.date_input("📅 Start Date", value=date(2023, 1, 1))
     end_date = st.date_input("📅 End Date", value=current_date_kst)
-    target_trade_value_krw = st.number_input("💰 Target Trade Value (KRW)", value=2000000, step=100000)
+    
+    #target_trade_value_krw = st.number_input("💰 Target Trade Value (KRW)", value=2000000, step=100000)
+    st.subheader("💰 매수 금액 설정 방식")
 
+    target_method = st.radio(
+        "매수 금액을 어떻게 설정할까요?",
+        ["직접 입력", "자본 비율 (%)"],
+        index=0
+    )
+
+    if target_method == "직접 입력":
+        target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000)
+        target_trade_value_ratio = None
+    else:
+        target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 20) #마우스 커서로 왔다갔다 하는 기능
+        target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
     # ✅ 실제 투자 조건 체크박스
     real_trading_enabled = st.checkbox("💰 실제 투자자본 설정", key="real_trading_enabled")
     real_trading_yn = "Y" if real_trading_enabled else "N"
@@ -951,6 +965,7 @@ def setup_my_page():
             "start_date": start_date,
             "end_date": end_date,
             "target_trade_value_krw": target_trade_value_krw,
+            "target_trade_value_ratio": target_trade_value_ratio,
             "selected_stocks": selected_stocks, #이름만
             "selected_symbols": selected_symbols, #이름+코드(key,value)
             "interval": interval,
@@ -1543,6 +1558,8 @@ def main():
         if st.button("✅ 2. 시뮬레이션 실행"):
             my = st.session_state["my_page_settings"]
             symbols = my["selected_symbols"]
+            target_ratio = my["target_trade_value_ratio"]  # None이면 직접 입력 방식
+            
             date_range = pd.date_range(start=my["start_date"], end=my["end_date"])
 
             global_state = {
@@ -1597,6 +1614,12 @@ def main():
                         if not any(pd.Timestamp(c.time).tz_localize(None).normalize() == current_date for c in ohlc_data):
                             continue  # 종목이 그날 거래 안 했으면 스킵
 
+                        # ✅ 날짜별 거래 금액 계산
+                        if target_ratio is not None:
+                            target_trade_value = int(global_state["initial_capital"] * target_ratio / 100)
+                        else:
+                            target_trade_value = my["target_trade_value_krw"]
+                            
                         log_area.text(f"📊 [{current_date.date()}] {stock_name} 시뮬 중...")
 
                         trading_history = auto_trading_stock.whole_simulate_trading2(
@@ -1604,7 +1627,7 @@ def main():
                             end_date=current_date,
                             df=df,
                             ohlc_data=ohlc_data,
-                            target_trade_value_krw=my["target_trade_value_krw"],
+                            target_trade_value_krw=target_trade_value,
                             buy_trading_logic=my["selected_buyTrading_logic"],
                             sell_trading_logic=my["selected_sellTrading_logic"],
                             interval=my["interval"],
