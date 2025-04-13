@@ -164,6 +164,7 @@ class AutoTradingBot:
         df = indicator.cal_sma_df(df, 5)
         df = indicator.cal_sma_df(df, 20)
         df = indicator.cal_sma_df(df, 40)
+        df = indicator.cal_sma_df(df, 200)        
 
         #ema
         df = indicator.cal_ema_df(df, 10)
@@ -381,6 +382,7 @@ class AutoTradingBot:
             df = indicator.cal_sma_df(df, 5)
             df = indicator.cal_sma_df(df, 20)
             df = indicator.cal_sma_df(df, 40)
+            df = indicator.cal_sma_df(df, 200)
 
             df = indicator.cal_rsi_df(df, rsi_period)
             df = indicator.cal_macd_df(df)
@@ -730,6 +732,10 @@ class AutoTradingBot:
         buy_signal = False
         signal_reasons = []
         
+        #익절, 손절
+        take_profit_hit = False
+        stop_loss_hit = False
+        sell_triggered = False
         
         # ✅ 익절/손절 조건 우선 적용
         if total_quantity > 0:
@@ -748,6 +754,7 @@ class AutoTradingBot:
                 trade_quantity = total_quantity
                 trading_history['sell_dates'].append(timestamp_str)
 
+                take_profit_hit = True
                 sell_signal = True
                 reason = f"익절 조건 충족 (+{current_roi:.2f}%)"
                 signal_reasons.append(reason)
@@ -765,6 +772,7 @@ class AutoTradingBot:
                 trade_quantity = total_quantity
                 trading_history['sell_dates'].append(timestamp_str)
 
+                stop_loss_hit = True
                 sell_signal = True
                 reason = f"손절 조건 충족 ({current_roi:.2f}%)"
                 signal_reasons.append(reason)
@@ -869,6 +877,8 @@ class AutoTradingBot:
             'buy_signal': buy_signal,
             'sell_signal': sell_signal,
             'signal_reasons': signal_reasons,
+            'take_profit_hit': take_profit_hit,
+            'stop_loss_hit': stop_loss_hit
         }
     
     def save_trading_history_to_db_with_executor(self, trading_history, symbol):

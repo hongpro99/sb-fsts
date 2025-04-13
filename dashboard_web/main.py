@@ -59,7 +59,7 @@ def draw_lightweight_chart(data_df, selected_indicators):
     sma_5 = json.loads(data_df.dropna(subset=['sma_5']).rename(columns={"sma_5": "value"}).to_json(orient="records"))
     sma_20 = json.loads(data_df.dropna(subset=['sma_20']).rename(columns={"sma_20": "value"}).to_json(orient="records"))
     sma_40 = json.loads(data_df.dropna(subset=['sma_40']).rename(columns={"sma_40": "value"}).to_json(orient="records"))
-    
+    sma_200 = json.loads(data_df.dropna(subset=['sma_200']).rename(columns={"sma_200": "value"}).to_json(orient="records"))
 
     rsi = json.loads(data_df.dropna(subset=['rsi']).rename(columns={"rsi": "value"}).to_json(orient="records"))
     macd = json.loads(data_df.dropna(subset=['macd']).rename(columns={"macd": "value"}).to_json(orient="records"))
@@ -435,7 +435,19 @@ def draw_lightweight_chart(data_df, selected_indicators):
                 "lastValueVisible": False, # 가격 레이블 숨기기
                 "priceLineVisible": False, # 가격 라인 숨기기
             },
-        })                
+        })
+    if "sma_200" in selected_indicators:
+        seriesCandlestickChart.append({
+            "type": 'Line',
+            "data": sma_200,
+            "options": {
+                "color": 'orange', #청록색
+                "lineWidth": 1.5,
+                "priceScaleId": "right",
+                "lastValueVisible": False, # 가격 레이블 숨기기
+                "priceLineVisible": False, # 가격 라인 숨기기
+            },
+        })                  
     seriesVolumeChart = [
         {
             "type": 'Histogram',
@@ -817,7 +829,9 @@ def setup_sidebar(sql_executer):
     if st.sidebar.checkbox("SMA 20", value=False):
         selected_indicators.append("sma_20")
     if st.sidebar.checkbox("SMA 40", value=False):
-        selected_indicators.append("sma_40")                
+        selected_indicators.append("sma_40")
+    if st.sidebar.checkbox("SMA 200", value=False):
+        selected_indicators.append("sma_200")                 
     if st.sidebar.checkbox("bollinger band", value=False):
         selected_indicators.append("bollinger")
         
@@ -1685,7 +1699,7 @@ def main():
                 reorder_columns = [
                     "sim_date", "symbol", "initial_capital", "buy_count", "sell_count", "quantity",
                     "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi",
-                    "total_quantity", "average_price"
+                    "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "history"
                 ]
                 df_results = df_results[[col for col in reorder_columns if col in df_results.columns]]
 
@@ -1695,7 +1709,9 @@ def main():
 
                 st.subheader("📋 시뮬레이션 결과 테이블")
                 st.dataframe(df_results, use_container_width=True)
-                
+
+                # 🔔 매수/매도 신호 발생 테이블
+                signal_logs = []
                 for row in results:
                     reasons = ", ".join(row.get("signal_reasons", []))
                     if row.get("buy_signal"):
@@ -1721,18 +1737,63 @@ def main():
 
                     st.subheader("📌 매매 신호가 발생한 날짜 (거래 여부와 무관)")
                     st.dataframe(df_signals, use_container_width=True)
-                    
-                    # ✅ 요약 통계 출력
+
+                # ✅ 실제 거래 발생 테이블 (추가)
+                df_trades = df_results[
+                    (df_results["buy_count"] > 0) | (df_results["sell_count"] > 0)
+                ].copy()
+
+                if not df_trades.empty:
+                    df_trades["trade_pnl"] = df_trades["realized_pnl"].apply(
+                        lambda x: f"{x:,.0f} KRW" if pd.notnull(x) and x != 0 else "-"
+                    )
+
+                    # 익절/손절 텍스트
+                    if "take_profit_hit" in df_trades.columns:
+                        df_trades["take_profit_hit"] = df_trades["take_profit_hit"].apply(
+                            lambda x: "✅ 익절" if x else ""
+                        )
+                    if "stop_loss_hit" in df_trades.columns:
+                        df_trades["stop_loss_hit"] = df_trades["stop_loss_hit"].apply(
+                            lambda x: "⚠️ 손절" if x else ""
+                        )
+
+                    # 거래 로직 추출
+                    df_trades["buy_logic"] = ""
+                    df_trades["sell_logic"] = ""
+                    df_trades["sim_date_dt"] = pd.to_datetime(df_trades["sim_date"])
+
+                    for i, row in df_trades.iterrows():
+                        history = row.get("history", [])
+                        sim_date = row["sim_date_dt"].date()
+
+                        for h in history:
+                            h_date = pd.to_datetime(h.get("time")).date()
+                            if h["position"] == "BUY" and h_date == sim_date:
+                                df_trades.at[i, "buy_logic"] = h.get("trading_logic", "")
+                            if h["position"] == "SELL" and h_date == sim_date:
+                                df_trades.at[i, "sell_logic"] = h.get("trading_logic", "")
+
+                        columns_to_show = [
+                            "sim_date", "symbol", "buy_count", "sell_count", "quantity",
+                            "trade_pnl", "buy_logic", "sell_logic"
+                        ]
+
+                        # ✅ 컬럼이 존재할 경우에만 추가
+                        if "take_profit_hit" in df_trades.columns:
+                            columns_to_show.append("take_profit_hit")
+                        if "stop_loss_hit" in df_trades.columns:
+                            columns_to_show.append("stop_loss_hit")
+                            
+                    st.subheader("📅 실제 거래 발생 요약 (날짜별)")
+                    st.dataframe(df_trades[columns_to_show], use_container_width=True)
+
+                # ✅ 요약 통계
                 if not df_results.empty:
-                    # 마지막 날짜의 unrealized_pnl/roi만 종목별로 추출
                     df_last_unrealized = df_results.sort_values("sim_date").groupby("symbol").last()
-                    
+
                     total_realized_pnl = df_results["realized_pnl"].sum()
                     total_unrealized_pnl = df_last_unrealized["unrealized_pnl"].sum()
-
-                    # '%' 제거 후 평균 계산
-                    # avg_realized_roi = df_results["realized_roi"].replace("%", "", regex=True).astype(float).mean()
-                    # avg_unrealized_roi = df_last_unrealized["unrealized_roi"].replace("%", "", regex=True).astype(float).mean()
 
                     initial_capital = my["initial_capital"]
                     if initial_capital and initial_capital > 0:
@@ -1745,23 +1806,47 @@ def main():
                     st.subheader("📊 전체 요약 통계")
 
                     col1, col2 = st.columns(2)
-
                     with col1:
                         st.metric("💰 총 실현 손익", f"{total_realized_pnl:,.0f} KRW")
                         st.metric("📈 총 미실현 손익", f"{total_unrealized_pnl:,.0f} KRW")
-                        #st.metric("📊 평균 실현 손익률", f"{avg_realized_roi:.2f}%")
-                        #st.metric("📉 평균 총 손익률", f"{avg_unrealized_roi:.2f}%")
-
                     with col2:
                         st.metric("📊 초기 자본 대비 평균 실현 손익률", f"{avg_realized_roi_per_capital:.2f}%" if avg_realized_roi_per_capital is not None else "N/A")
                         st.metric("📉 초기 자본 대비 평균 총 손익률", f"{avg_total_roi_per_capital:.2f}%" if avg_total_roi_per_capital is not None else "N/A")
-                        
-                            #             # ✅ 실패한 종목이 있다면 표시
-                    if failed_stocks:
-                        st.warning(f"⚠️ 시뮬레이션 실패 종목 ({len(failed_stocks)}개): {', '.join(sorted(failed_stocks))}")
+
+                    # ✅ 세부 통계 추가
+                    total_buy_count = df_results["buy_count"].sum()
+                    total_sell_count = df_results["sell_count"].sum()
+                    total_take_profit = df_results["take_profit_hit"].sum() if "take_profit_hit" in df_results.columns else 0
+                    total_stop_loss = df_results["stop_loss_hit"].sum() if "stop_loss_hit" in df_results.columns else 0
+
+                    tp_pnl = df_results[df_results["take_profit_hit"] == True]["realized_pnl"].sum() if "take_profit_hit" in df_results.columns else 0
+                    sl_pnl = df_results[df_results["stop_loss_hit"] == True]["realized_pnl"].sum() if "stop_loss_hit" in df_results.columns else 0
+                    logic_sell_pnl = df_results[
+                        (df_results["sell_count"] > 0) &
+                        (~df_results.get("take_profit_hit", False)) &
+                        (~df_results.get("stop_loss_hit", False))
+                    ]["realized_pnl"].sum()
+        
+                    st.markdown("---")
+                    st.subheader("📊 추가 세부 요약 통계")
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.metric("🟢 총 매수 횟수", f"{total_buy_count}")
+                        st.metric("🔴 총 매도 횟수", f"{total_sell_count}")
+                        st.metric("✅ 익절 횟수", f"{total_take_profit}")
+                        st.metric("⚠️ 손절 횟수", f"{total_stop_loss}")
+
+                    with col2:
+                        st.metric("💸 익절로 인한 손익", f"{tp_pnl:,.0f} KRW")
+                        st.metric("💥 손절로 인한 손익", f"{sl_pnl:,.0f} KRW")
+                        st.metric("🔄 로직 매도로 인한 손익", f"{logic_sell_pnl:,.0f} KRW")
+                if failed_stocks:
+                    st.warning(f"⚠️ 시뮬레이션 실패 종목 ({len(failed_stocks)}개): {', '.join(sorted(failed_stocks))}")
 
             else:
-                st.write("⚠️ 시뮬레이션 결과가 없습니다.")    
+                st.warning("⚠️ 시뮬레이션 결과가 없습니다.")   
 
     with tabs[4]:  # 🛠 마이페이지 설정
         setup_my_page()            
