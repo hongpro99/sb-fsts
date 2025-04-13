@@ -1172,14 +1172,14 @@ class TradingLogic:
         cond2 = ema20 > prev_ema20                      # 20EMA 상승
         cond3 = ema50 > prev_ema50                      # 50EMA 상승
         cond4 = prev_close < prev_ema50                 # 전일 종가 < 전일 50EMA
-        cond5 = close > ema50 * 1.02                    # 오늘 종가 > 오늘 50EMA * 1.02
-        cond6 = close > prev_close * 1.05               # 오늘 종가 > 전일 종가 * 1.05
+        #cond5 = close > ema50 * 1.02                    # 오늘 종가 > 오늘 50EMA * 1.02
+        cond6 = close > prev_close * 1.01               # 오늘 종가 > 전일 종가 * 1.01
         cond7 = close > open_price                      # 종가 > 시가
-        cond8 = (high - close) < prev_close * 0.01      # 고가-종가 < 전일 종가의 1%
+        #cond8 = (high - close) < prev_close * 0.01      # 고가-종가 < 전일 종가의 1%
         cond9 = volume > last['Volume_MA5']             # 거래량 > 5일 평균
         cond10 = close < prev_close * 1.15              # 급등 제한 (15% 이상 상승 X)
 
-        buy_signal = all([cond1, cond2, cond3, cond4, cond5, cond6, cond7, cond8, cond9, cond10])
+        buy_signal = all([cond1, cond2, cond3, cond4, cond6, cond7, cond9, cond10])
 
         if buy_signal:
             reason = (

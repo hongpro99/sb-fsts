@@ -1765,16 +1765,16 @@ def main():
                         history = row.get("history", [])
                         sim_date = row["sim_date_dt"].date()
 
-                        for h in history:
-                            h_date = pd.to_datetime(h.get("time")).date()
-                            if h["position"] == "BUY" and h_date == sim_date:
-                                df_trades.at[i, "buy_logic"] = h.get("trading_logic", "")
-                            if h["position"] == "SELL" and h_date == sim_date:
-                                df_trades.at[i, "sell_logic"] = h.get("trading_logic", "")
+                        # for h in history:
+                        #     h_date = pd.to_datetime(h.get("time")).date()
+                        #     if h["position"] == "BUY" and h_date == sim_date:
+                        #         df_trades.at[i, "buy_logic"] = h.get("trading_logic", "")
+                        #     if h["position"] == "SELL" and h_date == sim_date:
+                        #         df_trades.at[i, "sell_logic"] = h.get("trading_logic", "")
 
                         columns_to_show = [
                             "sim_date", "symbol", "buy_count", "sell_count", "quantity",
-                            "trade_pnl", "buy_logic", "sell_logic"
+                            "trade_pnl"
                         ]
 
                         # ✅ 컬럼이 존재할 경우에만 추가
