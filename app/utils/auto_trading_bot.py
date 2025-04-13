@@ -164,6 +164,7 @@ class AutoTradingBot:
         df = indicator.cal_sma_df(df, 5)
         df = indicator.cal_sma_df(df, 20)
         df = indicator.cal_sma_df(df, 40)
+        df = indicator.cal_sma_df(df, 120)
         df = indicator.cal_sma_df(df, 200)        
 
         #ema
@@ -382,6 +383,7 @@ class AutoTradingBot:
             df = indicator.cal_sma_df(df, 5)
             df = indicator.cal_sma_df(df, 20)
             df = indicator.cal_sma_df(df, 40)
+            df = indicator.cal_sma_df(df, 120)
             df = indicator.cal_sma_df(df, 200)
 
             df = indicator.cal_rsi_df(df, rsi_period)
@@ -686,7 +688,7 @@ class AutoTradingBot:
         return result_data, trading_history, trade_reasons
 
     def whole_simulate_trading2(
-        self, symbol, end_date, df, ohlc_data,
+        self, symbol, end_date, df, ohlc_data, trade_ratio,
         target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None,
         interval='day', buy_percentage=None,
         initial_capital=None, rsi_buy_threshold=30, rsi_sell_threshold=70,
@@ -734,6 +736,7 @@ class AutoTradingBot:
         sell_signal = False
         buy_signal = False
         signal_reasons = []
+        
         
         #익절, 손절
         take_profit_hit = False
@@ -806,6 +809,18 @@ class AutoTradingBot:
                 trading_history['sell_dates'].append(timestamp_str)
                 state['sell_dates'].append(timestamp_str)
 
+        
+        
+        # ✅ 평가 자산 기반 거래 금액 계산
+        stock_value = total_quantity * close_price
+        portfolio_value = trading_history['initial_capital'] + stock_value
+        # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
+        if target_trade_value_krw and target_trade_value_krw > 0:
+            trade_amount = min(target_trade_value_krw, trading_history['initial_capital'])
+        else:
+            trade_amount = min(portfolio_value * (trade_ratio / 100), trading_history['initial_capital'])
+            
+        
         # ✅ 매수 조건
         for logic_name in (buy_trading_logic or []):
             buy_yn = False
@@ -830,12 +845,13 @@ class AutoTradingBot:
             elif logic_name == 'ema_breakout_trading3':
                 buy_yn = logic.ema_breakout_trading3(df, symbol)                
 
+
             if buy_yn:
                 buy_signal = True
                 signal_reasons.append(logic_name)
                 
-                amount = min(target_trade_value_krw, trading_history['initial_capital'])
-                buy_qty = math.floor(amount / close_price)
+                #amount = min(target_trade_value_krw, trading_history['initial_capital'])
+                buy_qty = math.floor(trade_amount / close_price)
 
                 if buy_qty > 0:
                     cost = buy_qty * close_price
@@ -884,7 +900,8 @@ class AutoTradingBot:
             'sell_signal': sell_signal,
             'signal_reasons': signal_reasons,
             'take_profit_hit': take_profit_hit,
-            'stop_loss_hit': stop_loss_hit
+            'stop_loss_hit': stop_loss_hit,
+            "portfolio_value": portfolio_value
         }
     
     def save_trading_history_to_db_with_executor(self, trading_history, symbol):

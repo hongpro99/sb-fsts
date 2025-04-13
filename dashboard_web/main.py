@@ -60,7 +60,8 @@ def draw_lightweight_chart(data_df, selected_indicators):
     sma_20 = json.loads(data_df.dropna(subset=['sma_20']).rename(columns={"sma_20": "value"}).to_json(orient="records"))
     sma_40 = json.loads(data_df.dropna(subset=['sma_40']).rename(columns={"sma_40": "value"}).to_json(orient="records"))
     sma_200 = json.loads(data_df.dropna(subset=['sma_200']).rename(columns={"sma_200": "value"}).to_json(orient="records"))
-
+    sma_120 = json.loads(data_df.dropna(subset=['sma_120']).rename(columns={"sma_120": "value"}).to_json(orient="records"))
+    
     rsi = json.loads(data_df.dropna(subset=['rsi']).rename(columns={"rsi": "value"}).to_json(orient="records"))
     macd = json.loads(data_df.dropna(subset=['macd']).rename(columns={"macd": "value"}).to_json(orient="records"))
     macd_signal = json.loads(data_df.dropna(subset=['macd_signal']).rename(columns={"macd_signal": "value"}).to_json(orient="records"))
@@ -447,7 +448,21 @@ def draw_lightweight_chart(data_df, selected_indicators):
                 "lastValueVisible": False, # 가격 레이블 숨기기
                 "priceLineVisible": False, # 가격 라인 숨기기
             },
-        })                  
+        })
+        
+    if "sma_120" in selected_indicators:
+        seriesCandlestickChart.append({
+            "type": 'Line',
+            "data": sma_120,
+            "options": {
+                "color": 'purple', #청록색
+                "lineWidth": 1.5,
+                "priceScaleId": "right",
+                "lastValueVisible": False, # 가격 레이블 숨기기
+                "priceLineVisible": False, # 가격 라인 숨기기
+            },
+        })
+                            
     seriesVolumeChart = [
         {
             "type": 'Histogram',
@@ -831,7 +846,9 @@ def setup_sidebar(sql_executer):
     if st.sidebar.checkbox("SMA 40", value=False):
         selected_indicators.append("sma_40")
     if st.sidebar.checkbox("SMA 200", value=False):
-        selected_indicators.append("sma_200")                 
+        selected_indicators.append("sma_200")
+    if st.sidebar.checkbox("SMA 120", value=False):
+        selected_indicators.append("sma_120")                 
     if st.sidebar.checkbox("bollinger band", value=False):
         selected_indicators.append("bollinger")
         
@@ -885,7 +902,7 @@ def setup_my_page():
         target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000)
         target_trade_value_ratio = None
     else:
-        target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 20) #마우스 커서로 왔다갔다 하는 기능
+        target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 50) #마우스 커서로 왔다갔다 하는 기능
         target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
     # ✅ 실제 투자 조건 체크박스
     real_trading_enabled = st.checkbox("💰 실제 투자자본 설정", key="real_trading_enabled")
@@ -1573,7 +1590,7 @@ def main():
             my = st.session_state["my_page_settings"]
             symbols = my["selected_symbols"]
             target_ratio = my["target_trade_value_ratio"]  # None이면 직접 입력 방식
-            
+            target_trade_value = my["target_trade_value_krw"]
             date_range = pd.date_range(start=my["start_date"], end=my["end_date"])
 
             global_state = {
@@ -1630,9 +1647,9 @@ def main():
 
                         # ✅ 날짜별 거래 금액 계산
                         if target_ratio is not None:
-                            target_trade_value = int(global_state["initial_capital"] * target_ratio / 100)
+                            trade_ratio  = target_ratio
                         else:
-                            target_trade_value = my["target_trade_value_krw"]
+                            target_trade_value = target_trade_value
                             
                         log_area.text(f"📊 [{current_date.date()}] {stock_name} 시뮬 중...")
 
@@ -1641,6 +1658,7 @@ def main():
                             end_date=current_date,
                             df=df,
                             ohlc_data=ohlc_data,
+                            trade_ratio = trade_ratio,
                             target_trade_value_krw=target_trade_value,
                             buy_trading_logic=my["selected_buyTrading_logic"],
                             sell_trading_logic=my["selected_sellTrading_logic"],
@@ -1695,7 +1713,7 @@ def main():
                 df_results["sim_date"] = df_results["sim_date"].dt.strftime("%Y-%m-%d")
 
                 reorder_columns = [
-                    "sim_date", "symbol", "initial_capital", "buy_count", "sell_count", "quantity",
+                    "sim_date", "symbol", "initial_capital", "portfolio_value", "buy_count", "sell_count", "quantity",
                     "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi",
                     "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "history"
                 ]
