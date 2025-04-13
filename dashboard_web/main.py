@@ -999,7 +999,7 @@ def main():
 
     st.set_page_config(layout="wide")
     
-    st.title("🏠 메인 페이지")
+    st.title("🏠 FSTS 시뮬레이션")
     
     if st.button("로그아웃"):
         st.session_state["authenticated"] = False
