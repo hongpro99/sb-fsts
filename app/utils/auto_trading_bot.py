@@ -1222,9 +1222,10 @@ class AutoTradingBot:
             except Exception as e:
                 print(f"❌ 잔고 저장 실패 ({holding['symbol_name']}): {e}")
     
-    def place_order(self, symbol, symbol_name, qty, order_type, buy_price=None, sell_price=None, trading_bot_name = 'schedulerbot'):
+    def place_order(self, deposit, symbol, symbol_name, qty, order_type, buy_price=None, sell_price=None, trading_bot_name = 'schedulerbot'):
         """주식 매수/매도 주문 함수
         Args:
+            deposit : 예수금
             symbol (str): 종목 코드
             qty (int): 주문 수량
             price (int, optional): 주문 가격. 지정가 주문 시 필요
@@ -1256,9 +1257,10 @@ class AutoTradingBot:
             return order
         
         except Exception as e:
-            error_message = f"주문 처리 중 오류 발생: {e}"
+            error_message = f"주문 처리 중 오류 발생: {e}\n 예수금 : {deposit}, "
             print(error_message)
             self.send_discord_webhook(error_message, "trading")
+
 
 
     def _get_quote(self, symbol):
@@ -1293,13 +1295,13 @@ class AutoTradingBot:
             message = f"[{datetime.now()}] ✅ 자동 매수 실행: bot: {trading_bot_name} 종목 {symbol_name}, 수량 {qty}주, 주문 금액 {order_amount:,}원"
             try:
                 self.place_order(
+                    deposit=deposit,
                     symbol=symbol,
                     symbol_name = symbol_name,
                     qty=qty,
                     order_type="buy",
                     buy_price=buy_price,
                     trading_bot_name = trading_bot_name
-
                 )
             except Exception as e:
                 print(f"[{datetime.now()}] ❌ 매수 실패: {e}")

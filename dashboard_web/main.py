@@ -1013,7 +1013,7 @@ def main():
 
     st.set_page_config(layout="wide")
     
-    st.title("🏠 메인 페이지")
+    st.title("🏠 FSTS 시뮬레이션")
     
     if st.button("로그아웃"):
         st.session_state["authenticated"] = False
@@ -1024,7 +1024,7 @@ def main():
     sidebar_settings = setup_sidebar(sql_executor)
     
     # 탭 생성
-    tabs = st.tabs(["🏠 Bot transaction history", "📈 Simulation Graph", "📊 Data Analysis Page", "📊 KOSPI200 Simulation", "🛠 Settings", "📈Auto Trading Bot Balance"])
+    tabs = st.tabs(["🏠 Bot transaction history", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "🛠 Settings", "📈Auto Trading Bot Balance"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
@@ -1183,19 +1183,17 @@ def main():
             st.info("먼저 시뮬레이션을 실행해주세요.")
                     
 
-
-
-    with tabs[2]:
-        st.header("📊 데이터 분석 페이지")
+    # with tabs[2]:
+    #     st.header("📊 데이터 분석 페이지")
         
-        # 데이터
-        data = sns.load_dataset('penguins')
+    #     # 데이터
+    #     data = sns.load_dataset('penguins')
 
-        # 히스토그램
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.histplot(data, x='flipper_length_mm', hue='species', multiple='stack', ax=ax)
-        ax.set_title("Seaborn 히스토그램")
-        st.pyplot(fig)
+    #     # 히스토그램
+    #     fig, ax = plt.subplots(figsize=(10, 6))
+    #     sns.histplot(data, x='flipper_length_mm', hue='species', multiple='stack', ax=ax)
+    #     ax.set_title("Seaborn 히스토그램")
+    #     st.pyplot(fig)
         
         #새로 추가된 코스피 200 시뮬레이션 탭
     # with tabs[3]:
@@ -1506,7 +1504,7 @@ def main():
     #         else:
     #             st.write("⚠️ 시뮬레이션 결과가 없습니다.")
     
-    with tabs[3]:
+    with tabs[2]:
         if st.button("📊 1. OHLC + 지표 사전 계산"):
             my = st.session_state["my_page_settings"]
 
@@ -1848,10 +1846,10 @@ def main():
             else:
                 st.warning("⚠️ 시뮬레이션 결과가 없습니다.")   
 
-    with tabs[4]:  # 🛠 마이페이지 설정
+    with tabs[3]:  # 🛠 마이페이지 설정
         setup_my_page()            
     
-    with tabs[5]:
+    with tabs[4]:
         st.header("🏠 자동 트레이딩 봇 잔고")
         
         data = {
