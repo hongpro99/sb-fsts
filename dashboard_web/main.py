@@ -932,18 +932,34 @@ def setup_my_page():
         getattr(x, 'symbol_name', ''))
     )
 
+    # 전체 symbol dictionary
     symbol_options = {row.symbol_name: row.symbol for row in sorted_items}
     stock_names = list(symbol_options.keys())
-    
-    # ✅ "전체 선택" 및 "선택 해제" 버튼 추가
-    col1, col2 = st.columns([1, 6])
-    
+
+    # ✅ 종목을 타입별로 나누기
+    kospi200_items = [row for row in sorted_items if getattr(row, 'type', '') == 'kospi200']
+    kosdaq150_items = [row for row in sorted_items if getattr(row, 'type', '') == 'kosdaq150']
+
+    kospi200_names = [row.symbol_name for row in kospi200_items]
+    kosdaq150_names = [row.symbol_name for row in kosdaq150_items]
+
+    # ✅ 버튼 UI
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 4])
+
     with col1:
-        if st.button("✅ 종목 전체 선택"):
+        if st.button("✅ 전체 선택"):
             st.session_state["selected_stocks"] = stock_names
 
     with col2:
-        if st.button("❌ 종목 선택 해제"):
+        if st.button("🏦 코스피 200 선택"):
+            st.session_state["selected_stocks"] = kospi200_names
+
+    with col3:
+        if st.button("📈 코스닥 150 선택"):
+            st.session_state["selected_stocks"] = kosdaq150_names
+
+    with col4:
+        if st.button("❌ 선택 해제"):
             st.session_state["selected_stocks"] = []
             
     # ✅ 사용자가 원하는 종목 선택 (다중 선택 가능)
@@ -1030,7 +1046,7 @@ def main():
 
     st.set_page_config(layout="wide")
     
-    st.title("🏠 FSTS 시뮬레이션")
+    st.title("FSTS SIMULATION")
     
     if st.button("로그아웃"):
         st.session_state["authenticated"] = False
