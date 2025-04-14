@@ -1033,8 +1033,9 @@ class AutoTradingBot:
                 buy_yn, _ = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)
             elif trading_logic == 'macd_trading':
                 buy_yn, _ = logic.macd_trading(candle, df, symbol)    
-                    
                 
+                if buy_yn:    
+                    self.send_discord_webhook(f"[reason:{reason}], {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
             #print(f'{trading_logic} 로직 buy_signal = {buy_yn}')
 
             self._trade_kis(
@@ -1051,73 +1052,75 @@ class AutoTradingBot:
                 target_trade_value_krw=target_trade_value_krw,
                 max_allocation = max_allocation
             )
+            
+        # 🟡 trade 함수 상단
+        account = self.kis.account()
+        balance: KisBalance = account.balance()
 
-            for trading_logic in sell_trading_logic:
-                sell_yn = False
+        for trading_logic in sell_trading_logic:
+            sell_yn = False
 
-                # 기존 매도 로직
-                if trading_logic == 'check_wick':
-                    _, sell_yn = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-                elif trading_logic == 'rsi_trading':
-                    _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol)
-                elif trading_logic == 'mfi_trading':
-                    _, sell_yn = logic.mfi_trading(df, symbol)
-                elif trading_logic == 'top_reversal_sell_trading':
-                    sell_yn = logic.top_reversal_sell_trading(df)
-                elif trading_logic == 'downtrend_sell_trading':
-                    sell_yn = logic.downtrend_sell_trading(df)
-                elif trading_logic == 'stochastic_trading':
-                    _, sell_yn = logic.stochastic_trading(df, symbol)
-                elif trading_logic == 'bollinger_band_trading':
-                    bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                    _, sell_yn = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)
-                elif trading_logic == 'macd_trading':
-                    _, sell_yn = logic.macd_trading(candle, df, symbol)
+            # 기존 매도 로직
+            if trading_logic == 'check_wick':
+                _, sell_yn = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
+            elif trading_logic == 'rsi_trading':
+                _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol)
+            elif trading_logic == 'mfi_trading':
+                _, sell_yn = logic.mfi_trading(df, symbol)
+            elif trading_logic == 'top_reversal_sell_trading':
+                sell_yn = logic.top_reversal_sell_trading(df)
+            elif trading_logic == 'downtrend_sell_trading':
+                sell_yn = logic.downtrend_sell_trading(df)
+            elif trading_logic == 'stochastic_trading':
+                _, sell_yn = logic.stochastic_trading(df, symbol)
+            elif trading_logic == 'bollinger_band_trading':
+                bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
+                _, sell_yn = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)
+            elif trading_logic == 'macd_trading':
+                _, sell_yn = logic.macd_trading(candle, df, symbol)
 
-                # ✅ 익절/손절 조건 확인
-                take_profit_hit = False
-                stop_loss_hit = False
+            # ✅ 익절/손절 조건 확인
+            take_profit_hit = False
+            stop_loss_hit = False
+            
+            holding = next((stock for stock in balance.stocks if stock.symbol == symbol), None)
 
-                account = self.kis.account()
-                balance: KisBalance = account.balance()
-                
-                holding = next((stock for stock in balance.stocks if stock.symbol == symbol), None)
+            if holding:
+                profit_rate = float(holding.profit_rate)
 
-                if holding:
-                    profit_rate = float(holding.profit_rate)
+                if use_take_profit and profit_rate >= take_profit_threshold:
+                    take_profit_hit = True
 
-                    if use_take_profit and profit_rate >= take_profit_threshold:
-                        take_profit_hit = True
+                if use_stop_loss and profit_rate <= -stop_loss_threshold:
+                    stop_loss_hit = True
 
-                    if use_stop_loss and profit_rate <= -stop_loss_threshold:
-                        stop_loss_hit = True
+            # 최종 매도 조건
+            final_sell_yn = sell_yn or take_profit_hit or stop_loss_hit
 
-                # 최종 매도 조건
-                final_sell_yn = sell_yn or take_profit_hit or stop_loss_hit
+            if final_sell_yn:
+                reason = trading_logic
+                if take_profit_hit:
+                    reason = "익절"
+                elif stop_loss_hit:
+                    reason = "손절"
+                self.send_discord_webhook(f"[reason:{reason}], {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
 
-                if final_sell_yn:
-                    reason = trading_logic
-                    if take_profit_hit:
-                        reason = "익절"
-                    elif stop_loss_hit:
-                        reason = "손절"
+                print(f"✅ 매도 조건 충족: {symbol_name} - 매도 사유: {reason}")
 
-                    print(f"✅ 매도 조건 충족: {symbol_name} - 매도 사유: {reason}")
-
-                self._trade_kis(
-                    buy_yn=False,
-                    sell_yn=final_sell_yn,
-                    volume=volume,
-                    prev=prev,
-                    avg_volume_20_days=avg_volume_20_days,
-                    trading_logic=trading_logic,
-                    symbol=symbol,
-                    symbol_name=symbol_name,
-                    ohlc_data=ohlc_data,
-                    trading_bot_name=trading_bot_name,
-                    target_trade_value_krw=target_trade_value_krw,
-                    max_allocation=max_allocation
-                )
+            self._trade_kis(
+                buy_yn=False,
+                sell_yn=final_sell_yn,
+                volume=volume,
+                prev=prev,
+                avg_volume_20_days=avg_volume_20_days,
+                trading_logic=trading_logic,
+                symbol=symbol,
+                symbol_name=symbol_name,
+                ohlc_data=ohlc_data,
+                trading_bot_name=trading_bot_name,
+                target_trade_value_krw=target_trade_value_krw,
+                max_allocation=max_allocation
+            )
 
         # 마지막 직전 봉 음봉, 양봉 계산
         is_bearish_prev_candle = close_price < close_open_price  # 음봉 확인
@@ -1136,12 +1139,6 @@ class AutoTradingBot:
             if trading_logic == 'ema_breakout_trading2':
                 self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
 
-            #알림 전송 및 히스토리 기록은 모든 매수 로직에 대해 실행
-            self.send_discord_webhook(
-                f"[{trading_logic}] {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW", 
-                "trading"
-            )
-
             position = 'BUY'
             quantity = 1  # 임시
             
@@ -1155,15 +1152,14 @@ class AutoTradingBot:
             # 매도 주문은 특정 로직에서만 실행
             if trading_logic == 'rsi_trading':
                 self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
-            # 매도 함수 구현
-            self.send_discord_webhook(f"[{trading_logic}] {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
-            # trade history 에 추가
-            position = 'SELL'
-            quantity = 1 # 임시
+                
+                # trade history 에 추가
+                position = 'SELL'
+                quantity = 1 # 임시
 
-            self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close,
-                quantity, symbol, symbol_name
-            )
+                self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close,
+                    quantity, symbol, symbol_name
+                )
 
 
     def _insert_trading_history(self, trading_logic, position, trading_bot_name, price, quantity, symbol, symbol_name, data_type='test'):
@@ -1380,6 +1376,7 @@ class AutoTradingBot:
             message = f"[{datetime.now()}] ✅ 자동 매도 실행: bot: {trading_bot_name} 종목 {symbol_name}, 수량 {qty}주 (시장가 매도)"
             try:
                 self.place_order(
+                    deposit=deposit,
                     symbol=symbol,
                     symbol_name = symbol_name,
                     qty=qty,
