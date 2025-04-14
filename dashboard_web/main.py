@@ -1069,11 +1069,11 @@ def main():
     sidebar_settings = setup_sidebar(sql_executor)
     
     # 탭 생성
-    tabs = st.tabs(["🏠 Bot transaction history", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "🛠 Settings", "📈Auto Trading Bot Balance"])
+    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "🛠 Settings", "📈Auto Trading Bot Balance"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
-        st.header("🏠 트레이딩 봇 거래 내역")
+        st.header("🏠  Bot Transaction History")
         
         data = {
             "Trading Bot Name": [],
@@ -1576,7 +1576,7 @@ def main():
         setup_my_page()            
     
     with tabs[4]:
-        st.header("🏠 자동 트레이딩 봇 잔고")
+        st.header("🏠 Auto Trading Bot Balance")
         
         data = {
             "Trading Bot Name": [],
