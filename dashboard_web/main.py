@@ -692,20 +692,22 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'sma_breakout_trading':
             entry['trading_logic'] =  '단순이동평균'
         elif entry.get('trading_logic') == 'ema_breakout_trading3':
-            entry['trading_logic'] =  '지수이동평균선 확인3'                                                     
+            entry['trading_logic'] =  '지수이동평균선 확인3'
+        elif entry.get('trading_logic') == 'rsi_trading2':
+            entry['trading_logic'] =  'rsi2'                                                     
             
 def login_page():
     """
     로그인 페이지: 사용자 로그인 및 세션 상태 관리
     """
-    st.title("🔑 로그인 페이지")
+    st.title("🔑 LOGIN PAGE")
 
     # 사용자 입력 받기
     username = st.text_input("아이디", key="username")
     password = st.text_input("비밀번호", type="password", key="password")
     
     # 간단한 사용자 검증 (실제 서비스에서는 DB 연동 필요)
-    if st.button("로그인"):
+    if st.button("LOGIN"):
         # 로그인 정보 조회
         result = list(UserInfo.scan(
             filter_condition=((UserInfo.id == username) & (UserInfo.password == password))
@@ -1045,13 +1047,23 @@ def main():
     sql_executor = SQLExecutor()
 
     st.set_page_config(layout="wide")
-    
+    col1, col2, col3 = st.columns([6, 1, 1])
+
+    with col3:
+        if st.button("LOGOUT"):
+            st.session_state["authenticated"] = False
+            st.query_params = {"page" : "login", "login": "false"}
+            st.rerun()  # 로그아웃 후 페이지 새로고침
+            
     st.title("FSTS SIMULATION")
-    
-    if st.button("로그아웃"):
-        st.session_state["authenticated"] = False
-        st.query_params = {"page" : "login", "login": "false"}
-        st.rerun()  # 로그아웃 후 페이지 새로고침
+    # 상단에 3등분 컬럼 만들기
+    # col1, col2, col3 = st.columns([6, 1, 1])
+
+    # with col3:
+    #     if st.button("LOGOUT"):
+    #         st.session_state["authenticated"] = False
+    #         st.query_params = {"page" : "login", "login": "false"}
+    #         st.rerun()  # 로그아웃 후 페이지 새로고침
         
     # ✅ 공통 사이드바 설정 함수 실행 후 값 가져오기
     sidebar_settings = setup_sidebar(sql_executor)

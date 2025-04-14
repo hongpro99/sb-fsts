@@ -1204,4 +1204,59 @@ class TradingLogic:
                 entry['Buy Signal'] = buy_signal
                 entry['Buy Reason'] = reason
 
-        return buy_signal    
+        return buy_signal
+    
+    def rsi_trading2(self, candle, rsi_values, symbol, buy_threshold= 30, sell_threshold= 70):
+        """
+        RSI를 기반으로 매수/매도 신호를 계산하는 함수.
+        sell할 때 RSI 값을 돌파할 때로 설정
+        """
+        
+        # ✅ None 값 제거 (dropna() 대신 직접 필터링)
+        rsi_values = [rsi for rsi in rsi_values if rsi is not None]
+
+        # ✅ NaN 제거 후 데이터 확인
+        if len(rsi_values) < 2:
+            return False, False  # 기본값 반환
+        
+        previous_rsi = rsi_values[-2]
+        current_rsi = rsi_values[-1]
+        
+        # ✅ 기본값 설정
+        buy_signal = False
+        sell_signal = False
+        reason = ""
+
+        trade_date = candle.time.date()  # 날짜만 추출 (YYYY-MM-DD)
+        close_price = float(candle.close)
+        volume = candle.volume
+        # 📌 매수 신호 판단 (Buy)
+        if previous_rsi <= buy_threshold and current_rsi > buy_threshold:
+            buy_signal = True
+            reason = f"RSI {previous_rsi:.2f} → {current_rsi:.2f} (Buy Threshold {buy_threshold} 초과)"
+
+        # 📌 매도 신호 판단 (Sell)
+        elif previous_rsi < sell_threshold and current_rsi >= sell_threshold:
+            sell_signal = True
+            reason = f"RSI {previous_rsi:.2f} → {current_rsi:.2f} (Sell Threshold {sell_threshold} 하락)"
+
+        # 📌 매수/매도 신호가 없는 경우, 이유 저장
+        else:
+            if previous_rsi > buy_threshold and current_rsi > buy_threshold:
+                reason = ("RSI가 이미 매수 임계값 이상, 추가 매수 없음")
+            elif previous_rsi < sell_threshold and current_rsi < sell_threshold:
+                reason = ("RSI가 이미 매도 임계값 이하, 추가 매도 없음")
+            elif previous_rsi > buy_threshold and current_rsi < buy_threshold:
+                reason = ("RSI가 매수 임계값을 초과했으나 다시 하락")
+            elif previous_rsi < sell_threshold and current_rsi > sell_threshold:
+                reason = ("RSI가 매도 임계값 이하였으나 다시 상승")
+            else:
+                reason = ("RSI 기준 충족하지 않음")
+
+        for entry in self.trade_reasons:
+            if entry['Time'].date() == trade_date and entry['symbol'] == symbol:
+                #entry['Buy Signal'] = buy_signal
+                entry['Sell Signal'] = sell_signal
+                entry['Reason'] = reason           
+            
+        return buy_signal, sell_signal    

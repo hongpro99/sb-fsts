@@ -595,6 +595,9 @@ class AutoTradingBot:
                     elif trading_logic == 'rsi_trading':
                         _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
                         
+                    elif trading_logic == 'rsi_trading2':
+                        _, sell_yn = logic.rsi_trading2(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
+                        
                     elif trading_logic == 'check_wick':            
                         # 볼린저 밴드 계산
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
@@ -790,6 +793,9 @@ class AutoTradingBot:
                 sell_yn = False
                 if logic_name == 'rsi_trading':
                     _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
+                    
+                elif logic_name == 'rsi_trading2':
+                    _, sell_yn = logic.rsi_trading2(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
 
                 if sell_yn:
                     sell_signal = True
