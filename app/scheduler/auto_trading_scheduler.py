@@ -54,7 +54,7 @@ def send_discord_webhook(message, bot_type):
 def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     
     # TO-DO
-    # 매수 로직 여기에 추가
+    # 잔고 조회 여기에 추가
     trading_bot = AutoTradingBot(id=id, virtual=virtual)
     print(f"{trading_bot_name}의 자동 트레이딩을 시작합니다")
     
@@ -110,7 +110,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
         max_retries = 5
         retries = 0
 
-        print(f'------ {symbol_name} 주식 자동 트레이딩을 시작합니다. ------')
+        print(f'------ {trading_bot_name}의 {symbol_name} 주식 자동 트레이딩을 시작합니다. ------')
 
         while retries < max_retries:
             try:

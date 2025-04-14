@@ -1033,10 +1033,11 @@ class AutoTradingBot:
                 buy_yn, _ = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)
             elif trading_logic == 'macd_trading':
                 buy_yn, _ = logic.macd_trading(candle, df, symbol)    
-                
-                if buy_yn:    
-                    self.send_discord_webhook(f"[reason:{reason}], {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
-            #print(f'{trading_logic} 로직 buy_signal = {buy_yn}')
+            
+            if buy_yn:
+                reason = trading_logic    
+                self.send_discord_webhook(f"[reason:{reason}], {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
+
 
             self._trade_kis(
                 buy_yn=buy_yn,
@@ -1098,8 +1099,9 @@ class AutoTradingBot:
             final_sell_yn = sell_yn or take_profit_hit or stop_loss_hit
 
             if final_sell_yn:
-                reason = trading_logic
-                if take_profit_hit:
+                if sell_yn:
+                    reason = trading_logic
+                elif take_profit_hit:
                     reason = "익절"
                 elif stop_loss_hit:
                     reason = "손절"
@@ -1187,30 +1189,6 @@ class AutoTradingBot:
 
         result = dynamodb_executor.execute_save(data_model)
         print(f'execute_save 결과 = {result}')
-
-        # sql_executor = SQLExecutor()
-        
-        # 동적 쿼리 생성
-        # query = """
-        #     INSERT INTO fsts.trading_history
-        #     (trading_logic, "position", trading_bot_name, price, quantity, symbol, symbol_name, trade_date)
-        #     VALUES (:trading_logic, :position, :trading_bot_name, :price, :quantity, :symbol, :symbol_name, :trade_date)
-        #     RETURNING *;
-        # """
-        
-        # params = {
-        #     "trading_logic": trading_logic,
-        #     "position": position,
-        #     "trading_bot_name": trading_bot_name,
-        #     "price": price,
-        #     "quantity": quantity,
-        #     "symbol": symbol,
-        #     "symbol_name": symbol_name,
-        #     "trade_date": current_time
-        # }
-
-        # with get_db_session() as db:
-        #     result = sql_executor.execute_upsert(db, query, params)
 
         return result
     
