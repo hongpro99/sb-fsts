@@ -810,16 +810,17 @@ class AutoTradingBot:
                 state['sell_dates'].append(timestamp_str)
 
         
-        
+        average_price = state["average_price"]
         # ✅ 평가 자산 기반 거래 금액 계산
         stock_value = total_quantity * close_price
         portfolio_value = trading_history['initial_capital'] + stock_value
+        
         # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
         if target_trade_value_krw and target_trade_value_krw > 0:
             trade_amount = min(target_trade_value_krw, trading_history['initial_capital'])
         else:
+            trade_ratio = trade_ratio if trade_ratio is not None else 100
             trade_amount = min(portfolio_value * (trade_ratio / 100), trading_history['initial_capital'])
-            
         
         # ✅ 매수 조건
         for logic_name in (buy_trading_logic or []):
@@ -1097,7 +1098,7 @@ class AutoTradingBot:
         if buy_yn:
             order_type = 'buy'
             # 매수 주문은 특정 로직에서만 실행
-            if trading_logic == 'ema_breakout_trading2' or trading_logic == 'sma_breakout_trading':
+            if trading_logic == 'ema_breakout_trading2':
                 self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
 
             #알림 전송 및 히스토리 기록은 모든 매수 로직에 대해 실행
