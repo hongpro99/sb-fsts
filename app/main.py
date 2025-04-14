@@ -22,9 +22,9 @@ scheduler = BackgroundScheduler(timezone=timezone('Asia/Seoul'))
 
 #3분 간격으로 실행
 scheduler.add_job(auto_trading_scheduler.scheduled_trading_schedulerbot_task, 'cron', day_of_week='mon-fri', hour='15', minute='15')  # 월~금 3시 15분에 실행
-# scheduler.add_job(auto_trading_scheduler.scheduled_trading_id1_task, 'cron', day_of_week='mon-fri', hour='15', minute='10')  # 월~금 10시 10분에 실행
+scheduler.add_job(auto_trading_scheduler.scheduled_trading_dreaminmindbot_task, 'cron', day_of_week='mon-fri', hour='15', minute='10')  # 월~금 10시 10분에 실행
 # scheduler.add_job(auto_trading_scheduler.scheduled_trading_id2_task, 'cron', day_of_week='mon-fri', hour='15', minute='10')  # 월~금 10시 10분에 실행
-#scheduler.add_job(auto_trading_scheduler.scheduled_trading_bnuazz15_task, 'cron', day_of_week='mon-fri', hour='15', minute='10') # 월~금 3시 10분에 실행
+#scheduler.add_job(auto_trading_scheduler.scheduled_trading_bnuazz15bot_task, 'cron', day_of_week='mon-fri', hour='15', minute='10') # 월~금 3시 10분에 실행
 scheduler.add_job(auto_trading_scheduler.scheduled_trading_weeklybot_task, 'cron', day_of_week='fri', hour='15', minute='10')# 월~금 3시 10분에 실행
 scheduler.add_job(auto_trading_scheduler.scheduled_trading_bnuazz15bot_real_task, 'cron', day_of_week='mon-fri', hour='15', minute='14')# 월~금 3시 14분에 실행 
 

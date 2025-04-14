@@ -19,10 +19,10 @@ def scheduled_trading_schedulerbot_task():
 # def scheduled_trading_id1_task():
 #     scheduled_trading(id="id1")
 
-# def scheduled_trading_id2_task():
-#     scheduled_trading(id="id2")
+def scheduled_trading_dreaminmindbot_task():
+    scheduled_trading(id='id1', virtual = False, trading_bot_name = 'dreaminmindbot')
 
-def scheduled_trading_bnuazz15_task():
+def scheduled_trading_bnuazz15bot_task():
     scheduled_trading(id='bnuazz15', virtual = True, trading_bot_name = 'bnuazz15bot')
     
 def scheduled_trading_weeklybot_task():

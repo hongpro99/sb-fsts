@@ -1,5 +1,5 @@
 # streamlit_app.py
-
+# AI 뉴스분석용 -> 매수 전 실행, 종목 추천
 import streamlit as st
 import feedparser
 import openai
