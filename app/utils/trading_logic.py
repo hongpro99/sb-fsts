@@ -1259,4 +1259,35 @@ class TradingLogic:
                 entry['Sell Signal'] = sell_signal
                 entry['Reason'] = reason           
             
-        return buy_signal, sell_signal    
+        return buy_signal, sell_signal
+    
+    def ema_crossover_trading(self, df, symbol):
+        """
+        📈 EMA 교차 기반 매수 조건
+        조건:
+        ① d-1일 10EMA < d-2일 10EMA
+        ② d일 10EMA > d-1일 10EMA
+        ③ d일 50EMA > d-1일 50EMA
+        ④ d일 10EMA > d일 50EMA
+        ⑤ d일 종가 > d일 10EMA
+        ⑥ d일 종가 > d-1일 종가
+        """
+        if df.shape[0] < 3:
+            print(f"❌ 데이터 부족으로 조건 계산 불가: {symbol}")
+            return False
+
+        d = df.iloc[-1]
+        d_1 = df.iloc[-2]
+        d_2 = df.iloc[-3]
+
+        # 조건 계산
+        cond_1 = d_1['EMA_10'] < d_2['EMA_10']
+        cond_2 = d['EMA_10'] > d_1['EMA_10']
+        cond_3 = d['EMA_50'] > d_1['EMA_50']
+        cond_4 = d['EMA_10'] > d['EMA_50']
+        cond_5 = d['Close'] > d['EMA_10']
+        cond_6 = d['Close'] > d_1['Close']
+
+        buy_signal = all([cond_1, cond_2, cond_3, cond_4, cond_5, cond_6])
+        
+        return buy_signal
