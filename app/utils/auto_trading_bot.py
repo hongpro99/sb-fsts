@@ -1277,7 +1277,7 @@ class AutoTradingBot:
             except Exception as e:
                 print(f"❌ 잔고 저장 실패 ({holding['symbol_name']}): {e}")
     
-    def place_order(self, deposit, symbol, symbol_name, qty, order_type, buy_price=None, sell_price=None, trading_bot_name = 'schedulerbot'):
+    def place_order(self, symbol, symbol_name, qty, order_type, buy_price=None, sell_price=None, deposit = None, trading_bot_name = 'schedulerbot'):
         """주식 매수/매도 주문 함수
         Args:
             deposit : 예수금
@@ -1376,7 +1376,6 @@ class AutoTradingBot:
             message = f"[{datetime.now()}] ✅ 자동 매도 실행: bot: {trading_bot_name} 종목 {symbol_name}, 수량 {qty}주 (시장가 매도)"
             try:
                 self.place_order(
-                    deposit=deposit,
                     symbol=symbol,
                     symbol_name = symbol_name,
                     qty=qty,
