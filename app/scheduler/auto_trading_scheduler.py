@@ -71,8 +71,8 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     #     result = sql_executor.execute_select(db, query, params)
 
     result = list(StockSymbol.scan(
-        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
-    )) #scan은 랜덤, 정렬 불가
+        filter_condition=((StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'kospi200'))
+    )) #scan은 랜덤, 정렬 불가 -> 종목 순서 기준은 추후 검토
     
     # 당일로부터 1년전 기간으로 차트 분석
     end_date = date.today()
@@ -96,6 +96,10 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
         target_trade_value_krw = trade.target_trade_value_krw
         max_allocation = trade.max_allocation
         interval = trade.interval
+        take_profit_threshold = trade.take_profit_threshold
+        stop_loss_threshold = trade.stop_loss_threshold
+        use_stop_loss = trade.use_stop_loss
+        use_take_profit = trade.use_take_profit
 
     #✅ enumerate로 종목 번호 부여 (1부터 시작)
     for i, stock in enumerate(result, start=1):
@@ -120,7 +124,11 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
                     end_date=end_date,
                     target_trade_value_krw=target_trade_value_krw,
                     interval=interval,
-                    max_allocation = max_allocation
+                    max_allocation = max_allocation,
+                    take_profit_threshold = take_profit_threshold,
+                    stop_loss_threshold = stop_loss_threshold,
+                    use_stop_loss = use_stop_loss,
+                    use_take_profit= use_take_profit
                 )
                 break
             except Exception as e:

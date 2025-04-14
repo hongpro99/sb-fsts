@@ -1,5 +1,5 @@
 from pynamodb.models import Model
-from pynamodb.attributes import UnicodeAttribute, NumberAttribute, ListAttribute
+from pynamodb.attributes import UnicodeAttribute, NumberAttribute, ListAttribute, BooleanAttribute
 import time
 import uuid
 
@@ -27,3 +27,7 @@ class UserInfo(Model):
     target_trade_value_krw = NumberAttribute()
     max_allocation = NumberAttribute()
     interval = UnicodeAttribute()
+    take_profit_threshold = NumberAttribute(null=True)  # 예: 0.05
+    stop_loss_threshold = NumberAttribute(null=True)    # 예: -0.05
+    use_take_profit = BooleanAttribute(null=True)       # 예: True
+    use_stop_loss = BooleanAttribute(null=True)         # 예: True
