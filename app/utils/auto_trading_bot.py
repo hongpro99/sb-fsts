@@ -1042,23 +1042,23 @@ class AutoTradingBot:
             
             if buy_yn:
                 reason = trading_logic    
-                self.send_discord_webhook(f"[reason:{reason}], {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW", "trading")
+                self.send_discord_webhook(f"[reason:{reason}], {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW", "trading")
 
 
-            # self._trade_kis(
-            #     buy_yn=buy_yn,
-            #     sell_yn=False,
-            #     volume=volume,
-            #     prev=prev,
-            #     avg_volume_20_days=avg_volume_20_days,
-            #     trading_logic=trading_logic,
-            #     symbol=symbol,
-            #     symbol_name=symbol_name,
-            #     ohlc_data=ohlc_data,
-            #     trading_bot_name=trading_bot_name,
-            #     target_trade_value_krw=target_trade_value_krw,
-            #     max_allocation = max_allocation
-            # )
+            self._trade_kis(
+                buy_yn=buy_yn,
+                sell_yn=False,
+                volume=volume,
+                prev=prev,
+                avg_volume_20_days=avg_volume_20_days,
+                trading_logic=trading_logic,
+                symbol=symbol,
+                symbol_name=symbol_name,
+                ohlc_data=ohlc_data,
+                trading_bot_name=trading_bot_name,
+                target_trade_value_krw=target_trade_value_krw,
+                max_allocation = max_allocation
+            )
             
         # 🟡 trade 함수 상단
         account = self.kis.account()
@@ -1115,20 +1115,20 @@ class AutoTradingBot:
 
                 print(f"✅ 매도 조건 충족: {symbol_name} - 매도 사유: {reason}")
 
-            # self._trade_kis(
-            #     buy_yn=False,
-            #     sell_yn=final_sell_yn,
-            #     volume=volume,
-            #     prev=prev,
-            #     avg_volume_20_days=avg_volume_20_days,
-            #     trading_logic=trading_logic,
-            #     symbol=symbol,
-            #     symbol_name=symbol_name,
-            #     ohlc_data=ohlc_data,
-            #     trading_bot_name=trading_bot_name,
-            #     target_trade_value_krw=target_trade_value_krw,
-            #     max_allocation=max_allocation
-            # )
+            self._trade_kis(
+                buy_yn=False,
+                sell_yn=final_sell_yn,
+                volume=volume,
+                prev=prev,
+                avg_volume_20_days=avg_volume_20_days,
+                trading_logic=trading_logic,
+                symbol=symbol,
+                symbol_name=symbol_name,
+                ohlc_data=ohlc_data,
+                trading_bot_name=trading_bot_name,
+                target_trade_value_krw=target_trade_value_krw,
+                max_allocation=max_allocation
+            )
 
         # 마지막 직전 봉 음봉, 양봉 계산
         is_bearish_prev_candle = close_price < close_open_price  # 음봉 확인
