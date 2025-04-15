@@ -1072,6 +1072,8 @@ class AutoTradingBot:
                 _, sell_yn = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
             elif trading_logic == 'rsi_trading':
                 _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol)
+            elif trading_logic == 'rsi_trading2':
+                _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol)
             elif trading_logic == 'mfi_trading':
                 _, sell_yn = logic.mfi_trading(df, symbol)
             elif trading_logic == 'top_reversal_sell_trading':
@@ -1158,7 +1160,7 @@ class AutoTradingBot:
         if sell_yn:
             order_type = 'sell'
             # 매도 주문은 특정 로직에서만 실행
-            if trading_logic == 'rsi_trading':
+            if trading_logic == 'rsi_trading' or trading_logic == 'rsi_trading2':
                 self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
                 
                 # trade history 에 추가
