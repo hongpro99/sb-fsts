@@ -1287,7 +1287,9 @@ class TradingLogic:
         cond_4 = d['EMA_10'] > d['EMA_50']
         cond_5 = d['Close'] > d['EMA_10']
         cond_6 = d['Close'] > d_1['Close']
+        cond_7 = d['EMA_20'] > d_1['EMA_20']
+        cond_8 = d_1['EMA_10'] < d_1['EMA_50']*(1+0.04)
 
-        buy_signal = all([cond_1, cond_2, cond_3, cond_4, cond_5, cond_6])
+        buy_signal = all([cond_1, cond_2, cond_3, cond_4, cond_5, cond_6, cond_7, cond_8])
         
         return buy_signal
