@@ -4,6 +4,8 @@ import pandas as pd
 import requests
 import math
 import json
+import os
+
 from pykis import PyKis, KisChart, KisStock, KisQuote
 from datetime import datetime, date, time
 import mplfinance as mpf
@@ -18,7 +20,7 @@ from app.utils.dynamodb.model.trading_history_model import TradingHistory
 from app.utils.dynamodb.model.auto_trading_model import AutoTrading
 from app.utils.dynamodb.model.auto_trading_balance_model import AutoTradingBalance
 from app.utils.dynamodb.model.user_info_model import UserInfo
-from pykis import KisBalance
+from pykis import KisBalance, KisOrderProfits
 from decimal import Decimal
 
 
@@ -569,6 +571,38 @@ class AutoTradingBot:
             
                     # 손익 및 매매 횟수 계산
                     trading_history = self.calculate_pnl(trading_history, close_price)
+                    
+                    # === TP/SL 매도 우선 처리 ===
+            if trading_history['total_quantity'] > 0:
+                average_price = trading_history['average_price']
+                current_profit_ratio = (close_price - average_price) / average_price if average_price > 0 else 0.0
+
+                tp_triggered = take_profit_enabled and (current_profit_ratio >= take_profit_pct / 100)
+                sl_triggered = stop_loss_enabled and (current_profit_ratio <= -stop_loss_pct / 100)
+
+                if tp_triggered or sl_triggered:
+                    sell_quantity = trading_history['total_quantity']
+                    realized_pnl = (close_price - average_price) * sell_quantity
+                    invested_amount = average_price * sell_quantity
+                    realized_roi = realized_pnl / invested_amount if invested_amount > 0 else 0.0
+                    total_sale_amount = close_price * sell_quantity
+
+                    if real_trading:
+                        trading_history['initial_capital'] += total_sale_amount
+
+                    trading_history['history'].append({
+                        'position': 'SELL',
+                        'trading_logic': 'take_profit' if tp_triggered else 'stop_loss',
+                        'price': close_price,
+                        'quantity': sell_quantity,
+                        'time': timestamp_iso,
+                        'realized_pnl': realized_pnl,
+                        'realized_roi': float(realized_roi)
+                    })
+
+                    sell_signals.append((timestamp, close_price))
+                    print(f"📤 {'익절' if tp_triggered else '손절'} 발생! ROI: {realized_roi*100:.2f}%로 매도")
+                    continue  # 아래 로직 기반 매도 생략
                 
             # 매도형 로직 처리
             if sell_trading_logic:
@@ -636,19 +670,29 @@ class AutoTradingBot:
                         sell_yn = logic.should_sell(df)
                                             
                 #매도 사인이 2개 이상일 때 quantity 조건에 충족되지 않은 조건은 history에 추가되지 않는다는 문제 해결 필요
+                
+                
                 # 매도
                 if sell_yn:
                     if trading_history['total_quantity'] > 0:
                         # 매도 수량 계산
-                        sell_quantity = (
-                            trading_history['total_quantity']  # 보유 수량 이하로만 매도
-                            if trading_history['total_quantity'] < math.floor(trade_amount / close_price)
-                            else math.floor(trade_amount / close_price)
-                        )
+                        # sell_quantity = (
+                        #     trading_history['total_quantity']  # 보유 수량 이하로만 매도
+                        #     if trading_history['total_quantity'] < math.floor(trade_amount / close_price)
+                        #     else math.floor(trade_amount / close_price))
+                        
+                        sell_quantity = trading_history['total_quantity']
+                        
 
                         if sell_quantity > 0:
                             # 실현 손익 계산
                             realized_pnl = (close_price - trading_history['average_price']) * sell_quantity
+                            total_sale_amount = close_price * sell_quantity
+                            
+                                        # ✅ ROI = 손익 / 매수 원금
+                            invested_amount = trading_history['average_price'] * sell_quantity
+                            realized_roi = (realized_pnl / invested_amount) if invested_amount > 0 else 0.0
+
                             total_sale_amount = close_price * sell_quantity
 
                             if real_trading:
@@ -662,7 +706,8 @@ class AutoTradingBot:
                                 'price': close_price,
                                 'quantity': sell_quantity,
                                 'time': timestamp_iso,
-                                'realized_pnl': realized_pnl
+                                'realized_pnl': realized_pnl,
+                                'realized_roi': float(realized_roi)
                             })
 
                             sell_signals.append((timestamp, close_price))
@@ -1479,6 +1524,66 @@ class AutoTradingBot:
 
         return holdings
 
+    def update_roi(self, trading_bot_name):
+                # ✅ 손익 조회
+                
+        def round_half(x):
+            """0.5 단위 반올림 함수"""
+            return round(x * 2) / 2
+        
+        account = self.kis.account()
+        
+        # ✅ 실현 손익 조회
+        profits: KisOrderProfits = account.profits(start=date(2023, 8, 1), end=date.today())
+        realized_pnl = float(profits.profit)                # 실현 손익
+        realized_buy_amt = float(profits.buy_amount)        # 실현 매입 금액
+
+        # ✅ 미실현 손익 조회
+        balance: KisBalance = account.balance()
+        unrealized_pnl = float(balance.profit)     # 평가손익
+        holding_buy_amt = float(balance.purchase_amount)           # 현재 보유 주식 매입 금액
+        unrealized_roi_raw = float(balance.profit_rate)     # 미실현 수익률 (원래 %)
+
+        # ✅ 수익률 계산
+        realized_roi = (realized_pnl / realized_buy_amt) * 100 if realized_buy_amt > 0 else 0.0
+        total_pnl = realized_pnl + unrealized_pnl
+        total_buy_amt = realized_buy_amt + holding_buy_amt
+        total_roi = (total_pnl / total_buy_amt) * 100 if total_buy_amt > 0 else 0.0
+
+        # ✅ 날짜는 YYYY-MM-DD 기준 (시간 X)
+        today_str = datetime.now().strftime("%Y-%m-%d")
+
+        # ✅ 기록할 데이터
+        record = {
+            "date": today_str,
+            "bot_name": trading_bot_name,
+            "realized_pnl": realized_pnl,
+            "realized_buy_amt": realized_buy_amt,
+            "realized_roi": round_half(realized_roi),
+            "unrealized_pnl": unrealized_pnl,
+            "unrealized_roi": round_half(unrealized_roi_raw),
+            "holding_buy_amt": holding_buy_amt,
+            "total_pnl": total_pnl,
+            "total_buy_amt": total_buy_amt,
+            "total_roi": round_half(total_roi)
+        }
+
+        # ✅ 저장할 CSV 파일
+        csv_file = "profits_history.csv"
+
+        if os.path.exists(csv_file):
+            df = pd.read_csv(csv_file)
+
+            # 날짜 + 봇 이름 중복 시 덮어쓰기
+            df = df[~((df['date'] == today_str) & (df['bot_name'] == trading_bot_name))]
+            df = pd.concat([df, pd.DataFrame([record])], ignore_index=True)
+        else:
+            df = pd.DataFrame([record])
+
+        # ✅ 저장
+        df.to_csv(csv_file, index=False)
+        print(f"✅ 수익률 기록 저장 완료 ({csv_file})")
+        
     # 컷 로스 (손절)
     def cut_loss(self, target_trade_value_usdt):
         pass

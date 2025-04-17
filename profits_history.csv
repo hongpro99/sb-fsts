@@ -1,0 +1,4 @@
+date,bot_name,realized_pnl,realized_buy_amt,realized_roi,unrealized_pnl,unrealized_roi,holding_buy_amt,total_pnl,total_buy_amt,total_roi
+2025-04-17,schedulerbot,124259.0,1692644.0,7.5,15460.0,1.0,1911840.0,139719.0,3604484.0,4.0
+2025-04-17,dreaminmindbot,6300.0,491400.0,1.5,-35410.0,-1.0,3974010.0,-29110.0,4465410.0,-0.5
+2025-04-17,bnuazz15bot_real,177350.0,1353000.0,13.0,-17110.0,-0.5,4804910.0,160240.0,6157910.0,2.5

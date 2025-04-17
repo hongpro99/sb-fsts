@@ -137,7 +137,8 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
                 if retries >= max_retries:
                     print(f"Skipping {symbol_name} after {max_retries} failed attempts.")
                     
-    trading_bot._upsert_account_balance(trading_bot_name)
+    trading_bot._upsert_account_balance(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨
+    trading_bot.update_roi(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨
 
 
 

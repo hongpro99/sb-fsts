@@ -21,3 +21,4 @@ pynamodb
 feedparser
 openai
 beautifulsoup4
+plotly

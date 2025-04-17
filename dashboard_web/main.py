@@ -13,6 +13,7 @@ import streamlit.components.v1 as components
 from streamlit_lightweight_charts import renderLightweightCharts
 import json
 import numpy as np
+import plotly.express as px
 
 # 프로젝트 루트를 PYTHONPATH에 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1090,7 +1091,7 @@ def main():
     sidebar_settings = setup_sidebar(sql_executor)
     
     # 탭 생성
-    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "🛠 Settings", "📈Auto Trading Bot Balance"])
+    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "🛠 Settings", "📈Auto Trading Bot Balance", "🏆Ranking"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
@@ -1240,7 +1241,13 @@ def main():
                 if "history" in trading_history and isinstance(trading_history["history"], list) and trading_history["history"]:
                     rename_tradingLogic(trading_history["history"])  # 필요 시 로직명 변환
                     trade_history_df = pd.DataFrame(trading_history["history"])
-        
+                    
+                                        # ✅ 실현 수익률 퍼센트 표시
+                    if "realized_roi" in trade_history_df.columns:
+                        trade_history_df["realized_roi (%)"] = trade_history_df["realized_roi"].apply(
+                            lambda x: f"{x * 100:.2f}%" if pd.notnull(x) else None
+                        )
+                    
                     st.subheader("📋 Detailed Trade History")
                     st.dataframe(trade_history_df, use_container_width=True)
                 else:
@@ -1646,6 +1653,65 @@ def main():
             fit_columns_on_grid_load=True,  # 열 너비 자동 조정
             update_mode=GridUpdateMode.NO_UPDATE  # ✅ 핵심! 클릭해도 아무 일 없음
         )
+        
+    with tabs[5]:
+        
+        st.header("Ranking")
+        # CSV 파일 로드
+        csv_file = "profits_history.csv"
+        df = pd.read_csv(csv_file)
+        df["date"] = pd.to_datetime(df["date"])
+
+        # 봇 이름 목록 가져오기
+        bot_names = df["bot_name"].unique().tolist()
+        selected_bots = st.multiselect("🤖 봇 선택", bot_names, default=bot_names)
+
+        # 수익률 종류 선택
+        roi_option = st.radio(
+            "📈 수익률 종류 선택",
+            ("realized_roi", "unrealized_roi", "total_roi"),
+            index=2,
+            format_func=lambda x: {
+                "realized_roi": "실현 수익률",
+                "unrealized_roi": "미실현 수익률",
+                "total_roi": "총 수익률"
+            }[x]
+        )
+
+        # 오늘 날짜 기준 데이터만 추출
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_df = df[df["date"] == today_str]
+        today_df = today_df[today_df["bot_name"].isin(selected_bots)]
+
+        # 등수 계산 (수익률 높은 순)
+        if not today_df.empty:
+            today_df = today_df.copy()
+            today_df["rank"] = today_df[roi_option].rank(ascending=False, method='min').astype(int)
+            today_df = today_df.sort_values("rank")
+
+            st.subheader("🏆 오늘 수익률 순위")
+            st.dataframe(today_df[["bot_name", roi_option, "rank"]].rename(columns={
+                "bot_name": "Bot 이름",
+                roi_option: "수익률 (%)",
+                "rank": "등수"
+            }), use_container_width=True)
+        else:
+            st.warning("오늘 날짜 기준 데이터가 없습니다.")
+
+        # 선택된 봇 기준 전체 기간 시계열 그래프
+        filtered_df = df[df["bot_name"].isin(selected_bots)]
+
+        fig = px.line(
+            filtered_df,
+            x="date",
+            y=roi_option,
+            color="bot_name",
+            markers=True,
+            title=f"📊 날짜별 {roi_option.replace('_roi', '').capitalize()} 수익률 변화",
+            labels={roi_option: "ROI (%)", "date": "날짜"}
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
 
 if __name__ == "__main__":
         # Streamlit 실행 시 로그인 여부 확인

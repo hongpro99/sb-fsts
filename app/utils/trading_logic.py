@@ -923,37 +923,63 @@ class TradingLogic:
 
     def trend_entry_trading(self, df):
         """
-        상승 추세 진입형 매수 전략
+        EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
         조건:
-        ① 오늘 RSI, MFI, Stochastic_k가 임계값을 상향 돌파
-        ② 오늘 MACD 히스토그램 양수 (상승 전환)
-        ③ EMA 배열: EMA_10 > EMA_20 > EMA_50
-        ④ 거래량은 평균 이상
+        ② 현재 시점: EMA_10이 EMA_50을 아래에서 위로 돌파
+        ③ 현재 EMA_10, EMA_20, EMA_50의 기울기 ≥ 0
+        ④ 거래량이 5일 평균 이상
+        ⑤ 당일 윗꼬리 음봉이면 제외
         """
 
         if df.shape[0] < 2:
-            print("❌ 데이터가 부족해서 조건 계산 불가")
+            print("❌ 데이터가 부족해서 ema_breakout_trading2 조건 계산 불가")
             return False
+
+        if 'Volume_MA5' not in df.columns:
+            df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
+        trade_date = last.name.date()
+        last_close_price = float(last['Close'])
+        prev_close_price = float(prev['Close'])
 
-        # 조건 1: 지표 돌파
-        indicator_jump = (
-            last['rsi'] > 55 and prev['rsi'] <= 55 and
-            last['mfi'] > 55 and prev['mfi'] <= 55 and
-            last['stochastic_k'] > 75 and prev['stochastic_k'] <= 75
+        # 조건 2: EMA_10이 EMA_50 상향 돌파
+        cross_up = (
+            prev['EMA_10'] < prev['EMA_20'] and
+            last['EMA_10'] > last['EMA_20']
         )
 
-        # 조건 2: MACD 히스토그램 양수
-        macd_positive = last['macd_histogram'] > 0
+        # 조건 3: EMA 기울기 양수
+        ema10_slope = last['EMA_10'] - prev['EMA_10']
+        ema20_slope = last['EMA_20'] - prev['EMA_20']
+        ema50_slope = last['EMA_50'] - prev['EMA_50']
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0
 
-        # 조건 3: EMA 배열
-        ema_arranged = (
-            last['EMA_10'] > last['EMA_20'] > last['EMA_50']
-        )
+        # 조건 4: 거래량 증가
+        volume_up = last['Volume'] > last['Volume_MA5']
 
-        buy_signal = indicator_jump and macd_positive and ema_arranged 
+        # ❌ 조건 5: 당일 윗꼬리 음봉 제외
+        is_bearish = last['Close'] < last['Open']
+        # upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        # long_upper_shadow = is_bearish and upper_shadow_ratio > 0.4  # 윗꼬리 40% 이상이면 제외
+        long_upper_shadow = is_bearish
+        # 최종 조건
+        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow
+
+        # 매매 사유 작성
+        if buy_signal:
+            reason = (
+                f"매수 신호 발생: "
+                f"[현재 EMA10 상향 돌파 EMA50] {prev['EMA_10']:.2f} → {last['EMA_10']:.2f} vs EMA50 {last['EMA_50']:.2f}, "
+                f"[기울기] EMA10: {ema10_slope:.2f}, EMA20: {ema20_slope:.2f}, EMA50: {ema50_slope:.2f}, "
+                f"[거래량] {last['Volume']:.0f} > 5일평균 {last['Volume_MA5']:.0f}"
+            )
+        else:
+            if long_upper_shadow:
+                reason = "❌ 당일 윗꼬리 음봉 → 매수 조건 탈락"
+            else:
+                reason = "EMA 배열 돌파 조건 불충족"
 
         return buy_signal
     
