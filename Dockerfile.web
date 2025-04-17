@@ -12,6 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 프로젝트 depth 일치 시키도록 /app/app 설정
 COPY ./app /app/app
 COPY ./dashboard_web /app/dashboard_web
+# ✅ CSV 파일도 함께 복사
+COPY ./profits_history.csv /app/profits_history.csv
 
 EXPOSE 8500
 
