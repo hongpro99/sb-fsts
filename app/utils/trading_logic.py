@@ -1293,3 +1293,25 @@ class TradingLogic:
         buy_signal = all([cond_1, cond_2, cond_3, cond_4, cond_5, cond_6, cond_7, cond_8])
         
         return buy_signal
+    
+    def should_sell(self, df):
+        """
+        df: DataFrame with columns ['Close', 'EMA_5', 'EMA_10', 'Low']
+        """
+        if len(df) < 3:
+            return False  # 데이터 부족
+
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+
+        # 조건 1: 5일 EMA 데드크로스
+        dead_cross = prev['EMA_5'] > prev['EMA_10'] and last['EMA_5'] < last['EMA_10']
+
+        # 조건 2: 최근 n일간의 주요 저점 이탈
+        recent_lows = df['Low'][-6:-1]  # 직전 5거래일 저점
+        support_level = recent_lows.min()
+        support_break = last['Close'] < support_level
+
+        sell_signal = dead_cross or support_break
+        
+        return sell_signal

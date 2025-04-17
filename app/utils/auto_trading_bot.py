@@ -172,6 +172,7 @@ class AutoTradingBot:
         df = indicator.cal_ema_df(df, 20)
         df = indicator.cal_ema_df(df, 50)
         df = indicator.cal_ema_df(df, 60)
+        df = indicator.cal_ema_df(df, 5)
 
         df = indicator.cal_rsi_df(df)
         df = indicator.cal_macd_df(df)
@@ -378,6 +379,7 @@ class AutoTradingBot:
             df = indicator.cal_ema_df(df, 20)
             df = indicator.cal_ema_df(df, 50)
             df = indicator.cal_ema_df(df, 60)
+            df = indicator.cal_ema_df(df, 5)
             
             #sma
             df = indicator.cal_sma_df(df, 5)
@@ -629,6 +631,10 @@ class AutoTradingBot:
                         
                     elif trading_logic == 'downtrend_sell_trading':
                         sell_yn = logic.downtrend_sell_trading(df)
+                        
+                    elif trading_logic == 'should_sell':
+                        sell_yn = logic.should_sell(df)
+                                            
                 #매도 사인이 2개 이상일 때 quantity 조건에 충족되지 않은 조건은 history에 추가되지 않는다는 문제 해결 필요
                 # 매도
                 if sell_yn:
@@ -799,6 +805,9 @@ class AutoTradingBot:
                     
                 elif logic_name == 'rsi_trading2':
                     _, sell_yn = logic.rsi_trading2(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
+                    
+                elif logic_name == 'should_sell':
+                    sell_yn = logic.should_sell(df)
 
                 if sell_yn:
                     sell_signal = True

@@ -55,6 +55,7 @@ def draw_lightweight_chart(data_df, selected_indicators):
     ema_10 = json.loads(data_df.dropna(subset=['ema_10']).rename(columns={"ema_10": "value"}).to_json(orient="records"))
     ema_20 = json.loads(data_df.dropna(subset=['ema_20']).rename(columns={"ema_20": "value"}).to_json(orient="records"))
     ema_50 = json.loads(data_df.dropna(subset=['ema_50']).rename(columns={"ema_50": "value"}).to_json(orient="records"))
+    ema_5 = json.loads(data_df.dropna(subset=['ema_5']).rename(columns={"ema_5": "value"}).to_json(orient="records"))
     
     sma_5 = json.loads(data_df.dropna(subset=['sma_5']).rename(columns={"sma_5": "value"}).to_json(orient="records"))
     sma_20 = json.loads(data_df.dropna(subset=['sma_20']).rename(columns={"sma_20": "value"}).to_json(orient="records"))
@@ -340,13 +341,27 @@ def draw_lightweight_chart(data_df, selected_indicators):
             },
         ])
         
+                # EMA 5
+    if "ema_5" in selected_indicators:
+        seriesCandlestickChart.append({
+            "type": 'Line',
+            "data": ema_5,
+            "options": {
+                "color": 'black', #빨간색
+                "lineWidth": 2,
+                "priceScaleId": "right",
+                "lastValueVisible": False,
+                "priceLineVisible": False,
+            },
+        })
+        
         # EMA 10
     if "ema_10" in selected_indicators:
         seriesCandlestickChart.append({
             "type": 'Line',
             "data": ema_10,
             "options": {
-                "color": 'rgba(255, 0, 0, 1)',
+                "color": 'rgba(255, 0, 0, 1)', #빨간색
                 "lineWidth": 2,
                 "priceScaleId": "right",
                 "lastValueVisible": False,
@@ -696,7 +711,9 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'rsi_trading2':
             entry['trading_logic'] =  'rsi2'
         elif entry.get('trading_logic') == 'ema_crossover_trading':
-            entry['trading_logic'] =  '눌림'                                                        
+            entry['trading_logic'] =  '눌림'
+        elif entry.get('trading_logic') == 'should_sell':
+            entry['trading_logic'] =  '추세 손절'                                                                    
             
 def login_page():
     """
@@ -835,6 +852,8 @@ def setup_sidebar(sql_executer):
     st.sidebar.subheader("📊 차트 지표 선택")
     # 체크박스로 사용자 선택 받기
     selected_indicators = []
+    if st.sidebar.checkbox("EMA 5", value=True):
+        selected_indicators.append("ema_5")
     if st.sidebar.checkbox("EMA 10", value=True):
         selected_indicators.append("ema_10")
     if st.sidebar.checkbox("EMA 20", value=True):
@@ -1268,6 +1287,7 @@ def main():
                         df = indicator.cal_ema_df(df, 20)
                         df = indicator.cal_ema_df(df, 50)
                         df = indicator.cal_ema_df(df, 60)
+                        df = indicator.cal_ema_df(df, 5)
                         
                         #sma
                         df = indicator.cal_sma_df(df, 5)
