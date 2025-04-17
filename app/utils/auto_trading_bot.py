@@ -1034,7 +1034,9 @@ class AutoTradingBot:
             elif trading_logic == 'stochastic_trading':
                 buy_yn, _ = logic.stochastic_trading(df, symbol)
             elif trading_logic == 'ema_breakout_trading2':
-                buy_yn = logic.ema_breakout_trading2(df, symbol)    
+                buy_yn = logic.ema_breakout_trading2(df, symbol)
+            elif trading_logic == 'ema_breakout_trading3':
+                buy_yn = logic.ema_breakout_trading3(df, symbol)    
             elif trading_logic == 'trend_entry_trading':
                 buy_yn = logic.trend_entry_trading(df)
             elif trading_logic == 'bottom_rebound_trading':
@@ -1155,7 +1157,7 @@ class AutoTradingBot:
         if buy_yn:
             order_type = 'buy'
             # 매수 주문은 특정 로직에서만 실행
-            if trading_logic == 'ema_breakout_trading2':
+            if trading_logic == 'ema_breakout_trading3':
                 self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
 
             position = 'BUY'
