@@ -846,6 +846,12 @@ def setup_sidebar(sql_executer):
     if real_trading_yn == "Y":
         initial_capital = st.sidebar.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000)
         
+    use_take_profit = st.sidebar.checkbox("익절 조건", value=False)
+    take_profit_ratio = st.sidebar.number_input("익절(%)", value=5.0, min_value=0.0,  key="take_profit_ratio")
+
+    use_stop_loss = st.sidebar.checkbox("손절 조건", value=False)
+    stop_loss_ratio = st.sidebar.number_input("손절(%)", value=5.0, min_value=0.0,  key="stop_loss_ratio")
+        
     #✅ rsi 조건값 입력
     rsi_buy_threshold = st.sidebar.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1)
     rsi_sell_threshold = st.sidebar.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1)
@@ -897,7 +903,11 @@ def setup_sidebar(sql_executer):
         "rsi_sell_threshold" : rsi_sell_threshold,
         "rsi_period" : rsi_period,
         "selected_indicators" : selected_indicators,
-        "initial_capital" : initial_capital
+        "initial_capital" : initial_capital,
+        "use_take_profit" : use_take_profit,
+        "take_profit_ratio": take_profit_ratio,
+        "use_stop_loss": use_stop_loss,
+        "stop_loss_ratio": stop_loss_ratio
     }
     
 def setup_my_page():
@@ -1173,7 +1183,11 @@ def main():
                     rsi_buy_threshold= sidebar_settings['rsi_buy_threshold'],
                     rsi_sell_threshold= sidebar_settings['rsi_sell_threshold'],
                     rsi_period= sidebar_settings['rsi_period'],
-                    initial_capital = sidebar_settings['initial_capital']
+                    initial_capital = sidebar_settings['initial_capital'],
+                    use_take_profit=sidebar_settings["use_take_profit"],
+                    take_profit_ratio=sidebar_settings["take_profit_ratio"],
+                    use_stop_loss=sidebar_settings["use_stop_loss"],
+                    stop_loss_ratio=sidebar_settings["stop_loss_ratio"]
                     
                 )
                 # 시뮬레이션 결과를 session_state에 저장

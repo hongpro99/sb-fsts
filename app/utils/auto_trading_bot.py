@@ -304,7 +304,8 @@ class AutoTradingBot:
     
 
     def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None,
-                        interval='day', buy_percentage = None, ohlc_mode = 'default', initial_capital=None, rsi_buy_threshold = 30, rsi_sell_threshold = 70, rsi_period = 25):
+                        interval='day', buy_percentage = None, ohlc_mode = 'default', initial_capital=None, rsi_buy_threshold = 30, rsi_sell_threshold = 70, rsi_period = 25, take_profit_ratio=5.0, stop_loss_ratio=3.0,
+                        use_take_profit = False, use_stop_loss = False):
     
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval, ohlc_mode) #클래스 객체, .사용
         # trade_reasons = logic.trade_reasons
@@ -571,44 +572,25 @@ class AutoTradingBot:
             
                     # 손익 및 매매 횟수 계산
                     trading_history = self.calculate_pnl(trading_history, close_price)
-                    
-            #         # === TP/SL 매도 우선 처리 ===
-            # if trading_history['total_quantity'] > 0:
-            #     average_price = trading_history['average_price']
-            #     current_profit_ratio = (close_price - average_price) / average_price if average_price > 0 else 0.0
-
-            #     tp_triggered = take_profit_enabled and (current_profit_ratio >= take_profit_pct / 100)
-            #     sl_triggered = stop_loss_enabled and (current_profit_ratio <= -stop_loss_pct / 100)
-
-            #     if tp_triggered or sl_triggered:
-            #         sell_quantity = trading_history['total_quantity']
-            #         realized_pnl = (close_price - average_price) * sell_quantity
-            #         invested_amount = average_price * sell_quantity
-            #         realized_roi = realized_pnl / invested_amount if invested_amount > 0 else 0.0
-            #         total_sale_amount = close_price * sell_quantity
-
-            #         if real_trading:
-            #             trading_history['initial_capital'] += total_sale_amount
-
-            #         trading_history['history'].append({
-            #             'position': 'SELL',
-            #             'trading_logic': 'take_profit' if tp_triggered else 'stop_loss',
-            #             'price': close_price,
-            #             'quantity': sell_quantity,
-            #             'time': timestamp_iso,
-            #             'realized_pnl': realized_pnl,
-            #             'realized_roi': float(realized_roi)
-            #         })
-
-            #         sell_signals.append((timestamp, close_price))
-            #         print(f"📤 {'익절' if tp_triggered else '손절'} 발생! ROI: {realized_roi*100:.2f}%로 매도")
-            #         continue  # 아래 로직 기반 매도 생략
                 
             # 매도형 로직 처리
             sell_yn = False
             triggered_logic = None
 
-            if sell_trading_logic:
+            # ✅ 익절 / 손절 먼저 검사
+            if trading_history['total_quantity'] > 0:
+                avg_price = trading_history['average_price']
+                current_return_rate = (close_price - avg_price) / avg_price * 100 if avg_price > 0 else 0.0
+
+                if use_take_profit and take_profit_ratio is not None and current_return_rate >= take_profit_ratio:
+                    sell_yn = True
+                    triggered_logic = '익절'
+                elif use_stop_loss and stop_loss_ratio is not None and current_return_rate <= -stop_loss_ratio:
+                    sell_yn = True
+                    triggered_logic = '손절'
+                    
+        
+            if not sell_yn and sell_trading_logic:
                 for trading_logic in sell_trading_logic:
                     result = False
 
