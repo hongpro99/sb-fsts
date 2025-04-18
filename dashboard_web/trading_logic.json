@@ -23,6 +23,7 @@
         "고점반락형 매도": "top_reversal_sell_trading",
         "하락추세형 매도": "downtrend_sell_trading",
         "rsi2": "rsi_trading2",
-        "추세 손절": "should_sell"        
+        "추세 손절": "should_sell",
+        "전일저가통과": "break_prev_low"        
     }
 }

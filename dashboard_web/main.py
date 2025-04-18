@@ -714,7 +714,9 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'ema_crossover_trading':
             entry['trading_logic'] =  '눌림'
         elif entry.get('trading_logic') == 'should_sell':
-            entry['trading_logic'] =  '추세 손절'                                                                    
+            entry['trading_logic'] =  '추세 손절'
+        elif entry.get('trading_logic') == 'break_prev_low':
+            entry['trading_logic'] =  '전일저가통과'                                                                                
             
 def login_page():
     """

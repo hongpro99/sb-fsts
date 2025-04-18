@@ -1346,3 +1346,20 @@ class TradingLogic:
         sell_signal = dead_cross or support_break
         
         return sell_signal
+    
+    def break_prev_low(self, df):
+        """
+        현재 종가가 전일 저가보다 낮아지면 매도 (지지선 이탈)
+        
+        df: DataFrame with columns ['Close', 'Low']
+        """
+        if len(df) < 2:
+            return False  # 데이터 부족
+
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+
+        # 전일 저가 이탈 여부
+        sell_signal = last['Close'] < prev['Low']
+
+        return sell_signal
