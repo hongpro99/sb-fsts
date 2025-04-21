@@ -1202,7 +1202,7 @@ class AutoTradingBot:
         if buy_yn:
             order_type = 'buy'
             # 매수 주문은 특정 로직에서만 실행
-            if trading_logic == 'ema_breakout_trading3':
+            if trading_logic == 'trend_entry_trading':
                 self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
 
             position = 'BUY'

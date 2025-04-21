@@ -74,6 +74,11 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
         filter_condition=((StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'kospi200'))
     )) #scan은 랜덤, 정렬 불가 -> 종목 순서 기준은 추후 검토
     
+    sorted_result = sorted(
+        result,
+        key=lambda x: (x.type, x.symbol_name)
+    )
+
     # 당일로부터 1년전 기간으로 차트 분석
     end_date = date.today()
     start_date = end_date - timedelta(days=180)
@@ -102,7 +107,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
         use_take_profit = trade.use_take_profit
 
     #✅ enumerate로 종목 번호 부여 (1부터 시작)
-    for i, stock in enumerate(result, start=1):
+    for i, stock in enumerate(sorted_result, start=1):
         symbol = stock.symbol
         original_symbol_name = stock.symbol_name
         symbol_name = f"[{i}]{original_symbol_name}"  # 종목명에 번호 붙이기
