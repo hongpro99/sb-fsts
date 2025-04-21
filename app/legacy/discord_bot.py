@@ -4,7 +4,7 @@ from datetime import datetime
 from datetime import date
 import uvicorn
 import os
-from app.utils.factory import create_auto_trading_stock
+from app.legacy.factory import create_auto_trading_stock
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv

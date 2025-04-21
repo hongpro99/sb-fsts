@@ -1,4 +1,4 @@
-from app.utils.auto_trading_stock import AutoTradingStock
+from app.legacy.auto_trading_stock import AutoTradingStock
 from dotenv import load_dotenv
 import os
 
