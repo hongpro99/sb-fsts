@@ -133,17 +133,18 @@ def scheduled_single_buy_task():
     """
 
     # ✅ 인스턴스 생성
-    trading_bot = AutoTradingBot(id="id2", virtual=False)
+    trading_bot = AutoTradingBot(id="schedulerbot", virtual=False)
 
     # ✅ 매수할 종목 정보 (원하는 종목으로 변경 가능)
-    symbol = "054180"        # 삼성전자
-    target_trade_value_krw = 300
+    symbol = "300720"        # 삼성전자
+    target_trade_value_krw = 10000000
 
     quote = trading_bot._get_quote(symbol=symbol)
     #qty = math.floor(target_trade_value_krw / quote.close) # 주식 매매 개수
     qty = 1
     buy_price = None         # 시장가 매수 (지정가 입력 시 가격 설정)
     sell_price = None
+    symbol_name = '한일시멘트'
     
     print(f"[{datetime.now()}] 자동 매수 실행: 종목 {symbol}, 수량 {qty}주")
 
@@ -151,6 +152,7 @@ def scheduled_single_buy_task():
         trading_bot.place_order(
             symbol=symbol,
             qty=qty,
+            symbol_name = symbol_name,
             sell_price=sell_price,   # 시장가 매수
             order_type="sell"
         )

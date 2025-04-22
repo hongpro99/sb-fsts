@@ -22,7 +22,7 @@ from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.crud_sql import SQLExecutor
 from app.utils.database import get_db, get_db_session
 from app.utils.trading_logic import TradingLogic
-from app.utils.dynamodb.model.stock_symbol_model import StockSymbol
+from app.utils.dynamodb.model.stock_symbol_model import StockSymbol, StockSymbol2
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
 from app.utils.dynamodb.model.user_info_model import UserInfo
 from app.utils.dynamodb.model.auto_trading_balance_model import AutoTradingBalance
@@ -953,53 +953,82 @@ def setup_my_page():
     result = list(StockSymbol.scan(
         filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
     ))
-    
-    type_order = {
-    'kospi200': 1,
-    #'NASDAQ': 0,
-    'kosdaq150': 2
-    }#type 순서
 
-    #종목을 type 순서로 정렬한 후 이름순으로 정렬
+    # ✅ StockSymbol2에서도 종목 가져오기 (kosdaq 전체)
+    kosdaq_all_result = list(StockSymbol2.scan(
+        filter_condition=(StockSymbol2.type == 'kosdaq')
+    ))
+
+    type_order = {
+        'kospi200': 1,
+        'kosdaq150': 2
+    }
+
+    # ✅ 정렬
     sorted_items = sorted(
-    result,
-    key=lambda x: (
-        type_order.get(getattr(x, 'type', ''),99), 
-        getattr(x, 'symbol_name', ''))
+        result,
+        key=lambda x: (
+            type_order.get(getattr(x, 'type', ''), 99),
+            getattr(x, 'symbol_name', '')
+        )
     )
 
-    # 전체 symbol dictionary
-    symbol_options = {row.symbol_name: row.symbol for row in sorted_items}
-    stock_names = list(symbol_options.keys())
-
-    # ✅ 종목을 타입별로 나누기
+    # ✅ 분리
     kospi200_items = [row for row in sorted_items if getattr(row, 'type', '') == 'kospi200']
     kosdaq150_items = [row for row in sorted_items if getattr(row, 'type', '') == 'kosdaq150']
+    kosdaq_items = [row for row in kosdaq_all_result if getattr(row, 'type', '') == 'kosdaq']
 
     kospi200_names = [row.symbol_name for row in kospi200_items]
     kosdaq150_names = [row.symbol_name for row in kosdaq150_items]
+    kosdaq_all_names = [row.symbol_name for row in kosdaq_items]
+
+    # ✅ 전체 종목 이름 리스트 (StockSymbol + StockSymbol2)
+    all_symbol_names = list(set(
+        row.symbol_name for row in (sorted_items + kosdaq_items)
+    ))
+
+    # ✅ 병합된 symbol_options
+    symbol_options_main = {row.symbol_name: row.symbol for row in sorted_items}
+    symbol_options_kosdaq = {row.symbol_name: row.symbol for row in kosdaq_items}
+    symbol_options = {**symbol_options_main, **symbol_options_kosdaq}
 
     # ✅ 버튼 UI
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 4])
+    col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 4])
 
     with col1:
         if st.button("✅ 전체 선택"):
-            st.session_state["selected_stocks"] = stock_names
+            st.session_state["selected_stocks"] = all_symbol_names
+            print(len(all_symbol_names))
 
     with col2:
         if st.button("🏦 코스피 200 선택"):
             st.session_state["selected_stocks"] = kospi200_names
+            print(len(kospi200_names))
 
     with col3:
         if st.button("📈 코스닥 150 선택"):
             st.session_state["selected_stocks"] = kosdaq150_names
+            print(len(kosdaq150_names))
 
     with col4:
+        if st.button("📊 코스닥 전체 선택"):
+            st.session_state["selected_stocks"] = kosdaq_all_names
+            print(len(kosdaq_all_names))
+
+    with col5:
         if st.button("❌ 선택 해제"):
             st.session_state["selected_stocks"] = []
-            
-    # ✅ 사용자가 원하는 종목 선택 (다중 선택 가능)
-    selected_stocks = st.multiselect("📌 원하는 종목 선택", list(symbol_options.keys()), key="selected_stocks")
+
+    # ✅ 세션 상태에 저장된 값 중, 현재 옵션에 존재하는 것만 유지
+    if "selected_stocks" in st.session_state:
+        st.session_state["selected_stocks"] = [
+            s for s in st.session_state["selected_stocks"] if s in symbol_options
+        ]
+    
+    # ✅ 멀티셀렉트 UI
+    selected_stocks = st.multiselect("📌 원하는 종목 선택", all_symbol_names, key="selected_stocks")
+
+    # ✅ 선택된 종목 → 종목 코드 매핑
     selected_symbols = {stock: symbol_options[stock] for stock in selected_stocks}
 
     # ✅ 차트 간격 (interval) 설정
