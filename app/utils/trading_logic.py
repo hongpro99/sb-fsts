@@ -1027,18 +1027,23 @@ class TradingLogic:
         slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0
 
         # 조건 4: 거래량 증가
-        volume_up = last['Volume'] > last['Volume_MA5'] * 1.5
+        volume_up = last['Volume'] > last['Volume_MA5']
         #volume_up2 = last['Volume'] / prev['Volume'] >= 1.5
         #거래대금은 아직..(코스닥은 20~30억, 코스피는 50억 이상 권장)
         
         # ❌ 조건 5: 당일 윗꼬리 음봉 제외
         is_bearish = last['Close'] < last['Open']
-        is_bearish2 = prev['Close'] < prev['Open']
+        #is_bearish2 = prev['Close'] < prev['Open'] #전일 음봉 제외
+        
         # upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
         # long_upper_shadow = is_bearish and upper_shadow_ratio > 0.4  # 윗꼬리 40% 이상이면 제외
         long_upper_shadow = is_bearish
+        
+        # ✅ 조건 5: 고가 대비 종가 차이 10% 미만
+        high_close_diff_ratio = (last['High'] - last['Close']) / last['High']
+        not_big_gap_from_high = high_close_diff_ratio < 0.10
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and not is_bearish2
+        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and not_big_gap_from_high
 
         # 매매 사유 작성
         if buy_signal:
@@ -1369,8 +1374,14 @@ class TradingLogic:
 
         # 조건 1: 5일 EMA 데드크로스
         dead_cross = prev['EMA_10'] > prev['EMA_20'] and last['EMA_10'] < last['EMA_20']
+        
+                # 조건 3: EMA 기울기 양수
+        ema10_slope = last['EMA_10'] - prev['EMA_10']
+        ema20_slope = last['EMA_20'] - prev['EMA_20']
+        ema50_slope = last['EMA_50'] - prev['EMA_50']
+        slope_up = ema10_slope <= 0 and ema20_slope <= 0 and ema50_slope <= 0
 
-        sell_signal = dead_cross
+        sell_signal = dead_cross and slope_up
         
         return sell_signal
     

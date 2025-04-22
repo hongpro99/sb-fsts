@@ -840,71 +840,74 @@ class AutoTradingBot:
         stock_value = total_quantity * close_price
         portfolio_value = trading_history['initial_capital'] + stock_value
         
-        # # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
-        # if target_trade_value_krw and target_trade_value_krw > 0:
-        #     trade_amount = min(target_trade_value_krw, trading_history['initial_capital'])
-        # else:
-        #     trade_ratio = trade_ratio if trade_ratio is not None else 100
-        #     trade_amount = min(portfolio_value * (trade_ratio / 100), trading_history['initial_capital'])
-        
         # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
         if target_trade_value_krw and target_trade_value_krw > 0:
-            # 예수금 부족하면 매수 생략
-            if trading_history['initial_capital'] < target_trade_value_krw:
-                print(f"🚫 매수 생략: 예수금({trading_history['initial_capital']:,})이 지정된 매수금액({target_trade_value_krw:,})보다 적음")
-                return  # 또는 return False 등으로 매수 로직 종료
-            trade_amount = target_trade_value_krw
+            trade_amount = min(target_trade_value_krw, trading_history['initial_capital'])
         else:
             trade_ratio = trade_ratio if trade_ratio is not None else 100
             trade_amount = min(portfolio_value * (trade_ratio / 100), trading_history['initial_capital'])
         
+        # # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
+        # if target_trade_value_krw and target_trade_value_krw > 0:
+        #     # 예수금 부족하면 매수 생략
+        #     if trading_history['initial_capital'] < target_trade_value_krw:
+        #         print(f"🚫 매수 생략: 예수금({trading_history['initial_capital']:,})이 지정된 매수금액({target_trade_value_krw:,})보다 적음")
+        #         return  # 또는 return False 등으로 매수 로직 종료
+        #     trade_amount = target_trade_value_krw
+        # else:
+        #     trade_ratio = trade_ratio if trade_ratio is not None else 100
+        #     trade_amount = min(portfolio_value * (trade_ratio / 100), trading_history['initial_capital'])
+        
         # ✅ 매수 조건
+        
         for logic_name in (buy_trading_logic or []):
-            buy_yn = False
+            current_buy_yn = False
+
             if logic_name == 'rsi_trading':
-                buy_yn, _ = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
-                
+                current_buy_yn, _ = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
+
             elif logic_name == 'ema_breakout_trading2':
-                buy_yn = logic.ema_breakout_trading2(df, symbol)
-                    
+                current_buy_yn = logic.ema_breakout_trading2(df, symbol)
+
             elif logic_name == 'trend_entry_trading':
-                buy_yn = logic.trend_entry_trading(df)
-                
+                current_buy_yn = logic.trend_entry_trading(df)
+
             elif logic_name == 'bottom_rebound_trading':
-                buy_yn = logic.bottom_rebound_trading(df)
-                
+                current_buy_yn = logic.bottom_rebound_trading(df)
+
             elif logic_name == 'sma_breakout_trading':
-                buy_yn = logic.sma_breakout_trading(df, symbol)
-                
+                current_buy_yn = logic.sma_breakout_trading(df, symbol)
+
             elif logic_name == 'ema_breakout_trading':
-                buy_yn = logic.ema_breakout_trading(df, symbol)
-                
+                current_buy_yn = logic.ema_breakout_trading(df, symbol)
+
             elif logic_name == 'ema_breakout_trading3':
-                buy_yn = logic.ema_breakout_trading3(df, symbol)
-                
+                current_buy_yn = logic.ema_breakout_trading3(df, symbol)
+
             elif logic_name == 'ema_crossover_trading':
-                buy_yn = logic.ema_crossover_trading(df, symbol)                
+                current_buy_yn = logic.ema_crossover_trading(df, symbol)
 
-
-            if buy_yn:
+            # ✅ 조건 중 하나라도 True이면 매수 신호 발생
+            if current_buy_yn:
                 buy_signal = True
                 signal_reasons.append(logic_name)
-                
-                #amount = min(target_trade_value_krw, trading_history['initial_capital'])
-                buy_qty = math.floor(trade_amount / close_price)
 
-                if buy_qty > 0:
-                    cost = buy_qty * close_price
-                    trading_history['initial_capital'] -= cost
+        # ✅ 매수 조건 통과 시
+        if buy_signal:
+            buy_qty = math.floor(trade_amount / close_price)
 
-                    total_cost += cost
-                    total_quantity += buy_qty
-                    avg_price = total_cost / total_quantity
+            if buy_qty > 0:
+                cost = buy_qty * close_price
+                trading_history['initial_capital'] -= cost
 
-                    buy_count = 1
-                    trade_quantity = buy_qty
-                    trading_history['buy_dates'].append(timestamp_str)
-                    state['buy_dates'].append(timestamp_str)
+                total_cost += cost
+                total_quantity += buy_qty
+                avg_price = total_cost / total_quantity
+
+                buy_count = 1
+                trade_quantity = buy_qty
+                trading_history['buy_dates'].append(timestamp_str)
+                state['buy_dates'].append(timestamp_str)
 
         # ✅ 손익 계산
         unrealized_pnl = (close_price - avg_price) * total_quantity if total_quantity > 0 else 0
