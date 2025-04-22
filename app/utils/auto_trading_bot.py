@@ -12,6 +12,7 @@ import mplfinance as mpf
 from pytz import timezone
 from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
 from app.utils.technical_indicator import TechnicalIndicator
+from app.utils.webhook import Webhook
 from app.utils.trading_logic import TradingLogic
 from app.utils.crud_sql import SQLExecutor
 from app.utils.dynamodb.crud import DynamoDBExecutor
@@ -27,6 +28,7 @@ from decimal import Decimal
 # 보조지표 클래스 선언
 indicator = TechnicalIndicator()
 logic = TradingLogic()
+webhook = Webhook()
 
 class AutoTradingBot:
     """
@@ -112,27 +114,6 @@ class AutoTradingBot:
 
         print(f"{'모의투자' if self.virtual else '실전투자'} API 객체가 성공적으로 생성되었습니다.")
         
-    def send_discord_webhook(self, message, bot_type):
-        if bot_type == 'trading':
-            webhook_url = 'https://discord.com/api/webhooks/1324331095583363122/wbpm4ZYV4gRZhaSywRp28ZWQrp_hJf8iiitISJrNYtAyt5NmBccYWAeYgcGd5pzh4jRK'  # 복사한 Discord 웹훅 URL로 변경
-            username = "Stock Trading Bot"
-        if bot_type == 'alarm':
-            webhook_url = 'https://discord.com/api/webhooks/1313346849838596106/6Rn_8BNDeL9bMYfFtqscpu4hPah5c2RsNl0rBiPoSw_Qb9RXgDdVHoHmwEuStPv_ufnV'
-            username = 'Stock Alarm Bot'
-        data = {
-            "content": message,
-            "username": username,  # 원하는 이름으로 설정 가능
-        }
-        
-        # 요청 보내기
-        response = requests.post(webhook_url, json=data)
-        
-        # 응답 확인
-        if response.status_code == 204:
-            print("메시지가 성공적으로 전송되었습니다.")
-        else:
-            print(f"메시지 전송 실패: {response.status_code}, {response.text}")
-
 
     # 봉 데이터를 가져오는 함수
     def _get_ohlc(self, symbol, start_date, end_date, interval='day', mode="default"):
@@ -1099,7 +1080,7 @@ class AutoTradingBot:
 
         # ✅ 매수 확정 시 실행
         if final_buy_yn:
-            self.send_discord_webhook(
+            webhook.send_discord_webhook(
                 f"[reason:{reason}], {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW",
                 "trading"
             )
@@ -1176,7 +1157,7 @@ class AutoTradingBot:
 
         # ✅ 매도 실행
         if final_sell_yn:
-            self.send_discord_webhook(
+            webhook.send_discord_webhook(
                 f"[reason:{reason}], {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW",
                 "trading"
             )
@@ -1267,6 +1248,7 @@ class AutoTradingBot:
 
         return result
     
+
     def _insert_auto_trading(self, trading_bot_name,trading_logic,symbol,symbol_name,position,price,quantity):
         # 한국 시간대 기준 timestamp
         kst = timezone("Asia/Seoul")
@@ -1291,11 +1273,12 @@ class AutoTradingBot:
         result = dynamodb_executor.execute_save(data_model)
         print(f'[자동매매 로그 저장] execute_save 결과 = {result}')
 
+
     def _upsert_account_balance(self, trading_bot_name):
         kst = timezone("Asia/Seoul")
         updated_at = int(datetime.now(kst).timestamp() * 1000)
 
-        holdings = self.get_holdings_with_details()
+        holdings = self._get_holdings_with_details()
         
         dynamodb_executor = DynamoDBExecutor()
     
@@ -1330,6 +1313,7 @@ class AutoTradingBot:
             except Exception as e:
                 print(f"❌ 잔고 저장 실패 ({holding['symbol_name']}): {e}")
     
+    
     def place_order(self, symbol, symbol_name, qty, order_type, buy_price=None, sell_price=None, deposit = None, trading_bot_name = 'schedulerbot'):
         """주식 매수/매도 주문 함수
         Args:
@@ -1360,14 +1344,14 @@ class AutoTradingBot:
                 raise ValueError("Invalid order_type. Must be 'buy' or 'sell'.")
 
             # 디스코드로 주문 결과 전송
-            self.send_discord_webhook(message, "trading")
+            webhook.send_discord_webhook(message, "trading")
 
             return order
         
         except Exception as e:
             error_message = f"주문 처리 중 오류 발생: {e}\n 예수금 : {deposit}, "
             print(error_message)
-            self.send_discord_webhook(error_message, "trading")
+            webhook.send_discord_webhook(error_message, "trading")
 
 
 
@@ -1417,7 +1401,7 @@ class AutoTradingBot:
             
         elif order_type == 'sell':
             # ✅ 보유 종목에서 해당 symbol 찾아서 수량 확인
-            holdings = self.get_holdings()
+            holdings = self._get_holdings()
             holding = next((item for item in holdings if item[0] == symbol), None) #holding => 튜플
 
             if not holding:
@@ -1444,64 +1428,10 @@ class AutoTradingBot:
         else:
             print(f"[{datetime.now()}] ❌ 잘못된 주문 타입입니다: {order_type}")
             
-        self.send_discord_webhook(message, "trading")
+        webhook.send_discord_webhook(message, "trading")
             
-    def inquire_balance(self):
-        """잔고 정보를 디스코드 웹훅으로 전송"""
-        
-                # 주 계좌 객체를 가져옵니다.
-        account = self.kis.account()
 
-        balance: KisBalance = account.balance()
-        
-        try:
-            # 기본 잔고 정보
-            message = (
-                f"📃 주식 잔고 정보\n"
-                f"계좌 번호: {balance.account_number}\n"
-                f"총 구매 금액: {balance.purchase_amount:,.0f} KRW\n"
-                f"현재 평가 금액: {balance.current_amount:,.0f} KRW\n"
-                f"총 평가 손익: {balance.profit:,.0f} KRW\n"
-                f"총 수익률: {balance.profit_rate/ 100:.2%}\n\n"
-            )
-            
-            
-            # 보유 종목 정보 추가
-            message += "📊 보유 종목 정보:\n"
-            for stock in balance.stocks:
-                message += (
-                    f"종목명: {stock.symbol} (시장: {stock.market})\n"
-                    f"수량: {stock.qty:,}주\n"
-                    f"평균 단가: {stock.price:,.0f} KRW\n"
-                    f"평가 금액: {stock.amount:,.0f} KRW\n"
-                    f"평가 손익: {stock.profit:,.0f} KRW\n"
-                    f"수익률: {stock.profit_rate /100:.2%}\n\n"
-                )
-                
-            
-            
-            # 예수금 정보 추가
-            message += "💰 예수금 정보:\n"
-            for currency, deposit in balance.deposits.items():
-                message += (
-                    f"통화: {currency}\n"
-                    f"금액: {deposit.amount:,.0f} {currency}\n"
-                    f"환율: {deposit.exchange_rate}\n\n"
-                )
-
-            # 디스코드 웹훅으로 메시지 전송
-            #self.send_discord_webhook(message, "alarm")
-
-        except Exception as e:
-            # 오류 메시지 처리
-            error_message = f"❌ 잔고 정보를 처리하는 중 오류 발생: {e}"
-            print(error_message)
-            return None
-            #self.send_discord_webhook(error_message, "alarm")
-
-        return deposit.amount
-
-    def get_holdings(self):
+    def _get_holdings(self):
         """보유 종목의 (symbol, qty) 튜플 리스트 반환"""
         account = self.kis.account()
         balance = account.balance()
@@ -1513,7 +1443,7 @@ class AutoTradingBot:
         ]
         return holdings
 
-    def get_holdings_with_details(self):
+    def _get_holdings_with_details(self):
 
         account = self.kis.account()
         balance = account.balance()
