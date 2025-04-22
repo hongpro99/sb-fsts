@@ -949,9 +949,13 @@ class TradingLogic:
         last = df.iloc[-1]
         prev = df.iloc[-2]
         trade_date = last.name.date()
-        last_close_price = float(last['Close'])
-        prev_close_price = float(prev['Close'])
+        
+        close_price = float(last['Close'])
+        volume = float(last['Volume'])
 
+        # 조건 1: 거래대금 계산(30억 이상)
+        trade_value = close_price * volume
+    
         # 조건 2: EMA_10이 EMA_20 상향 돌파
         cross_up = (
             prev['EMA_10'] < prev['EMA_20'] and
@@ -966,18 +970,20 @@ class TradingLogic:
 
         # 조건 4: 거래량 증가
         volume_up = last['Volume'] > last['Volume_MA5']
-
+        volume_up2 = last['Volume'] > prev['Volume']
+        
         # ❌ 조건 5: 당일 윗꼬리 음봉 제외
         is_bearish = last['Close'] < last['Open']
         # upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
         # long_upper_shadow = is_bearish and upper_shadow_ratio > 0.4  # 윗꼬리 40% 이상이면 제외
         long_upper_shadow = is_bearish
         
-        # ✅ 조건 5: 고가 대비 종가 차이 10% 미만
+        #✅ 조건 5: 고가 대비 종가 차이 10% 미만
         high_close_diff_ratio = (last['High'] - last['Close']) / last['High']
         not_big_gap_from_high = high_close_diff_ratio < 0.10
+        
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and not_big_gap_from_high
+        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and volume_up2 and not_big_gap_from_high
 
         # 매매 사유 작성
         if buy_signal:
@@ -1032,6 +1038,7 @@ class TradingLogic:
 
         # 조건 4: 거래량 증가
         volume_up = last['Volume'] > last['Volume_MA5']
+        volume_up2 = last['Volume'] > prev['Volume']
         #volume_up2 = last['Volume'] / prev['Volume'] >= 1.5
         #거래대금은 아직..(코스닥은 20~30억, 코스피는 50억 이상 권장)
         
@@ -1047,7 +1054,7 @@ class TradingLogic:
         high_close_diff_ratio = (last['High'] - last['Close']) / last['High']
         not_big_gap_from_high = high_close_diff_ratio < 0.10
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and not_big_gap_from_high
+        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and not_big_gap_from_high and volume_up2
 
         # 매매 사유 작성
         if buy_signal:
