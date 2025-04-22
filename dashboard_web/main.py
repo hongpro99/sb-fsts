@@ -770,8 +770,8 @@ def setup_sidebar(sql_executer):
     
     type_order = {
     'kospi200': 1,
-    'NASDAQ': 0,
-    'kosdaq150': 2,
+    'NASDAQ': 2,
+    'kosdaq150': 0,
     'etf': 3
     }#type 순서
 

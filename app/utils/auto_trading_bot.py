@@ -859,9 +859,20 @@ class AutoTradingBot:
         stock_value = total_quantity * close_price
         portfolio_value = trading_history['initial_capital'] + stock_value
         
+        # # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
+        # if target_trade_value_krw and target_trade_value_krw > 0:
+        #     trade_amount = min(target_trade_value_krw, trading_history['initial_capital'])
+        # else:
+        #     trade_ratio = trade_ratio if trade_ratio is not None else 100
+        #     trade_amount = min(portfolio_value * (trade_ratio / 100), trading_history['initial_capital'])
+        
         # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
         if target_trade_value_krw and target_trade_value_krw > 0:
-            trade_amount = min(target_trade_value_krw, trading_history['initial_capital'])
+            # 예수금 부족하면 매수 생략
+            if trading_history['initial_capital'] < target_trade_value_krw:
+                print(f"🚫 매수 생략: 예수금({trading_history['initial_capital']:,})이 지정된 매수금액({target_trade_value_krw:,})보다 적음")
+                return  # 또는 return False 등으로 매수 로직 종료
+            trade_amount = target_trade_value_krw
         else:
             trade_ratio = trade_ratio if trade_ratio is not None else 100
             trade_amount = min(portfolio_value * (trade_ratio / 100), trading_history['initial_capital'])

@@ -809,8 +809,7 @@ class TradingLogic:
         slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0
 
         # 조건 4: 거래량 증가
-        volume_up = last['Volume'] > last['Volume_MA5'] * 1.5
-        volume_up2 = last['Volume'] / prev['Volume'] >= 1.5
+        volume_up = last['Volume'] / prev['Volume'] >= 1.5
         
         # ❌ 조건 5: 당일 윗꼬리 음봉 제외
         is_bearish = last['Close'] < last['Open']
@@ -818,7 +817,7 @@ class TradingLogic:
         # long_upper_shadow = is_bearish and upper_shadow_ratio > 0.4  # 윗꼬리 40% 이상이면 제외
         long_upper_shadow = is_bearish
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and volume_up2
+        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow
 
         # 매매 사유 작성
         if buy_signal:
@@ -1029,16 +1028,17 @@ class TradingLogic:
 
         # 조건 4: 거래량 증가
         volume_up = last['Volume'] > last['Volume_MA5'] * 1.5
-        volume_up2 = last['Volume'] / prev['Volume'] >= 1.5
+        #volume_up2 = last['Volume'] / prev['Volume'] >= 1.5
         #거래대금은 아직..(코스닥은 20~30억, 코스피는 50억 이상 권장)
         
         # ❌ 조건 5: 당일 윗꼬리 음봉 제외
         is_bearish = last['Close'] < last['Open']
+        is_bearish2 = prev['Close'] < prev['Open']
         # upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
         # long_upper_shadow = is_bearish and upper_shadow_ratio > 0.4  # 윗꼬리 40% 이상이면 제외
         long_upper_shadow = is_bearish
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and volume_up2
+        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and not is_bearish2
 
         # 매매 사유 작성
         if buy_signal:
@@ -1368,14 +1368,9 @@ class TradingLogic:
         prev = df.iloc[-2]
 
         # 조건 1: 5일 EMA 데드크로스
-        dead_cross = prev['EMA_5'] > prev['EMA_10'] and last['EMA_5'] < last['EMA_10']
+        dead_cross = prev['EMA_10'] > prev['EMA_20'] and last['EMA_10'] < last['EMA_20']
 
-        # 조건 2: 최근 n일간의 주요 저점 이탈
-        recent_lows = df['Low'][-6:-1]  # 직전 5거래일 저점
-        support_level = recent_lows.min()
-        support_break = last['Close'] < support_level
-
-        sell_signal = dead_cross or support_break
+        sell_signal = dead_cross
         
         return sell_signal
     
