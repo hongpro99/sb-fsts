@@ -974,16 +974,16 @@ class TradingLogic:
         
         # ❌ 조건 5: 당일 윗꼬리 음봉 제외
         is_bearish = last['Close'] < last['Open']
-        # upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        # long_upper_shadow = is_bearish and upper_shadow_ratio > 0.4  # 윗꼬리 40% 이상이면 제외
+        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.5  # 윗꼬리 50% 이상이면 제외
         long_upper_shadow = is_bearish
         
-        #✅ 조건 5: 고가 대비 종가 차이 10% 미만
-        high_close_diff_ratio = (last['High'] - last['Close']) / last['High']
-        not_big_gap_from_high = high_close_diff_ratio < 0.10
+        # #✅ 조건 5: 고가 대비 종가 차이 10% 미만
+        # high_close_diff_ratio = (last['High'] - last['Close']) / last['High']
+        # not_big_gap_from_high = high_close_diff_ratio < 0.10
         
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and volume_up2 and not_big_gap_from_high
+        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and volume_up2 and not_long_upper_shadow
 
         # 매매 사유 작성
         if buy_signal:

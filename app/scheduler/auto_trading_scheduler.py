@@ -51,8 +51,12 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     # with get_db_session() as db:
     #     result = sql_executor.execute_select(db, query, params)
 
+    # result = list(StockSymbol.scan(
+    #     filter_condition=((StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'kospi200'))
+    # )) #scan은 랜덤, 정렬 불가 -> 종목 순서 기준은 추후 검토
+    
     result = list(StockSymbol.scan(
-        filter_condition=((StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'kospi200'))
+        filter_condition=((StockSymbol.type == 'kosdaq150'))
     )) #scan은 랜덤, 정렬 불가 -> 종목 순서 기준은 추후 검토
     
     sorted_result = sorted(

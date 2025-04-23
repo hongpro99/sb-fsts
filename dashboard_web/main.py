@@ -750,7 +750,7 @@ def setup_sidebar(sql_executer):
     
     st.sidebar.header("Simulation Settings")
 
-    id = 'id2'
+    id = 'id1'
 
     # AutoTradingBot 및 SQLExecutor 객체 생성
     sql_executor = SQLExecutor()
@@ -1024,11 +1024,9 @@ def setup_my_page():
         st.session_state["selected_stocks"] = [
             s for s in st.session_state["selected_stocks"] if s in symbol_options
         ]
-    
-    # ✅ 멀티셀렉트 UI
+        
+    # ✅ 사용자가 원하는 종목 선택 (다중 선택 가능)
     selected_stocks = st.multiselect("📌 원하는 종목 선택", all_symbol_names, key="selected_stocks")
-
-    # ✅ 선택된 종목 → 종목 코드 매핑
     selected_symbols = {stock: symbol_options[stock] for stock in selected_stocks}
 
     # ✅ 차트 간격 (interval) 설정
@@ -1416,7 +1414,13 @@ def main():
             date_range = sorted(list(all_dates))  # 날짜 정렬
 
             # ✅ 시뮬레이션 시작
-            for current_date in date_range:
+            for current_date in date_range:                                                                # ✅ 하루 기준 고정 portfolio_value 계산 (종목별 보유 상태 반영)
+                portfolio_value_fixed = global_state["initial_capital"] + sum(
+                    holding_state[symbol]["total_quantity"] * my["precomputed_df_dict"][symbol].loc[current_date]["Close"]
+                    for symbol in symbols.values()
+                    if current_date in my["precomputed_df_dict"][symbol].index
+                )
+                
                 for stock_name, symbol in symbols.items():
                     try:
                         df = my["precomputed_df_dict"][symbol]
@@ -1425,7 +1429,7 @@ def main():
                         # 해당 종목에 current_date가 실제 있는 날짜인지 확인
                         if not any(pd.Timestamp(c.time).tz_localize(None).normalize() == current_date for c in ohlc_data):
                             continue  # 종목이 그날 거래 안 했으면 스킵
-
+                        
                         # ✅ 날짜별 거래 금액 계산
                         if target_ratio is not None:
                             trade_ratio  = target_ratio
@@ -1449,12 +1453,13 @@ def main():
                             initial_capital=global_state["initial_capital"],
                             rsi_buy_threshold=my["rsi_buy_threshold"],
                             rsi_sell_threshold=my["rsi_sell_threshold"],
-                            global_state=global_state,
-                            holding_state=holding_state[symbol],
+                            global_state=global_state,  #공유 상태
+                            holding_state=holding_state[symbol], # 종목별 상태
                             use_take_profit=my["use_take_profit"],
                             take_profit_ratio=my["take_profit_ratio"],
                             use_stop_loss=my["use_stop_loss"],
-                            stop_loss_ratio=my["stop_loss_ratio"]
+                            stop_loss_ratio=my["stop_loss_ratio"],
+                            fixed_portfolio_value=portfolio_value_fixed
                         )
 
                         if trading_history is None:
@@ -1470,8 +1475,12 @@ def main():
                             "buy_dates": holding_state[symbol]["buy_dates"],
                             "sell_dates": holding_state[symbol]["sell_dates"]
                         })
-
-                        global_state = trading_history.copy()
+                        
+                        print(f"📌 {symbol} 보유 수량: {holding_state[symbol]['total_quantity']}, "
+                        f"평균단가: {holding_state[symbol]['average_price']:.2f}, "
+                        f"총비용: {holding_state[symbol]['total_cost']:.0f}")
+                        
+                        #global_state = trading_history.copy()
                         results.append(trading_history)
 
                         log_area.text(f"✅ [{current_date.date()}] {stock_name} 완료")
@@ -1484,7 +1493,7 @@ def main():
                     progress = task / total_tasks
                     progress_bar.progress(progress)
                     progress_text.text(f"{int(progress * 100)}% 완료 ({task}/{total_tasks})")
-                    
+                        
             signal_logs = []
             
             if results:
@@ -1504,7 +1513,7 @@ def main():
                 for col in ["realized_roi", "unrealized_roi"]:
                     if col in df_results.columns:
                         df_results[col] = df_results[col].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
-
+                
                 st.subheader("📋 시뮬레이션 결과 테이블")
                 st.dataframe(df_results, use_container_width=True)
 

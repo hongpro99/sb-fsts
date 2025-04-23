@@ -701,7 +701,7 @@ class AutoTradingBot:
         return result_data, trading_history, trade_reasons
 
     def whole_simulate_trading2(
-        self, symbol, end_date, df, ohlc_data, trade_ratio,
+        self, symbol, end_date, df, ohlc_data, trade_ratio, fixed_portfolio_value,
         target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None,
         interval='day', buy_percentage=None,
         initial_capital=None, rsi_buy_threshold=30, rsi_sell_threshold=70,
@@ -721,15 +721,17 @@ class AutoTradingBot:
         
 
         # ✅ 상태 초기화
-        trading_history = global_state.copy() if global_state else {}
+        #trading_history = global_state.copy() if global_state else {}
+        trading_history = global_state if global_state is not None else {}
         trading_history.setdefault('initial_capital', initial_capital)
         trading_history.setdefault('realized_pnl', 0)
         trading_history.setdefault('buy_dates', [])
         trading_history.setdefault('sell_dates', [])
 
-        print(f"💰 시뮬 중: {symbol} / 날짜: {timestamp_str} / 사용 자본: {trading_history['initial_capital']:,}")
+        print(f"💰 시뮬 중: {symbol} / 날짜: {timestamp_str} / 사용가능한 자본: {trading_history['initial_capital']:,}")
         
-        state = holding_state.copy() if holding_state else {}
+        #state = holding_state.copy() if holding_state else {}
+        state = holding_state if holding_state is not None else {}
         state.setdefault('total_quantity', 0)
         state.setdefault('average_price', 0)
         state.setdefault('total_cost', 0)
@@ -834,18 +836,17 @@ class AutoTradingBot:
                 trading_history['sell_dates'].append(timestamp_str)
                 state['sell_dates'].append(timestamp_str)
 
-        
-        average_price = state["average_price"]
         # ✅ 평가 자산 기반 거래 금액 계산
         stock_value = total_quantity * close_price
         portfolio_value = trading_history['initial_capital'] + stock_value
+    
         
         # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
         if target_trade_value_krw and target_trade_value_krw > 0:
             trade_amount = min(target_trade_value_krw, trading_history['initial_capital'])
         else:
             trade_ratio = trade_ratio if trade_ratio is not None else 100
-            trade_amount = min(portfolio_value * (trade_ratio / 100), trading_history['initial_capital'])
+            trade_amount = min(fixed_portfolio_value * (trade_ratio / 100), trading_history['initial_capital'])
         
         # # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
         # if target_trade_value_krw and target_trade_value_krw > 0:
@@ -892,6 +893,7 @@ class AutoTradingBot:
                 buy_signal = True
                 signal_reasons.append(logic_name)
 
+        
         # ✅ 매수 조건 통과 시
         if buy_signal:
             buy_qty = math.floor(trade_amount / close_price)
@@ -914,6 +916,10 @@ class AutoTradingBot:
         unrealized_roi = (unrealized_pnl / total_cost) * 100 if total_cost > 0 else 0
         realized_roi = (realized_pnl / total_cost) * 100 if realized_pnl and total_cost > 0 else 0
 
+        print(f"📅 {timestamp_str} 기준 Portfolio Value: {fixed_portfolio_value:,.0f}원 "
+        f"(Initial: {trading_history['initial_capital']:,.0f}원, "
+        f"Unrealized PnL: {unrealized_pnl:,.0f}원)")
+        print(f"🛠️ BUY CHECK | {symbol} @ {timestamp_str} | buy_signal: {buy_signal}, trade_amount: {trade_amount}")
         # ✅ 상태 업데이트
         state.update({
             'total_quantity': total_quantity,
@@ -922,8 +928,10 @@ class AutoTradingBot:
             'buy_count': buy_count,
             'sell_count': sell_count,
         })
-        holding_state.update(state)
+        #holding_state.update(state)
+        holding_state[symbol] = state
 
+        
         return {
             'symbol': symbol,
             'sim_date': timestamp_str,
@@ -944,7 +952,7 @@ class AutoTradingBot:
             'signal_reasons': signal_reasons,
             'take_profit_hit': take_profit_hit,
             'stop_loss_hit': stop_loss_hit,
-            "portfolio_value": portfolio_value
+            "portfolio_value": fixed_portfolio_value
         }
     
     def save_trading_history_to_db_with_executor(self, trading_history, symbol):
