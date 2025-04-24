@@ -709,7 +709,8 @@ class AutoTradingBot:
         use_stop_loss=False, stop_loss_ratio=5.0):
         
         df = df[df.index <= pd.Timestamp(end_date)]
-        
+                        
+
         # ✅ 아무 데이터도 없으면 조용히 빠져나가기
         if df.empty or len(df) < 2:
             return None
@@ -815,6 +816,9 @@ class AutoTradingBot:
 
                 elif logic_name == 'break_prev_low':
                     sell_yn = logic.break_prev_low(df)
+                    
+                elif logic_name == 'downtrend_sell_trading':
+                    sell_yn = logic.downtrend_sell_trading(df)
 
                 # ✅ 누적 조건 + 최초 발생한 로직 저장
                 if sell_yn and not sell_signal:
@@ -1376,7 +1380,20 @@ class AutoTradingBot:
         sell_price = None # 시장가 매도
 
         if order_type == 'buy':
-            qty = math.floor(target_trade_value_krw / quote.close)
+            psbl_order_info = self.inquire_psbl_order(symbol)
+            if psbl_order_info is None:
+                print(f"[{datetime.now()}] ❌ 주문가능금액 조회 실패")
+                return
+
+            max_buy_amt = int(psbl_order_info['output']['nrcvb_buy_amt']) # 최대 매수 가능 금액
+            print(f"주문가능금액: {max_buy_amt}")
+            #max_buy_qty = int(psbl_order_info['output']['max_buy_qty'])      # 최대 매수 가능 수량
+
+            # ✅ 실제 매수 금액 결정 (요청 금액 vs 가능 금액 중 작은 값)
+            actual_trade_value = min(target_trade_value_krw, max_buy_amt)
+    
+            #qty = math.floor(target_trade_value_krw / quote.close)
+            qty = math.floor(actual_trade_value / quote.close)
             
             if qty <= 0:
                 print(f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}")
@@ -1538,3 +1555,33 @@ class AutoTradingBot:
     # 컷 로스 (손절)
     def cut_loss(self, target_trade_value_usdt):
         pass
+    
+    def inquire_psbl_order(self , symbol):
+        domain = "https://openapivts.koreainvestment.com:29443" if self.virtual else "https://openapi.koreainvestment.com:9443"
+        url = f"{domain}/uapi/domestic-stock/v1/trading/inquire-psbl-order"
+
+        headers = {
+            "authorization": str(self.kis.token),
+            "appkey": self.app_key,
+            "appsecret": self.secret_key,
+            "tr_id": "VTTC8908R" if self.virtual else "TTTC8908R",  # 모의/실전 구분
+        }
+
+        body = {
+            "CANO": self.account,                    # 계좌번호 앞 8자리
+            "ACNT_PRDT_CD": '01',    # 계좌상품코드 (보통 "01")
+            "PDNO":symbol,                    # 종목코드
+            "ORD_UNPR": "0",                 # 주문단가, 0이면 시장가 기준
+            "ORD_DVSN": "01",                # 주문구분 (보통 시장가: 01)
+            "CMA_EVLU_AMT_ICLD_YN": "N",     # CMA 평가금액 포함 여부
+            "OVRS_ICLD_YN": "N"              # 해외주식 포함 여부
+        }
+
+        response = requests.get(url, headers=headers, params=body)
+        
+        try:
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            print("❌ API 호출 실패:", e)
+            return None

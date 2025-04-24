@@ -1075,54 +1075,26 @@ class TradingLogic:
 
     def downtrend_sell_trading(self, df):
         """
-        하락 추세 진입형 매도 전략 (보완형)
-        
-        조건:
-        ① 전날 EMA 배열: EMA_10 > EMA_20 > EMA_50
-        ② 오늘 EMA_10이 EMA_50을 위에서 아래로 돌파
-        ③ EMA_20, EMA_50 기울기 < 0
-        ④ MACD와 히스토그램 모두 감소
-        ⑤ RSI가 50 아래로 하향 돌파
-        ⑥ Stochastic K가 D를 위에서 아래로 하향 돌파 + 과매수 근처
+        df: DataFrame with columns ['Close', 'EMA_5', 'EMA_10', 'Low']
         """
-
-        if df.shape[0] < 2:
-            print("❌ 데이터가 부족해서 조건 계산 불가")
-            return False
+        if len(df) < 3:
+            return False  # 데이터 부족
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
 
-        # 조건 ① EMA 배열
-        prev_arranged = prev['EMA_10'] > prev['EMA_20'] > prev['EMA_50']
-
-        # 조건 ② 교차
-        cross_down = prev['EMA_10'] >= prev['EMA_50'] and last['EMA_10'] <= last['EMA_50']
-
-        # 조건 ③ 기울기
+        # 조건 1: 5일 EMA 데드크로스
+        dead_cross = prev['EMA_5'] > prev['EMA_10'] and last['EMA_5'] < last['EMA_10']
+        
+                # 조건 3: EMA 기울기 음수
+        ema5_slope = last['EMA_5'] - prev['EMA_5']
+        ema10_slope = last['EMA_10'] - prev['EMA_10']
         ema20_slope = last['EMA_20'] - prev['EMA_20']
-        ema50_slope = last['EMA_50'] - prev['EMA_50']
-        slope_down = ema20_slope < 0 and ema50_slope <= 0
+        
+        slope_up = ema10_slope <= 0 and ema20_slope <= 0 and ema5_slope <= 0
 
-        # 조건 ④ MACD 하락
-        macd_falling = last['macd'] < prev['macd'] and last['macd_histogram'] < prev['macd_histogram']
-
-        # 조건 ⑤ RSI 50 하향 돌파
-        rsi_breakdown = prev['rsi'] >= 50 and last['rsi'] < 50
-
-        # 조건 ⑥ Stochastic %K < %D 교차 + 과매수 근처
-        stoch_cross = (
-            prev['stochastic_k'] > prev['stochastic_d'] and
-            last['stochastic_k'] < last['stochastic_d'] and
-            last['stochastic_k'] > 70
-        )
-
-        # 최종 조건
-        sell_signal = (
-            prev_arranged and cross_down and slope_down and
-            macd_falling and rsi_breakdown and stoch_cross
-        )
-
+        sell_signal = dead_cross and slope_up
+        
         return sell_signal
     
     def top_reversal_sell_trading(self, df):

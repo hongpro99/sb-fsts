@@ -1425,7 +1425,7 @@ def main():
                     try:
                         df = my["precomputed_df_dict"][symbol]
                         ohlc_data = my["precomputed_ohlc_dict"][symbol]
-
+                        
                         # 해당 종목에 current_date가 실제 있는 날짜인지 확인
                         if not any(pd.Timestamp(c.time).tz_localize(None).normalize() == current_date for c in ohlc_data):
                             continue  # 종목이 그날 거래 안 했으면 스킵
