@@ -1405,16 +1405,18 @@ class AutoTradingBot:
                 return
 
             max_buy_amt = int(psbl_order_info['output']['nrcvb_buy_amt']) # 최대 매수 가능 금액
-            print(f"주문가능금액: {max_buy_amt}")
-            #max_buy_qty = int(psbl_order_info['output']['max_buy_qty'])      # 최대 매수 가능 수량
-
+            max_buy_qty = int(psbl_order_info['output']['max_buy_qty'])      # 최대 매수 가능 수량
+            print(f"max_buy_amt: {max_buy_amt}, max_buy_qty: {max_buy_qty}, target_trade_value_krw: {target_trade_value_krw}")
             # ✅ 실제 매수 금액 결정 (요청 금액 vs 가능 금액 중 작은 값)
             # ✅ 수수료 포함하여 수량 계산
             adjusted_price = quote.close * (1 + 0.00014)  # 수수료 포함 단가
             actual_trade_value = min(target_trade_value_krw, max_buy_amt)
     
+            if actual_trade_value == target_trade_value_krw:
+                qty = math.floor(actual_trade_value / adjusted_price)
+            else:
+                qty = max_buy_qty
             #qty = math.floor(target_trade_value_krw / quote.close)
-            qty = math.floor(actual_trade_value / adjusted_price)
             
             if qty <= 0:
                 print(f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}")
