@@ -11,9 +11,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 애플리케이션 코드 복사
 # 프로젝트 depth 일치 시키도록 /app/app 설정
 COPY ./app /app/app
-# COPY ./dashboard_web/trading_logic.json /app/app/trading_logic.json
+COPY ./dashboard_web /app/dashboard_web
+# ✅ CSV 파일도 함께 복사
+COPY ./profits_history.csv /app/profits_history.csv
 
-EXPOSE 7000
+EXPOSE 8500
 
-# FastAPI 서버 실행 (Uvicorn 사용)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7000"]
+# 환경 변수 설정
+ENV STREAMLIT_THEME_BASE="dark"
+
+# streamlit 서버 실행
+CMD ["streamlit", "run", "dashboard_web/main.py", "--server.port", "8500"]

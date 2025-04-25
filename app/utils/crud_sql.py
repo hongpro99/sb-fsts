@@ -35,6 +35,7 @@ class SQLExecutor:
             raise HTTPException(status_code=500, detail=str(e))
 
     # UPDATE 쿼리 실행
+    #Upsert는 **"Update"**와 **"Insert"**의 조합으로, 데이터베이스에 레코드가 존재하면 업데이트하고, 존재하지 않으면 삽입하는 작업을 의미합니다
     def execute_update(self, db: Session, query: str, params: dict = None):
         try:
             result = db.execute(text(query), params).mappings()
