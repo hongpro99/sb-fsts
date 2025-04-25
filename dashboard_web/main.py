@@ -1506,7 +1506,7 @@ def main():
                 reorder_columns = [
                     "sim_date", "symbol", "initial_capital", "portfolio_value", "buy_count", "sell_count", "quantity",
                     "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi",
-                    "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "history"
+                    "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", "history"
                 ]
                 df_results = df_results[[col for col in reorder_columns if col in df_results.columns]]
 
@@ -1555,6 +1555,14 @@ def main():
                         lambda x: f"{x:,.0f} KRW" if pd.notnull(x) and x != 0 else "-"
                     )
 
+                    df_trades["total_costs"] = df_trades["total_costs"].apply(
+                            lambda x: f"{x:,.0f} KRW" if pd.notnull(x) and x != 0 else "-"
+                        )
+
+                    df_trades["fee_buy"] = df_trades["fee_buy"].apply(lambda x: f"{x:,.0f} KRW" if x > 0 else "-")
+                    df_trades["fee_sell"] = df_trades["fee_sell"].apply(lambda x: f"{x:,.0f} KRW" if x > 0 else "-")
+                    df_trades["tax"] = df_trades["tax"].apply(lambda x: f"{x:,.0f} KRW" if x > 0 else "-")
+
                     # 익절/손절 텍스트
                     if "take_profit_hit" in df_trades.columns:
                         df_trades["take_profit_hit"] = df_trades["take_profit_hit"].apply(
@@ -1583,7 +1591,7 @@ def main():
 
                         columns_to_show = [
                             "sim_date", "symbol", "buy_count", "sell_count", "quantity",
-                            "trade_pnl"
+                            "trade_pnl", 'fee_buy', "fee_sell", "tax", "total_costs"
                         ]
 
                         # ✅ 컬럼이 존재할 경우에만 추가
@@ -1633,6 +1641,11 @@ def main():
                         (~df_results.get("take_profit_hit", False)) &
                         (~df_results.get("stop_loss_hit", False))
                     ]["realized_pnl"].sum()
+                    
+                    total_fee_buy = df_results["fee_buy"].sum()
+                    total_fee_sell = df_results["fee_sell"].sum()
+                    total_tax = df_results["tax"].sum()
+                    total_costs = df_results["total_costs"].sum()
         
                     st.markdown("---")
                     st.subheader("📊 추가 세부 요약 통계")
@@ -1649,6 +1662,14 @@ def main():
                         st.metric("💸 익절로 인한 손익", f"{tp_pnl:,.0f} KRW")
                         st.metric("💥 손절로 인한 손익", f"{sl_pnl:,.0f} KRW")
                         st.metric("🔄 로직 매도로 인한 손익", f"{logic_sell_pnl:,.0f} KRW")
+                        
+                    col3, col4 = st.columns(2)
+                    with col3:
+                        st.metric("🧾 총 매수 수수료", f"{total_fee_buy:,.0f} KRW")
+                        st.metric("🧾 총 매도 수수료", f"{total_fee_sell:,.0f} KRW")
+                        st.metric("📜 총 거래세", f"{total_tax:,.0f} KRW")
+                    with col4:
+                        st.metric("💰 총 수수료 비용 합계", f"{total_costs:,.0f} KRW")
                 if failed_stocks:
                     st.warning(f"⚠️ 시뮬레이션 실패 종목 ({len(failed_stocks)}개): {', '.join(sorted(failed_stocks))}")
 

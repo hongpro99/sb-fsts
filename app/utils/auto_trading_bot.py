@@ -753,7 +753,10 @@ class AutoTradingBot:
         buy_signal = False
         signal_reasons = []
         
-        
+        buy_fee = 0
+        sell_fee = 0
+        tax = 0
+
         #익절, 손절
         take_profit_hit = False
         stop_loss_hit = False
@@ -765,7 +768,9 @@ class AutoTradingBot:
 
             if use_take_profit and current_roi >= take_profit_ratio:
                 # 실제 매도 조건 충족
-                revenue = total_quantity * close_price
+                sell_fee = total_quantity * close_price * 0.00014
+                tax = total_quantity * close_price * 0.0015
+                revenue = total_quantity * close_price - sell_fee - tax
                 realized_pnl = revenue - (avg_price * total_quantity)
                 trading_history['initial_capital'] += revenue
 
@@ -783,7 +788,10 @@ class AutoTradingBot:
 
             elif use_stop_loss and current_roi <= -stop_loss_ratio:
                 # 실제 손절 조건 충족
-                revenue = total_quantity * close_price
+                #sell_value = total_quantity * close_price
+                sell_fee = total_quantity * close_price * 0.00014
+                tax = total_quantity * close_price * 0.0015
+                revenue = total_quantity * close_price - sell_fee - tax
                 realized_pnl = revenue - (avg_price * total_quantity)
                 trading_history['initial_capital'] += revenue
 
@@ -827,7 +835,9 @@ class AutoTradingBot:
 
             # ✅ 매도 실행
             if sell_signal and total_quantity > 0:
-                revenue = total_quantity * close_price
+                sell_fee = total_quantity * close_price * 0.00014
+                tax = total_quantity * close_price * 0.0015
+                revenue = total_quantity * close_price - sell_fee - tax
                 realized_pnl = revenue - (avg_price * total_quantity)
                 trading_history['initial_capital'] += revenue
 
@@ -904,25 +914,28 @@ class AutoTradingBot:
 
             if buy_qty > 0:
                 cost = buy_qty * close_price
-                trading_history['initial_capital'] -= cost
+                buy_fee = cost * 0.00014
+                total_buy_cost = cost + buy_fee
+                
+                if total_buy_cost <= trading_history['initial_capital']:
+                    trading_history['initial_capital'] -= total_buy_cost
+                    total_cost += total_buy_cost
+                    total_quantity += buy_qty
+                    avg_price = total_cost / total_quantity
 
-                total_cost += cost
-                total_quantity += buy_qty
-                avg_price = total_cost / total_quantity
-
-                buy_count = 1
-                trade_quantity = buy_qty
-                trading_history['buy_dates'].append(timestamp_str)
-                state['buy_dates'].append(timestamp_str)
+                    buy_count = 1
+                    trade_quantity = buy_qty
+                    trading_history['buy_dates'].append(timestamp_str)
+                    state['buy_dates'].append(timestamp_str)
 
         # ✅ 손익 계산
         unrealized_pnl = (close_price - avg_price) * total_quantity if total_quantity > 0 else 0
         unrealized_roi = (unrealized_pnl / total_cost) * 100 if total_cost > 0 else 0
         realized_roi = (realized_pnl / total_cost) * 100 if realized_pnl and total_cost > 0 else 0
 
-        print(f"📅 {timestamp_str} 기준 Portfolio Value: {fixed_portfolio_value:,.0f}원 "
-        f"(Initial: {trading_history['initial_capital']:,.0f}원, "
-        f"Unrealized PnL: {unrealized_pnl:,.0f}원)")
+        # print(f"📅 {timestamp_str} 기준 Portfolio Value: {fixed_portfolio_value:,.0f}원 "
+        # f"(Initial: {trading_history['initial_capital']:,.0f}원, "
+        # f"Unrealized PnL: {unrealized_pnl:,.0f}원)")
         print(f"🛠️ BUY CHECK | {symbol} @ {timestamp_str} | buy_signal: {buy_signal}, trade_amount: {trade_amount}")
         # ✅ 상태 업데이트
         state.update({
@@ -956,7 +969,13 @@ class AutoTradingBot:
             'signal_reasons': signal_reasons,
             'take_profit_hit': take_profit_hit,
             'stop_loss_hit': stop_loss_hit,
-            "portfolio_value": fixed_portfolio_value
+            "portfolio_value": fixed_portfolio_value,
+            'fee_buy': round(buy_fee, 2) if buy_signal else 0,
+            'fee_sell': round(sell_fee, 2) if sell_signal else 0,
+            'tax': round(tax, 2) if sell_signal else 0,
+            'total_costs': round((buy_fee if buy_signal else 0) + 
+                                (sell_fee if sell_signal else 0) + 
+                                (tax if sell_signal else 0), 2)
         }
     
     def save_trading_history_to_db_with_executor(self, trading_history, symbol):
@@ -1390,10 +1409,12 @@ class AutoTradingBot:
             #max_buy_qty = int(psbl_order_info['output']['max_buy_qty'])      # 최대 매수 가능 수량
 
             # ✅ 실제 매수 금액 결정 (요청 금액 vs 가능 금액 중 작은 값)
+            # ✅ 수수료 포함하여 수량 계산
+            adjusted_price = quote.close * (1 + 0.00014)  # 수수료 포함 단가
             actual_trade_value = min(target_trade_value_krw, max_buy_amt)
     
             #qty = math.floor(target_trade_value_krw / quote.close)
-            qty = math.floor(actual_trade_value / quote.close)
+            qty = math.floor(actual_trade_value / adjusted_price)
             
             if qty <= 0:
                 print(f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}")
