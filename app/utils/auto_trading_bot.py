@@ -1410,7 +1410,7 @@ class AutoTradingBot:
 
             # ✅ 실제 매수 금액 결정 (요청 금액 vs 가능 금액 중 작은 값)
             # ✅ 수수료 포함하여 수량 계산
-            adjusted_price = quote.close * (1 + 0.00014)  # 수수료 포함 단가
+            adjusted_price = float(quote.close) * (1 + 0.00014)  # 수수료 포함 단가
             actual_trade_value = min(target_trade_value_krw, max_buy_amt)
     
             #qty = math.floor(target_trade_value_krw / quote.close)
