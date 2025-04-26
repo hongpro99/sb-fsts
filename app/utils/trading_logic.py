@@ -174,7 +174,7 @@ class TradingLogic:
         """
         if not d_1 or not d_2:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return False, None
 
         # D-2 조건: 음봉
         d_2_condition = d_2.close < d_2.open
@@ -201,7 +201,7 @@ class TradingLogic:
         all_conditions_met = d_2_condition and d_1_condition and downward_condition
 
         # 매수 신호 반환
-        return all_conditions_met and buy_signal
+        return all_conditions_met and buy_signal, None
 
     def penetrating(self, candle, d_1, d_2, closes):
         """
@@ -213,7 +213,7 @@ class TradingLogic:
         """
         if not d_1 or not d_2:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return False, None
 
         # D-2 조건: 큰 음봉
         d_2_condition = d_2.close < d_2.open
@@ -239,7 +239,7 @@ class TradingLogic:
         buy_signal = candle.close > d_1.high and candle.close> d_2.high
         all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition and downward_condition
         # 손절 신호와 익절 신호는 `simulate_trading`에서 판단
-        return all_conditions_met and buy_signal
+        return all_conditions_met and buy_signal, None
 
     def engulfing2(self, candle, d_1, closes):
         """
@@ -250,7 +250,7 @@ class TradingLogic:
         """
         if not d_1:
             # D-1 데이터가 없으면 신호 없음
-            return False
+            return False, None
 
         # D-1 조건: 음봉 (종가 < 시가)
         d_1_condition = d_1.close < d_1.open
@@ -269,7 +269,7 @@ class TradingLogic:
         buy_signal = candle.open < d_1.low and candle.close > d_1.high
 
         # 모든 조건 충족 확인
-        return d_1_condition and buy_signal and downward_condition
+        return d_1_condition and buy_signal and downward_condition, None
     
     def counterattack(self, candle, d_1, d_2, closes):
         """
@@ -281,7 +281,7 @@ class TradingLogic:
         """
         if not d_1 or not d_2:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return False, None
 
         # D-2 조건: 음봉
         d_2_condition = d_2.close < d_2.open
@@ -305,7 +305,7 @@ class TradingLogic:
         buy_signal = candle.close > d_2.high
         all_conditions_met = d_2_condition and d_1_condition and downward_condition
         # 모든 조건 충족 여부 확인
-        return all_conditions_met and buy_signal
+        return all_conditions_met and buy_signal, None
 
 
     def harami(self, candle, d_1, d_2, closes):
@@ -318,7 +318,7 @@ class TradingLogic:
         """
         if not d_1 or not d_2:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return False, None
 
         # D-2 조건: 음봉
         d_2_condition = d_2.close < d_2.open
@@ -342,7 +342,7 @@ class TradingLogic:
         buy_signal = candle.close > d_2.high
         all_conditions_met = d_2_condition and d_1_condition and downward_condition
         # 모든 조건 충족 여부 확인
-        return all_conditions_met and buy_signal
+        return all_conditions_met and buy_signal, None
 
     def doji_star(self, candle, d_1, d_2, closes):
         """
@@ -351,7 +351,7 @@ class TradingLogic:
         """
         if not d_1 or not d_2:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return False, None
 
             # D-2 조건: D-2 종가 < D-2 시초가 (음봉)
         d_2_condition = d_2.close < d_2.open
@@ -373,7 +373,7 @@ class TradingLogic:
         buy_signal = candle.close > d_2.high
         all_conditions_met = d_2_condition and d_1_condition and downward_condition
         
-        return all_conditions_met and buy_signal
+        return all_conditions_met and buy_signal, None
     
     def morning_star(self, candle, d_1, d_2, closes):
         """
@@ -385,7 +385,7 @@ class TradingLogic:
         """
         if not d_1 or not d_2:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return False, None
 
         # D-2 조건: 큰 음봉
         d_2_condition = d_2.close < d_2.open #D-2음봉
@@ -410,7 +410,7 @@ class TradingLogic:
         buy_signal =  candle.low > d_1.close and candle.close> d_2.high #buy_signal 연결 or
         all_conditions_met = d_2_condition and d_2_long_bear and d_1_condition and d_day_condition and downward_condition
         # 손절 신호와 익절 신호는 `simulate_trading`에서 판단
-        return all_conditions_met and buy_signal
+        return all_conditions_met and buy_signal, None
 
     def down_engulfing(self, candle, d_1, d_2):
         """
@@ -419,7 +419,7 @@ class TradingLogic:
         """
         if not d_1 or not d_2:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return None, False
 
             # D-2 조건: D-2 종가 > D-2 시초가 (음봉)
         d_2_condition = d_2.close > d_2.open
@@ -432,7 +432,7 @@ class TradingLogic:
         sell_signal = candle.close < d_1.low
         all_conditions_met = d_2_condition and d_1_condition
         
-        return all_conditions_met and sell_signal
+        return None, all_conditions_met and sell_signal
     
     def down_engulfing2(self, candle, d_1):
         """
@@ -441,7 +441,7 @@ class TradingLogic:
         """
         if not d_1:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return None, False
 
         # D-1 조건
         d_1_condition = (
@@ -452,7 +452,7 @@ class TradingLogic:
         sell_signal = candle.close < d_1.low and candle.open < d_1.low
         all_conditions_met = d_1_condition
         
-        return all_conditions_met and sell_signal
+        return None, all_conditions_met and sell_signal
     
     def down_counterattack(self, candle, d_1, d_2):
         """
@@ -461,7 +461,7 @@ class TradingLogic:
         """
         if not d_1 or not d_2:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return None, False
 
             # D-2 조건: D-2 종가 > D-2 시초가 (음봉)
         d_2_condition = d_2.close > d_2.open
@@ -475,7 +475,7 @@ class TradingLogic:
         sell_signal = candle.close < d_2.low
         all_conditions_met = d_2_condition and d_1_condition
         
-        return all_conditions_met and sell_signal
+        return None, all_conditions_met and sell_signal
     
     def down_harami(self, candle, d_1, d_2):
         """
@@ -484,7 +484,7 @@ class TradingLogic:
         """
         if not d_1 or not d_2:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return None, False
 
             # D-2 조건: D-2 종가 > D-2 시초가 (음봉)
         d_2_condition = d_2.close > d_2.open
@@ -499,7 +499,7 @@ class TradingLogic:
         sell_signal = candle.close < d_2.low
         all_conditions_met = d_2_condition and d_1_condition
         
-        return all_conditions_met and sell_signal
+        return None, all_conditions_met and sell_signal
     
     def down_doji_star(self, candle, d_1, d_2):
         """
@@ -508,7 +508,7 @@ class TradingLogic:
         """
         if not d_1 or not d_2:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return None, False
 
             # D-2 조건: D-2 종가 > D-2 시초가 (음봉)
         d_2_condition = d_2.close > d_2.open
@@ -522,7 +522,7 @@ class TradingLogic:
         sell_signal = candle.close < d_2.low
         all_conditions_met = d_2_condition and d_1_condition
         
-        return all_conditions_met and sell_signal
+        return None, all_conditions_met and sell_signal
     
     def evening_star(self, candle, d_1, d_2):
         """
@@ -538,7 +538,7 @@ class TradingLogic:
         """
         if not d_1 or not d_2:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return None, False
         # D-2 조건: D-2 종가 > D-2 시가 (장대양봉, +2% 이상 상승)
         d_2_condition = (
             d_2.close > d_2.open and  # 양봉
@@ -560,7 +560,7 @@ class TradingLogic:
         # 최종 매도 신호
         all_conditions_met = d_2_condition and d_1_condition and d_day_condition
         
-        return all_conditions_met and sell_signal
+        return None, all_conditions_met and sell_signal
 
 
     def dark_cloud(self, candle, d_1, d_2):
@@ -577,7 +577,7 @@ class TradingLogic:
         """
         if not d_1 or not d_2:
             # D-1 또는 D-2 데이터가 없으면 신호 없음
-            return False
+            return None, False
         # D-2 조건: D-2 종가 > D-2 시가 (장대양봉, +2% 이상 상승)
         d_2_condition = (
             d_2.close > d_2.open and  # 양봉
@@ -597,7 +597,7 @@ class TradingLogic:
         # 모든 조건 충족 여부
         all_conditions_met = d_2_condition and d_1_condition
         
-        return all_conditions_met and sell_signal
+        return None, all_conditions_met and sell_signal
     
     def mfi_trading(self, df, symbol, buy_threshold=25, sell_threshold=75):
         """
@@ -785,7 +785,7 @@ class TradingLogic:
 
         if df.shape[0] < 2:
             print("❌ 데이터가 부족해서 ema_breakout_trading2 조건 계산 불가")
-            return False
+            return False, None
 
         if 'Volume_MA5' not in df.columns:
             df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
@@ -839,7 +839,7 @@ class TradingLogic:
                 entry['Buy Signal'] = buy_signal
                 entry['Buy Reason'] = reason
 
-        return buy_signal
+        return buy_signal, None
     
     def bollinger_band_trading(self, lower_band, upper_band, df):
         """
@@ -878,7 +878,7 @@ class TradingLogic:
 
         if df.shape[0] < 2:
             print("❌ 데이터가 부족해서 ema_breakout_trading2 조건 계산 불가")
-            return False
+            return False, None
 
         # 5일 평균 거래량
         if 'Volume_MA5' not in df.columns:
@@ -927,7 +927,7 @@ class TradingLogic:
                 entry['Buy Signal'] = buy_signal
                 entry['Buy Reason'] = reason
 
-        return buy_signal    
+        return buy_signal, None
 
     def trend_entry_trading(self, df):
         """
@@ -941,7 +941,7 @@ class TradingLogic:
 
         if df.shape[0] < 2:
             print("❌ 데이터가 부족해서 ema_breakout_trading2 조건 계산 불가")
-            return False
+            return False, None
 
         if 'Volume_MA5' not in df.columns:
             df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
@@ -999,7 +999,7 @@ class TradingLogic:
             else:
                 reason = "EMA 배열 돌파 조건 불충족"
 
-        return buy_signal
+        return buy_signal, None
     
     def bottom_rebound_trading(self, df):
         """
@@ -1013,7 +1013,7 @@ class TradingLogic:
 
         if df.shape[0] < 2:
             print("❌ 데이터가 부족해서 ema_breakout_trading2 조건 계산 불가")
-            return False
+            return False, None
 
         if 'Volume_MA5' not in df.columns:
             df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
@@ -1070,7 +1070,7 @@ class TradingLogic:
             else:
                 reason = "EMA 배열 돌파 조건 불충족"
 
-        return buy_signal
+        return buy_signal, None
 
 
     def downtrend_sell_trading(self, df):
@@ -1078,7 +1078,7 @@ class TradingLogic:
         df: DataFrame with columns ['Close', 'EMA_5', 'EMA_10', 'Low']
         """
         if len(df) < 3:
-            return False  # 데이터 부족
+            return None, False  # 데이터 부족
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
@@ -1095,7 +1095,7 @@ class TradingLogic:
 
         sell_signal = dead_cross and slope_up
         
-        return sell_signal
+        return None, sell_signal
     
     def top_reversal_sell_trading(self, df):
         """
@@ -1107,7 +1107,7 @@ class TradingLogic:
         """
         if df.shape[0] < 2:
             print("❌ 데이터가 부족해서 조건 계산 불가")
-            return False
+            return None, False
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
@@ -1134,7 +1134,7 @@ class TradingLogic:
 
         sell_signal = prev_overbought and breakdown_today and macd_falling
 
-        return sell_signal
+        return None, sell_signal
     
     def sma_breakout_trading(self, df, symbol):
         """
@@ -1147,7 +1147,7 @@ class TradingLogic:
 
         if df.shape[0] < 2:
             print("❌ 데이터가 부족해서 SMA 매수 조건 계산 불가")
-            return False
+            return False, None
 
         # 필수 컬럼 계산
         df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
@@ -1187,7 +1187,7 @@ class TradingLogic:
                 entry['Buy Signal'] = buy_signal
                 entry['Buy Reason'] = reason
 
-        return buy_signal
+        return buy_signal, None
     
     def ema_breakout_trading3(self, df, symbol):
         """
@@ -1201,7 +1201,7 @@ class TradingLogic:
 
         if df.shape[0] < 2:
             print("❌ 데이터가 부족해서 ema_breakout_trading2 조건 계산 불가")
-            return False
+            return False, None
 
         if 'Volume_MA5' not in df.columns:
             df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
@@ -1255,7 +1255,7 @@ class TradingLogic:
                 entry['Buy Signal'] = buy_signal
                 entry['Buy Reason'] = reason
 
-        return buy_signal
+        return buy_signal, None
     
     def rsi_trading2(self, candle, rsi_values, symbol, buy_threshold= 30, sell_threshold= 70):
         """
@@ -1325,7 +1325,7 @@ class TradingLogic:
         """
         if df.shape[0] < 3:
             print(f"❌ 데이터 부족으로 조건 계산 불가: {symbol}")
-            return False
+            return False, None
 
         d = df.iloc[-1]
         d_1 = df.iloc[-2]
@@ -1343,14 +1343,14 @@ class TradingLogic:
 
         buy_signal = all([cond_1, cond_2, cond_3, cond_4, cond_5, cond_6, cond_7, cond_8])
         
-        return buy_signal
+        return buy_signal, None
     
     def should_sell(self, df):
         """
         df: DataFrame with columns ['Close', 'EMA_5', 'EMA_10', 'Low']
         """
         if len(df) < 3:
-            return False  # 데이터 부족
+            return None, False  # 데이터 부족
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
@@ -1366,7 +1366,7 @@ class TradingLogic:
 
         sell_signal = dead_cross and slope_up
         
-        return sell_signal
+        return None, sell_signal
     
     def break_prev_low(self, df):
         """
@@ -1375,7 +1375,7 @@ class TradingLogic:
         df: DataFrame with columns ['Close', 'Low']
         """
         if len(df) < 2:
-            return False  # 데이터 부족
+            return None, False  # 데이터 부족
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
@@ -1383,4 +1383,4 @@ class TradingLogic:
         # 전일 저가 이탈 여부
         sell_signal = last['Close'] < prev['Low']
 
-        return sell_signal
+        return None, sell_signal
