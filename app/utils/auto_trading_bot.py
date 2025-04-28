@@ -1410,13 +1410,19 @@ class AutoTradingBot:
             # ✅ 실제 매수 금액 결정 (요청 금액 vs 가능 금액 중 작은 값)
             # ✅ 수수료 포함하여 수량 계산
             adjusted_price = float(quote.close) * (1 + 0.00014)  # 수수료 포함 단가
+            # 📌 adjusted_price에 여유를 추가 (0.5% 더)
+            #adjusted_price = float(quote.close) * (1 + 0.00014 + 0.005)
+            
+            
+            # 1. 원래 요청 금액과 최대 가능 금액 중 작은 금액 선택
             actual_trade_value = min(target_trade_value_krw, max_buy_amt)
     
             if actual_trade_value == target_trade_value_krw:
                 qty = math.floor(actual_trade_value / adjusted_price)
             else:
                 qty = max_buy_qty
-            #qty = math.floor(target_trade_value_krw / quote.close)
+                qty = max(0, qty - 1) #개수를 1개 줄여서 매수 실패 방지
+                
             
             if qty <= 0:
                 print(f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}")
