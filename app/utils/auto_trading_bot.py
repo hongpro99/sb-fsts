@@ -1135,9 +1135,9 @@ class AutoTradingBot:
             max_allocation=max_allocation
         )
             
-        # 🟡 trade 함수 상단
-        account = self.kis.account()
-        balance: KisBalance = account.balance()
+        # # 🟡 trade 함수 상단
+        # account = self.kis.account()
+        # balance: KisBalance = account.balance()
 
         final_sell_yn = False
         reason = None
@@ -1170,24 +1170,24 @@ class AutoTradingBot:
                 final_sell_yn = True
                 reason = trading_logic
 
-        # ✅ 익절/손절 조건 확인
-        take_profit_hit = False
-        stop_loss_hit = False
+        # # ✅ 익절/손절 조건 확인
+        # take_profit_hit = False
+        # stop_loss_hit = False
 
-        holding = next((stock for stock in balance.stocks if stock.symbol == symbol), None)
+        # holding = next((stock for stock in balance.stocks if stock.symbol == symbol), None)
 
-        if holding:
-            profit_rate = float(holding.profit_rate)
+        # if holding:
+        #     profit_rate = float(holding.profit_rate)
 
-            if use_take_profit and profit_rate >= take_profit_threshold:
-                take_profit_hit = True
-                final_sell_yn = True
-                reason = "익절"
+        #     if use_take_profit and profit_rate >= take_profit_threshold:
+        #         take_profit_hit = True
+        #         final_sell_yn = True
+        #         reason = "익절"
 
-            elif use_stop_loss and profit_rate <= -stop_loss_threshold:
-                stop_loss_hit = True
-                final_sell_yn = True
-                reason = "손절"
+        #     elif use_stop_loss and profit_rate <= -stop_loss_threshold:
+        #         stop_loss_hit = True
+        #         final_sell_yn = True
+        #         reason = "손절"
 
         # ✅ 매도 실행
         if final_sell_yn:
