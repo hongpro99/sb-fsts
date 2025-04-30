@@ -97,39 +97,40 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     account = trading_bot.kis.account()
     balance: KisBalance = account.balance()
 
-    # ✅ 보유 주식별 손절/익절 여부 검사
-    if balance and hasattr(balance, "stocks"):
-        for holding in balance.stocks:
-            symbol = holding.symbol
-            profit_rate = float(holding.profit_rate)
+    for holding in balance.stocks:
+        symbol = holding.symbol
 
-            final_sell_yn = False
-            reason = None
+        # ✅ 매입금액 0인 경우 방어 처리
+        if holding.purchase_amount == 0:
+            print(f"🚫 {symbol} - 매입금액 0원: 손익률 계산 생략")
+            continue  # 그냥 이 종목은 패스
 
-            if use_take_profit and profit_rate >= take_profit_threshold:
-                final_sell_yn = True
-                reason = "익절"
-            elif use_stop_loss and profit_rate <= -stop_loss_threshold:
-                final_sell_yn = True
-                reason = "손절"
+        profit_rate = float(holding.profit_rate)
 
-            if final_sell_yn:
-                try:
-                    Webhook.send_discord_webhook(
-                        f"[reason:{reason}], {symbol_name} 매도가 완료되었습니다.",
-                        "trading"
-                    )
-                    print(f"✅ {symbol} {reason} 조건 충족 -> 매도 실행)")
-                    trading_bot._trade_place_order(
-                        symbol=symbol,
-                        symbol_name=symbol,
-                        target_trade_value_krw=None,
-                        order_type="sell",
-                        max_allocation=1,
-                        trading_bot_name=trading_bot_name,
-                    )
-                except Exception as e:
-                    print(f"❌ {symbol} 매도 실패: {e}")
+        final_sell_yn = False
+        reason = None
+
+        if use_take_profit and profit_rate >= take_profit_threshold:
+            final_sell_yn = True
+            reason = "익절"
+        elif use_stop_loss and profit_rate <= -stop_loss_threshold:
+            final_sell_yn = True
+            reason = "손절"
+
+        if final_sell_yn :
+            try:
+                print(f"✅ {symbol} {reason} 조건 충족 -> 매도 실행 ")
+                trading_bot._trade_place_order(
+                    symbol=symbol,
+                    symbol_name=symbol,
+                    target_trade_value_krw=None,
+                    order_type="sell",
+                    max_allocation=1,
+                    trading_bot_name=trading_bot_name,
+                    
+                )
+            except Exception as e:
+                print(f"❌ {symbol} 매도 실패: {e}")
                     
     print(f'------ {trading_bot_name}의 계좌 익절/손절이 완료되었습니다. 이제부터 주식 자동 트레이딩을 시작합니다!')            
                     

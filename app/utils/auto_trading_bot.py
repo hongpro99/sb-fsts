@@ -7,7 +7,7 @@ import json
 import os
 
 from pykis import PyKis, KisChart, KisStock, KisQuote
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 import mplfinance as mpf
 from pytz import timezone
 from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
@@ -287,127 +287,96 @@ class AutoTradingBot:
     def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None,
                         interval='day', buy_percentage = None, ohlc_mode = 'default', initial_capital=None, rsi_buy_threshold = 30, rsi_sell_threshold = 70, rsi_period = 25, take_profit_ratio=5.0, stop_loss_ratio=3.0,
                         use_take_profit = False, use_stop_loss = False):
-    
-        ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval, ohlc_mode) #클래스 객체, .사용
+        start_date = pd.to_datetime(start_date)
+        if start_date.tzinfo is None:
+            start_date = start_date.tz_localize("Asia/Seoul")  # 또는 timestamp.tzinfo
+        start_date = pd.to_datetime(start_date)
+        data_start_date = start_date - timedelta(days=180)
+
+        ohlc_data = self._get_ohlc(symbol, data_start_date, end_date, interval, ohlc_mode)
+        if not ohlc_data:
+            print(f"❌ No OHLC data: {symbol}")
+            return None, None, None
+        
         # trade_reasons = logic.trade_reasons
         logic.trade_reasons = []
         # ✅ trade_reasons 초기화
-        trade_reasons = []        
-        #실제 투자 모드인지 확인
-            # ✅ 실제 투자 모드인지 확인
+    
         real_trading = initial_capital is not None
+        trade_amount = target_trade_value_krw
 
-        # 기존 변수 초기화    
-        trade_amount = target_trade_value_krw  # 매매 금액 (krw)
-        position_count = 0  # 현재 포지션 수량
-        positions = [] #손절 포지션
-        previous_closes = []  # 이전 종가들을 저장
-        closes = []
         trading_history = {
-            'average_price': 0,  # 평단가
-            'realized_pnl': 0,  # 실현 손익
-            'unrealized_pnl': 0,  # 미실현 손익
-            'realized_roi' : 0, #실현 수익률
-            'unrealized_roi' : 0, # 총 수익률
-            'total_cost': 0,  # 총 비용
-            'total_quantity': 0,  # 총 수량
-            'buy_count': 0,  # 총 매수 횟수
-            'sell_count': 0,  # 총 매도 횟수
-            'buy_dates': [],  # 매수 날짜 목록
-            'sell_dates': [],  # 매도 날짜 목록
-            'history': [],  # 거래 내역
+            'average_price': 0, 'realized_pnl': 0, 'unrealized_pnl': 0,
+            'realized_roi': 0, 'unrealized_roi': 0, 'total_cost': 0,
+            'total_quantity': 0, 'buy_count': 0, 'sell_count': 0,
+            'buy_dates': [], 'sell_dates': [], 'history': [],
             'initial_capital': initial_capital
         }
 
-        # 그래프 그리기 위한 데이터
-        timestamps = []
-        ohlc = []
-        buy_signals = []
-        sell_signals = []
+        timestamps, ohlc, closes, previous_closes = [], [], [], []
+        buy_signals, sell_signals = [], []
+        d_1 = d_2 = d_3 = None
+        logic.trade_reasons = []
+        recent_buy_prices = {'price': 0, 'timestamp': None}
 
-        # D-1, D-2 캔들 초기화
-        i = 0  # 인덱스 초기화
-        d_1 = None
-        d_2 = None
-        d_3 = None 
+        for candle in ohlc_data:
+            timestamps.append(candle.time)
+            closes.append(float(candle.close))
+            previous_closes.append(float(candle.close))
+            ohlc.append([
+                candle.time.date().isoformat(),
+                float(candle.open), float(candle.high),
+                float(candle.low), float(candle.close),
+                float(candle.volume)
+            ])
 
-        recent_buy_prices = {
-            'price' : 0,
-            'timestamp' : None
-        }  # 최근 매수가격 기록
-        
-        while i < len(ohlc_data):
+        # 지표 계산
+        df = pd.DataFrame(ohlc, columns=["Time", "Open", "High", "Low", "Close", "Volume"], index=pd.DatetimeIndex(timestamps))
+        for p in [5, 10, 20, 50, 60]:
+            df = indicator.cal_ema_df(df, p)
+        for p in [5, 20, 40, 120, 200]:
+            df = indicator.cal_sma_df(df, p)
+        df = indicator.cal_rsi_df(df, rsi_period)
+        df = indicator.cal_macd_df(df)
+        df = indicator.cal_stochastic_df(df)
+        df = indicator.cal_mfi_df(df)
+    
+        for i in range(len(df)):
+            timestamp = df.index[i]
+            timestamp_date = timestamp.date()
+            if timestamp < start_date:
+                d_3, d_2, d_1 = d_2, d_1, ohlc_data[i]
+                continue
+            
+            candle = ohlc_data[i]  # ✅ 이 줄이 중요!
+            row = df.iloc[i]
+            current_df = df.iloc[:i+1]  # 매수/매도 로직에 넘길 슬라이스
+            
+            if d_1 is None or d_2 is None:
+                d_3, d_2, d_1 = d_2, d_1, candle
+                continue
 
-            candle = ohlc_data[i]
-            open_price = float(candle.open)
-            high_price = float(candle.high)
-            low_price = float(candle.low)
-            close_price = float(candle.close)
-            volume = float(candle.volume)
-            timestamp = candle.time
-            timestamps.append(timestamp)
-            closes.append(close_price) #rsi
-            trade_reasons = logic.trade_reasons
-
-            # timestamp 변수를 ISO 8601 문자열로 변환
+            close_price = float(row["Close"])
+            volume = float(row["Volume"])
             timestamp_iso = timestamp.isoformat()
             timestamp_str = timestamp.date().isoformat()
-            
-            ohlc.append([timestamp_str, open_price, high_price, low_price, close_price, volume])
-            previous_closes.append(close_price)
-            
-            # 캔들 차트 데이터프레임 생성
-            df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
-            #ema
-            df = indicator.cal_ema_df(df, 10)
-            df = indicator.cal_ema_df(df, 20)
-            df = indicator.cal_ema_df(df, 50)
-            df = indicator.cal_ema_df(df, 60)
-            df = indicator.cal_ema_df(df, 5)
-            
-            #sma
-            df = indicator.cal_sma_df(df, 5)
-            df = indicator.cal_sma_df(df, 20)
-            df = indicator.cal_sma_df(df, 40)
-            df = indicator.cal_sma_df(df, 120)
-            df = indicator.cal_sma_df(df, 200)
 
-            df = indicator.cal_rsi_df(df, rsi_period)
-            df = indicator.cal_macd_df(df)
-            df = indicator.cal_stochastic_df(df)
-            df = indicator.cal_mfi_df(df)
-            
             trade_entry = {
-                'symbol': symbol,
-                'Time': timestamp,
-                'price': close_price,
-                'volume': volume,
-                'rsi': df['rsi'].iloc[-1],
-                'mfi': df['mfi'].iloc[-1],
-                'macd': df['macd'].iloc[-1],
-                'macd_signal': df['macd_signal'].iloc[-1],
-                'macd_histogram': df['macd_histogram'].iloc[-1],
-                'stochastic_k': df['stochastic_k'].iloc[-1],
-                'stochastic_d': df['stochastic_d'].iloc[-1],
-                'EMA_10': df['EMA_10'].iloc[-1],
-                'EMA_20': df['EMA_20'].iloc[-1],
-                'EMA_50': df['EMA_50'].iloc[-1],
-                'EMA_60': df['EMA_60'].iloc[-1],
-                'SMA_5' : df['SMA_5'].iloc[-1],
-                'SMA_20' : df['SMA_20'].iloc[-1],
-                'SMA_40' : df['SMA_40'].iloc[-1],                
+                'symbol': symbol, 'Time': timestamp, 'price': close_price, 'volume': volume,
+                'rsi': row['rsi'], 'mfi': row['mfi'], 'macd': row['macd'],
+                'macd_signal': row['macd_signal'], 'macd_histogram': row['macd_histogram'],
+                'stochastic_k': row['stochastic_k'], 'stochastic_d': row['stochastic_d'],
+                'EMA_10': row['EMA_10'], 'EMA_20': row['EMA_20'],
+                'EMA_50': row['EMA_50'], 'EMA_60': row['EMA_60'],
+                'SMA_5': row['SMA_5'], 'SMA_20': row['SMA_20'], 'SMA_40': row['SMA_40']
             }
-            trade_reasons.append(trade_entry)
-                        
-            recent_20_days_volume = []
-            avg_volume_20_days = 0
+            print(f"timestamp: {timestamp}, EMA_10: {row['EMA_10']}")
+            logic.trade_reasons.append(trade_entry)
 
-            if len(ohlc_data[:i]) >= 21:
-                recent_20_days_volume = [float(c.volume) for c in ohlc_data[i - 20:i]]
-                avg_volume_20_days = sum(recent_20_days_volume) / len(recent_20_days_volume)
+            # ✅ 매수형 로직 처리
+            any_buy_yn = False
+            triggered_buy_logic = None
             
-            sell_reason = None
-
             # 매수형 로직 처리
             if buy_trading_logic:
                 for trading_logic in buy_trading_logic:
@@ -416,6 +385,7 @@ class AutoTradingBot:
                     if trading_logic == 'check_wick':            
                         # 볼린저 밴드 계산
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
+                        print(f"bollinger_band : {bollinger_band}")
                         buy_yn, _ = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
                         
                     elif trading_logic == 'rsi_trading':            
@@ -457,7 +427,8 @@ class AutoTradingBot:
                         buy_yn = buy_yn1 and buy_yn2
                         
                     elif trading_logic == 'ema_breakout_trading':
-                        buy_yn, _ = logic.ema_breakout_trading(df, symbol)
+                        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
+                        buy_yn, _ = logic.ema_breakout_trading(df, symbol, bollinger_band['middle'], bollinger_band['upper'])
                         
                     elif trading_logic == 'bollinger_band_trading':
                         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
@@ -473,7 +444,7 @@ class AutoTradingBot:
                         buy_yn, _ = logic.ema_breakout_trading2(df, symbol)
                         
                     elif trading_logic == 'trend_entry_trading':
-                        buy_yn, _ = logic.trend_entry_trading(df)
+                        buy_yn, _ = logic.trend_entry_trading(current_df)
                         
                     elif trading_logic == 'bottom_rebound_trading':
                         buy_yn, _ = logic.bottom_rebound_trading(df)
@@ -485,74 +456,77 @@ class AutoTradingBot:
                         buy_yn, _ = logic.ema_breakout_trading3(df, symbol)
                         
                     elif trading_logic == 'ema_crossover_trading':
-                        buy_yn, _ = logic.ema_crossover_trading(df, symbol)                    
-                    
-                    # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
-                    #if buy_yn and d_1 is not None and volume > d_1.volume and d_1.volume > avg_volume_20_days:
-                    if buy_yn: # 일단 매수 거래량 조건 제거
-                                                
-                        can_buy = True
+                        buy_yn, _ = logic.ema_crossover_trading(df, symbol)
                         
-                        # 매수 제한 조건 확인                        
-                        if buy_percentage is not None:
-                            #첫 매수는 항상 허용
-                            if recent_buy_prices['price'] == 0:
-                                can_buy = True
-                            else:
-                                price_range = recent_buy_prices['price'] * buy_percentage / 100
-                                price_lower = recent_buy_prices['price'] - price_range
-                                price_upper = recent_buy_prices['price'] + price_range
-                                
-                                # 최근 매수가격이 설정된 범위 내에 있으면 매수하지 않음
-                                if price_lower <= close_price <= price_upper and timestamp_iso != recent_buy_prices['timestamp']:
-                                    print(f"🚫 매수 조건 충족했지만, {buy_percentage}% 범위 내 기존 매수가 존재하여 매수하지 않음 ({close_price}KRW)")
-                                    can_buy = False  # 매수를 막음
-                        # ✅ 실제 투자 모드: 현금 확인 후 매수
-                        if real_trading:
-                            #현재 initial_capital을 기준으로 예수금 체크
-                            if trading_history['initial_capital'] < close_price:
-                                print(f"❌ 현금 부족으로 매수 불가 (잔액: {trading_history['initial_capital']:,.0f} KRW)")
-                                can_buy = False
-                                
-                        if can_buy:
-                            stop_loss_price = d_1.low if d_1 else None
-                            float_stop_loss_price = float(stop_loss_price) if stop_loss_price else None
-                            target_price = close_price + 2*(close_price - float_stop_loss_price) if float_stop_loss_price else None
+                    if buy_yn:
+                        print(f"🔥 buy_trading_logic: {buy_trading_logic}")
+                        any_buy_yn = True
+                        triggered_buy_logic = trading_logic
+                        break  # 하나라도 만족하면 종료
+                
+            # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
+            #if buy_yn and d_1 is not None and volume > d_1.volume and d_1.volume > avg_volume_20_days:
+            if any_buy_yn: # 일단 매수 거래량 조건 제거
                             
-                        if real_trading:
-                            # 매수 가능 최대 금액은 남은 initial_capital
-                            max_affordable_amount = min(trade_amount, trading_history['initial_capital'])
-                            buy_quantity = math.floor(max_affordable_amount / close_price)
-                        else:
-                            buy_quantity = math.floor(trade_amount / close_price)
+                can_buy = True
+                
+                # 매수 제한 조건 확인                        
+                if buy_percentage is not None:
+                    #첫 매수는 항상 허용
+                    if recent_buy_prices['price'] == 0:
+                        can_buy = True
+                    else:
+                        price_range = recent_buy_prices['price'] * buy_percentage / 100
+                        price_lower = recent_buy_prices['price'] - price_range
+                        price_upper = recent_buy_prices['price'] + price_range
+                        
+                        # 최근 매수가격이 설정된 범위 내에 있으면 매수하지 않음
+                        if price_lower <= close_price <= price_upper and timestamp_iso != recent_buy_prices['timestamp']:
+                            print(f"🚫 매수 조건 충족했지만, {buy_percentage}% 범위 내 기존 매수가 존재하여 매수하지 않음 ({close_price}KRW)")
+                            can_buy = False  # 매수를 막음
+                # ✅ 실제 투자 모드: 현금 확인 후 매수
+                if real_trading:
+                    #현재 initial_capital을 기준으로 예수금 체크
+                    if trading_history['initial_capital'] < close_price:
+                        print(f"❌ 현금 부족으로 매수 불가 (잔액: {trading_history['initial_capital']:,.0f} KRW)")
+                        can_buy = False
+                        
+                if can_buy:
+                    stop_loss_price = d_1.low if d_1 else None
+                    float_stop_loss_price = float(stop_loss_price) if stop_loss_price else None
+                    target_price = close_price + 2*(close_price - float_stop_loss_price) if float_stop_loss_price else None
+                    
+                if real_trading:
+                    # 매수 가능 최대 금액은 남은 initial_capital
+                    max_affordable_amount = min(trade_amount, trading_history['initial_capital'])
+                    buy_quantity = math.floor(max_affordable_amount / close_price)
+                else:
+                    buy_quantity = math.floor(trade_amount / close_price)
 
-                        if buy_quantity > 0:
-                            total_trade_cost = buy_quantity * close_price
+                if buy_quantity > 0:
+                    total_trade_cost = buy_quantity * close_price
 
-                            # 예수금 차감
-                            if real_trading:
-                                trading_history['initial_capital'] -= total_trade_cost
+                    # 예수금 차감
+                    if real_trading:
+                        trading_history['initial_capital'] -= total_trade_cost
 
-                            trading_history['history'].append({
-                                'position': 'BUY',
-                                'trading_logic': trading_logic,
-                                'price': close_price,
-                                'quantity': buy_quantity,
-                                'target_price': target_price,
-                                'stop_loss_price': float_stop_loss_price,
-                                'time': timestamp_iso
-                            })
+                    trading_history['history'].append({
+                        'position': 'BUY',
+                        'trading_logic': triggered_buy_logic,
+                        'price': close_price,
+                        'quantity': buy_quantity,
+                        'target_price': target_price,
+                        'stop_loss_price': float_stop_loss_price,
+                        'time': timestamp_iso
+                    })
 
-                            buy_signals.append((timestamp, close_price))
-                            recent_buy_prices.update({
-                                'price' : close_price,
-                                'timestamp' : timestamp_iso
-                            
-                            })
-                            print(f"매수 시점: {timestamp_iso}, 매수가: {close_price} KRW, 매수량: {buy_quantity}, 손절가격: {stop_loss_price}, 익절 가격: {target_price}")        
-            
-                    # 손익 및 매매 횟수 계산
-                    trading_history = self.calculate_pnl(trading_history, close_price)
+                    buy_signals.append((timestamp, close_price))
+                    recent_buy_prices.update({
+                        'price' : close_price,
+                        'timestamp' : timestamp_iso
+                    
+                    })
+                    print(f"매수 시점: {timestamp_iso}, 매수가: {close_price} KRW, 매수량: {buy_quantity}, 손절가격: {stop_loss_price}, 익절 가격: {target_price}")        
                 
             # 매도형 로직 처리
             sell_yn = False
@@ -635,11 +609,15 @@ class AutoTradingBot:
 
                     elif trading_logic == 'break_prev_low':
                         _, result = logic.break_prev_low(df)
+                        
+                    elif trading_logic == 'sell_on_support_break':
+                        _, result = logic.sell_on_support_break(df)
 
                     # ✅ 조건 만족하면 즉시 기록
-                    if result and not sell_yn:
+                    if result:
                         sell_yn = True
                         triggered_logic = trading_logic  # 최초 만족한 로직만 기록
+                        break
 
             # 매도 실행
             if sell_yn and trading_history['total_quantity'] > 0:
@@ -678,14 +656,23 @@ class AutoTradingBot:
             print(f"총 비용: {trading_history['total_cost']}KRW, 총 보유량: {trading_history['total_quantity']}주, 평균 단가: {trading_history['average_price']}KRW, "
                 f"실현 손익 (Realized PnL): {trading_history['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {trading_history['unrealized_pnl']}KRW")
             
-            # D-2, D-1 업데이트
-            d_3 = d_2
-            d_2 = d_1
-            d_1 = candle
-            i += 1
+            # 손익 및 매매 횟수 계산
+            trading_history = self.calculate_pnl(trading_history, close_price)
+            d_3, d_2, d_1 = d_2, d_1, candle
 
+        # result_data 생성 시 시뮬레이션 구간 이후만 전달
+        filtered_ohlc = []
+        filtered_timestamps = []
+
+        for i in range(len(timestamps)):
+            ts = timestamps[i]
+            if ts >= start_date:
+                filtered_timestamps.append(ts)
+                filtered_ohlc.append(ohlc[i])
+        
+        print(f"buy_signal = {buy_signals}, sell_signal = {sell_signals}")
         # 캔들 차트 데이터프레임 생성
-        result_data = self._draw_chart(symbol, ohlc, timestamps, buy_signals, sell_signals)
+        result_data = self._draw_chart(symbol, filtered_ohlc, filtered_timestamps, buy_signals, sell_signals)
         # print(f"result_data : {result_data}")
         # 매매 내역 요약 출력
         print("\n=== 매매 요약 ===")
@@ -698,7 +685,7 @@ class AutoTradingBot:
         print(f"실현 손익률 (realized_roi): {trading_history['realized_roi']}%")
         print(f"총 실현 손익률 (unrealized_roi): {trading_history['unrealized_roi']}%")
         
-        return result_data, trading_history, trade_reasons
+        return result_data, trading_history, logic.trade_reasons
 
     def whole_simulate_trading2(
         self, symbol, end_date, df, ohlc_data, trade_ratio, fixed_portfolio_value,
@@ -710,7 +697,8 @@ class AutoTradingBot:
         
         df = df[df.index <= pd.Timestamp(end_date)]
                         
-
+        # 시뮬레이션 시작 전 초기화
+        previous_closes = []
         # ✅ 아무 데이터도 없으면 조용히 빠져나가기
         if df.empty or len(df) < 2:
             return None
@@ -718,6 +706,8 @@ class AutoTradingBot:
         candle_time = df.index[-1]
         candle = next(c for c in ohlc_data if pd.Timestamp(c.time).tz_localize(None) == candle_time)
         close_price = float(candle.close)
+        previous_closes.append(close_price)
+        
         timestamp_str = candle_time.date().isoformat()
         
 
@@ -827,6 +817,9 @@ class AutoTradingBot:
                     
                 elif logic_name == 'downtrend_sell_trading':
                     _, sell_yn = logic.downtrend_sell_trading(df)
+                    
+                elif logic_name == 'sell_on_support_break':
+                    _, sell_yn = logic.sell_on_support_break(df)                    
 
                 # ✅ 누적 조건 + 최초 발생한 로직 저장
                 if sell_yn and not sell_signal:
@@ -894,7 +887,8 @@ class AutoTradingBot:
                 current_buy_yn, _ = logic.sma_breakout_trading(df, symbol)
 
             elif logic_name == 'ema_breakout_trading':
-                current_buy_yn, _ = logic.ema_breakout_trading(df, symbol)
+                bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
+                current_buy_yn, _ = logic.ema_breakout_trading(df, symbol, bollinger_band['middle'], bollinger_band['upper'])
 
             elif logic_name == 'ema_breakout_trading3':
                 current_buy_yn, _ = logic.ema_breakout_trading3(df, symbol)

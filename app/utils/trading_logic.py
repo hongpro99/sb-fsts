@@ -773,7 +773,7 @@ class TradingLogic:
 
         return buy_signal, sell_signal
         
-    def ema_breakout_trading(self, df, symbol):
+    def ema_breakout_trading(self, df, symbol, middle_band, upper_band):
         """
         EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
         조건:
@@ -793,13 +793,17 @@ class TradingLogic:
         last = df.iloc[-1]
         prev = df.iloc[-2]
         trade_date = last.name.date()
-        last_close_price = float(last['Close'])
-        prev_close_price = float(prev['Close'])
+        
+        close_price = float(last['Close'])
+        volume = float(last['Volume'])
 
-        # 조건 2: EMA_10이 EMA_50 상향 돌파
+        # 조건 1: 거래대금 계산(30억 이상)
+        trade_value = close_price * volume
+    
+        # 조건 2: EMA_10이 EMA_20 상향 돌파
         cross_up = (
-            prev['EMA_10'] < prev['EMA_50'] and
-            last['EMA_10'] > last['EMA_50']
+            prev['EMA_10'] < prev['EMA_20'] and
+            last['EMA_10'] > last['EMA_20']
         )
 
         # 조건 3: EMA 기울기 양수
@@ -809,15 +813,39 @@ class TradingLogic:
         slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0
 
         # 조건 4: 거래량 증가
-        volume_up = last['Volume'] / prev['Volume'] >= 1.5
+        volume_up = last['Volume'] > last['Volume_MA5']
+        volume_up2 = last['Volume'] > prev['Volume']
         
         # ❌ 조건 5: 당일 윗꼬리 음봉 제외
         is_bearish = last['Close'] < last['Open']
-        # upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        # long_upper_shadow = is_bearish and upper_shadow_ratio > 0.4  # 윗꼬리 40% 이상이면 제외
+        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.5  # 윗꼬리 50% 이상이면 제외
         long_upper_shadow = is_bearish
-        # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow
+        
+        # #✅ 조건 5: 고가 대비 종가 차이 10% 미만
+        # high_close_diff_ratio = (last['High'] - last['Close']) / last['High']
+        # not_big_gap_from_high = high_close_diff_ratio < 0.10
+        
+        # ✅ 추가 조건 6: 당일 종가가 전일 종가 대비 20% 이상 상승 종목 제외
+        price_increase_ratio = (close_price - float(prev['Close'])) / float(prev['Close'])
+        price_up_limit = price_increase_ratio < 0.2
+        
+            # 조건 6: 당일 종가가 전일 고점 돌파 + 고가 부근 마감
+        #breakout_high = last['Close'] > prev['High']
+
+        # ✅ 조건 7: 볼린저밴드 조건
+        if float(prev['Close']) < middle_band:
+            bb_condition = close_price > middle_band
+        else:
+            bb_condition = close_price > upper_band 
+        
+            # ✅ 최종 조건
+        buy_signal = (
+            cross_up and slope_up and volume_up and volume_up2 and
+            not long_upper_shadow and not_long_upper_shadow and bb_condition
+        
+        )
+
 
         # 매매 사유 작성
         if buy_signal:
@@ -832,12 +860,6 @@ class TradingLogic:
                 reason = "❌ 당일 윗꼬리 음봉 → 매수 조건 탈락"
             else:
                 reason = "EMA 배열 돌파 조건 불충족"
-
-        # trade_reasons에 결과 기록
-        for entry in self.trade_reasons:
-            if entry['Time'].date() == trade_date and entry['symbol'] == symbol:
-                entry['Buy Signal'] = buy_signal
-                entry['Buy Reason'] = reason
 
         return buy_signal, None
     
@@ -932,20 +954,16 @@ class TradingLogic:
     def trend_entry_trading(self, df):
         """
         EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
-        조건:
-        ② 현재 시점: EMA_10이 EMA_50을 아래에서 위로 돌파
-        ③ 현재 EMA_10, EMA_20, EMA_50의 기울기 ≥ 0
-        ④ 거래량이 5일 평균 이상
-        ⑤ 당일 윗꼬리 음봉이면 제외
-        """
 
+        """
+        print("디버깅 지점===========")
         if df.shape[0] < 2:
-            print("❌ 데이터가 부족해서 ema_breakout_trading2 조건 계산 불가")
+            print("❌ 데이터가 부족해서 trend_entry_trading 조건 계산 불가")
             return False, None
 
         if 'Volume_MA5' not in df.columns:
             df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
-
+        
         last = df.iloc[-1]
         prev = df.iloc[-2]
         trade_date = last.name.date()
@@ -955,7 +973,7 @@ class TradingLogic:
 
         # 조건 1: 거래대금 계산(30억 이상)
         trade_value = close_price * volume
-    
+        print(f"이전 EMA: {prev['EMA_10']} , 오늘 EMA: {last['EMA_10']}")
         # 조건 2: EMA_10이 EMA_20 상향 돌파
         cross_up = (
             prev['EMA_10'] < prev['EMA_20'] and
@@ -982,9 +1000,15 @@ class TradingLogic:
         # high_close_diff_ratio = (last['High'] - last['Close']) / last['High']
         # not_big_gap_from_high = high_close_diff_ratio < 0.10
         
+        
+        # ✅ 추가 조건 6: 당일 종가가 전일 종가 대비 20% 이상 상승 종목 제외
+        price_increase_ratio = (close_price - float(prev['Close'])) / float(prev['Close'])
+        price_up_limit = price_increase_ratio < 0.2
+        
+        
         # 최종 조건
         buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and volume_up2 and not_long_upper_shadow
-
+        print(f"buy_signal: {buy_signal}")
         # 매매 사유 작성
         if buy_signal:
             reason = (
@@ -1386,5 +1410,52 @@ class TradingLogic:
 
         # 전일 저가 이탈 여부
         sell_signal = last['Close'] < prev['Low']
+
+        return None, sell_signal
+    
+    def sell_on_support_break(self, df):
+        """
+        2차 지지선 이탈 + 거래량 실린 음봉 조건의 매도 시그널
+        - s2_level: 피봇 지표 등으로 계산된 2차 지지선 값 (float)
+        """
+        if df.shape[0] < 2:
+            print("❌ 캔들 데이터 부족")
+            return False, None
+
+        # ✅ 전일 고가, 저가, 종가로 Pivot, S2 계산
+        prev = df.iloc[-2]
+        prev_high = prev['High']
+        prev_low = prev['Low']
+        prev_close = prev['Close']
+        P = (prev_high + prev_low + prev_close) / 3
+        s2_level = P - (prev_high - prev_low)
+    
+        if 'Volume_MA5' not in df.columns:
+            df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+
+        last = df.iloc[-1]
+        
+        # ✅ 조건 1: 2차 지지선 하회
+        below_s2 = last['Close'] < s2_level
+
+        # ✅ 조건 2: 음봉
+        is_bearish_candle = last['Close'] < last['Open']
+
+        # ✅ 조건 3: 거래량이 5일 평균 이상
+        volume_heavy = last['Volume'] > prev['Volume']
+
+        # ✅ 매도 시그널
+        sell_signal = below_s2 and is_bearish_candle and volume_heavy
+
+        # 🔎 사유 작성
+        if sell_signal:
+            reason = (
+                f"매도 신호 발생: "
+                f"[2차 지지선 이탈] Close {last['Close']:.2f} < S2 {s2_level:.2f}, "
+                f"[음봉] Open {last['Open']:.2f} > Close {last['Close']:.2f}, "
+                f"[거래량] {last['Volume']:.0f} > 5일 평균 {last['Volume_MA5']:.0f}"
+            )
+        else:
+            reason = "조건 미충족"
 
         return None, sell_signal

@@ -718,7 +718,9 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'should_sell':
             entry['trading_logic'] =  '추세 손절'
         elif entry.get('trading_logic') == 'break_prev_low':
-            entry['trading_logic'] =  '전일저가통과'                                                                                
+            entry['trading_logic'] =  '전일저가통과'
+        elif entry.get('trading_logic') == 'sell_on_support_break':
+            entry['trading_logic'] =  '지지선'                                                                                                                                                                
             
 def login_page():
     """
@@ -1518,6 +1520,7 @@ def main():
                         df = indicator.cal_macd_df(df)
                         df = indicator.cal_stochastic_df(df)
                         df = indicator.cal_mfi_df(df)
+                        #df = indicator.cal_bollinger_band()
 
                         # 유효한 종목만 저장
                         valid_symbols[stock_name] = symbol
