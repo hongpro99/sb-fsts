@@ -22,7 +22,7 @@ if prompt := st.chat_input("메시지를 입력하세요..."):
         st.markdown(prompt)
 
     # 💬 Backend API 호출
-    backend_url = "http://localhost:8000/predict"  # 배포 시 IP 변경
+    backend_url = "http://52.78.0.132:7002/predict"  # 배포 시 IP 변경
     response = requests.post(backend_url, json={"messages": st.session_state.messages})
     assistant_reply = response.json()["response"]
 
