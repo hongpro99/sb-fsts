@@ -2,8 +2,11 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import os
+from dotenv import load_dotenv
 from langchain_openai import AzureChatOpenAI
 
+
+load_dotenv()
 
 # FastAPI 인스턴스
 app = FastAPI()
