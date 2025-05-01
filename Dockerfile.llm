@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 프로젝트 depth 일치 시키도록 /app/app 설정
 COPY ./llm /app/llm
 # COPY ./dashboard_web/trading_logic.json /app/app/trading_logic.json
+COPY .env /app/.env
 
 EXPOSE 7002
 
