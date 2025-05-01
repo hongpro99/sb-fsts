@@ -1520,7 +1520,7 @@ def main():
                         df = indicator.cal_macd_df(df)
                         df = indicator.cal_stochastic_df(df)
                         df = indicator.cal_mfi_df(df)
-                        #df = indicator.cal_bollinger_band()
+                        df = indicator.cal_bollinger_bands(df)
 
                         # 유효한 종목만 저장
                         valid_symbols[stock_name] = symbol
@@ -1528,16 +1528,22 @@ def main():
                         precomputed_ohlc_dict[symbol] = ohlc_data
 
                     except Exception as e:
-                        st.warning(f"⚠️ {stock_name} 지표 계산 실패: {e}")
-                        failed_indicator_symbols.append(stock_name)
+                        failed_indicator_symbols.append((stock_name, str(e)))
 
+            # ✅ 여기 아래에 결과 출력
+            if failed_indicator_symbols:
+                st.error(f"❌ 지표 계산 실패: {len(failed_indicator_symbols)}개 종목")
+                for stock_name, error_msg in failed_indicator_symbols:
+                    st.write(f"• {stock_name}: {error_msg}")
+            else:
+                st.success("✅ 모든 종목에 대해 지표 계산 성공!")
+                
             # ✅ 세션 상태에 저장
             my["selected_symbols"] = valid_symbols
             my["precomputed_df_dict"] = precomputed_df_dict
             my["precomputed_ohlc_dict"] = precomputed_ohlc_dict
-
-            st.success("✅ 모든 종목의 지표 계산 완료 및 저장됨!")
             
+            st.session_state["my_page_settings"] = my  # 다시 저장
         if st.button("✅ 2. 시뮬레이션 실행"):
             my = st.session_state["my_page_settings"]
             symbols = my["selected_symbols"]
@@ -1585,7 +1591,7 @@ def main():
                 all_dates.update(d for d in dates if d >= start_date)
 
             date_range = sorted(list(all_dates))  # 날짜 정렬
-
+            st.info(f"🧮 총 {len(symbols)}개 종목에 대해 시뮬레이션을 시작합니다.")
             # ✅ 시뮬레이션 시작
             for current_date in date_range:                                                                # ✅ 하루 기준 고정 portfolio_value 계산 (종목별 보유 상태 반영)
                 portfolio_value_fixed = global_state["initial_capital"] + sum(
@@ -1599,9 +1605,8 @@ def main():
                         df = my["precomputed_df_dict"][symbol]
                         ohlc_data = my["precomputed_ohlc_dict"][symbol]
                         
-                        # 해당 종목에 current_date가 실제 있는 날짜인지 확인
                         if not any(pd.Timestamp(c.time).tz_localize(None).normalize() == current_date for c in ohlc_data):
-                            continue  # 종목이 그날 거래 안 했으면 스킵
+                            continue
                         
                         # ✅ 날짜별 거래 금액 계산
                         if target_ratio is not None:
@@ -1636,7 +1641,8 @@ def main():
                         )
 
                         if trading_history is None:
-                            continue  # 데이터 부족하면 스킵
+                            print(f"❌ {stock_name} 시뮬레이션 실패 (None 반환됨)")
+                            continue
 
                         trading_history.update({
                             "symbol": stock_name,
@@ -1666,7 +1672,13 @@ def main():
                     progress = task / total_tasks
                     progress_bar.progress(progress)
                     progress_text.text(f"{int(progress * 100)}% 완료 ({task}/{total_tasks})")
-                        
+                    
+            # ✅ 시뮬레이션 루프 종료 후
+            if failed_stocks:
+                st.error(f"❌ 시뮬레이션 실패 종목 {len(failed_stocks)}개:")
+                st.write(", ".join(sorted(failed_stocks)))
+            else:
+                st.success("🎉 모든 종목 시뮬레이션 성공!")                        
             signal_logs = []
             
             if results:
@@ -1679,7 +1691,7 @@ def main():
                 reorder_columns = [
                     "sim_date", "symbol", "initial_capital", "portfolio_value", "buy_count", "sell_count", "quantity",
                     "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi",
-                    "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", "history"
+                    "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", 'buy_logic_count', "signal_reasons", "total_buy_cost", "history"
                 ]
                 df_results = df_results[[col for col in reorder_columns if col in df_results.columns]]
 
@@ -1687,8 +1699,8 @@ def main():
                     if col in df_results.columns:
                         df_results[col] = df_results[col].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
                 
-                st.subheader("📋 시뮬레이션 결과 테이블")
-                st.dataframe(df_results, use_container_width=True)
+                # st.subheader("📋 시뮬레이션 결과 테이블")
+                # st.dataframe(df_results, use_container_width=True)
 
                 # 🔔 매수/매도 신호 발생 테이블
                 signal_logs = []
@@ -1746,36 +1758,54 @@ def main():
                             lambda x: "⚠️ 손절" if x else ""
                         )
 
-                    # 거래 로직 추출
-                    df_trades["buy_logic"] = ""
-                    df_trades["sell_logic"] = ""
-                    df_trades["sim_date_dt"] = pd.to_datetime(df_trades["sim_date"])
+                    # ✅ 사유 컬럼 만들기 (존재할 때만 처리)
+                    if "signal_reasons" in df_trades.columns:
+                        df_trades["reason"] = df_trades["signal_reasons"].apply(
+                            lambda x: ", ".join(x) if isinstance(x, list) else ""
+                        )
+                    else:
+                        df_trades["reason"] = "-"
 
-                    for i, row in df_trades.iterrows():
-                        history = row.get("history", [])
-                        sim_date = row["sim_date_dt"].date()
+                    # for i, row in df_trades.iterrows():
+                    #     history = row.get("history", [])
+                    #     sim_date = row["sim_date_dt"].date()
+                        
+                    columns_to_show = [
+                        "sim_date", "symbol", "buy_count", "sell_count", "quantity",
+                        "trade_pnl", 'fee_buy', "fee_sell", "tax", "total_costs", "reason"
+                    ]
 
-                        # for h in history:
-                        #     h_date = pd.to_datetime(h.get("time")).date()
-                        #     if h["position"] == "BUY" and h_date == sim_date:
-                        #         df_trades.at[i, "buy_logic"] = h.get("trading_logic", "")
-                        #     if h["position"] == "SELL" and h_date == sim_date:
-                        #         df_trades.at[i, "sell_logic"] = h.get("trading_logic", "")
-
-                        columns_to_show = [
-                            "sim_date", "symbol", "buy_count", "sell_count", "quantity",
-                            "trade_pnl", 'fee_buy', "fee_sell", "tax", "total_costs"
-                        ]
-
-                        # ✅ 컬럼이 존재할 경우에만 추가
-                        if "take_profit_hit" in df_trades.columns:
-                            columns_to_show.append("take_profit_hit")
-                        if "stop_loss_hit" in df_trades.columns:
-                            columns_to_show.append("stop_loss_hit")
+                    # ✅ 컬럼이 존재할 경우에만 추가
+                    if "take_profit_hit" in df_trades.columns:
+                        columns_to_show.append("take_profit_hit")
+                    if "stop_loss_hit" in df_trades.columns:
+                        columns_to_show.append("stop_loss_hit")
                             
                     st.subheader("📅 실제 거래 발생 요약 (날짜별)")
                     st.dataframe(df_trades[columns_to_show], use_container_width=True)
 
+                # ✅ 매도 로직별 실현 손익 요약
+                if not df_trades.empty and "reason" in df_trades.columns and "realized_pnl" in df_trades.columns:
+                    df_trades["sell_logic_name"] = df_trades["reason"].apply(
+                        lambda x: x[0] if isinstance(x, list) and x else (x if isinstance(x, str) else "기타")
+                    )
+
+                    df_sell_summary = df_trades[df_trades["sell_count"] > 0].copy()
+
+                    logic_summary = df_sell_summary.groupby("sell_logic_name").agg(
+                        거래수=("sell_count", "sum"),
+                        총실현손익=("realized_pnl", "sum"),
+                        평균손익=("realized_pnl", "mean")
+                    ).reset_index()
+
+                    # 숫자 포맷
+                    logic_summary["총실현손익"] = logic_summary["총실현손익"].apply(lambda x: f"{x:,.0f} KRW")
+                    logic_summary["평균손익"] = logic_summary["평균손익"].apply(lambda x: f"{x:,.0f} KRW")
+
+                    st.markdown("---")
+                    st.subheader("📉 매도 로직별 실현손익 요약")
+                    st.dataframe(logic_summary, use_container_width=True)
+                    
                 # ✅ 요약 통계
                 if not df_results.empty:
                     df_last_unrealized = df_results.sort_values("sim_date").groupby("symbol").last()
@@ -1819,13 +1849,15 @@ def main():
                     total_fee_sell = df_results["fee_sell"].sum()
                     total_tax = df_results["tax"].sum()
                     total_costs = df_results["total_costs"].sum()
-        
+                    total_buy_logic_count = df_results['buy_logic_count'].sum()
+                    roi_per_total_buy_cost = ((total_realized_pnl + total_unrealized_pnl) / df_results['total_buy_cost'].sum()) * 100
                     st.markdown("---")
                     st.subheader("📊 추가 세부 요약 통계")
 
                     col1, col2 = st.columns(2)
 
                     with col1:
+                        st.metric("🔄 총 매수로직 횟수", f"{total_buy_logic_count}")
                         st.metric("🟢 총 매수 횟수", f"{total_buy_count}")
                         st.metric("🔴 총 매도 횟수", f"{total_sell_count}")
                         st.metric("✅ 익절 횟수", f"{total_take_profit}")
@@ -1835,7 +1867,7 @@ def main():
                         st.metric("💸 익절로 인한 손익", f"{tp_pnl:,.0f} KRW")
                         st.metric("💥 손절로 인한 손익", f"{sl_pnl:,.0f} KRW")
                         st.metric("🔄 로직 매도로 인한 손익", f"{logic_sell_pnl:,.0f} KRW")
-                        
+                        st.metric("🔄 총 매수 금액 대비 수익률", f"{roi_per_total_buy_cost:.2f}%")
                     col3, col4 = st.columns(2)
                     with col3:
                         st.metric("🧾 총 매수 수수료", f"{total_fee_buy:,.0f} KRW")
@@ -1843,6 +1875,7 @@ def main():
                         st.metric("📜 총 거래세", f"{total_tax:,.0f} KRW")
                     with col4:
                         st.metric("💰 총 수수료 비용 합계", f"{total_costs:,.0f} KRW")
+                        
                 if failed_stocks:
                     st.warning(f"⚠️ 시뮬레이션 실패 종목 ({len(failed_stocks)}개): {', '.join(sorted(failed_stocks))}")
 

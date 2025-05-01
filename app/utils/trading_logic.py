@@ -773,18 +773,13 @@ class TradingLogic:
 
         return buy_signal, sell_signal
         
-    def ema_breakout_trading(self, df, symbol, middle_band, upper_band):
+    def ema_breakout_trading(self, df, symbol):
         """
-        EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
-        조건:
-        ② 현재 시점: EMA_10이 EMA_50을 아래에서 위로 돌파
-        ③ 현재 EMA_10, EMA_20, EMA_50의 기울기 ≥ 0
-        ④ 거래량이 5일 평균 이상
-        ⑤ 당일 윗꼬리 음봉이면 제외
+        EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록 + 볼린저밴드 돌파 조건 추가
         """
 
         if df.shape[0] < 2:
-            print("❌ 데이터가 부족해서 ema_breakout_trading2 조건 계산 불가")
+            print("❌ 데이터가 부족해서 ema_breakout_trading 조건 계산 불가")
             return False, None
 
         if 'Volume_MA5' not in df.columns:
@@ -793,73 +788,71 @@ class TradingLogic:
         last = df.iloc[-1]
         prev = df.iloc[-2]
         trade_date = last.name.date()
-        
+
         close_price = float(last['Close'])
         volume = float(last['Volume'])
 
-        # 조건 1: 거래대금 계산(30억 이상)
-        trade_value = close_price * volume
-    
-        # 조건 2: EMA_10이 EMA_20 상향 돌파
+        # 조건 1: EMA 상향 돌파
         cross_up = (
             prev['EMA_10'] < prev['EMA_20'] and
             last['EMA_10'] > last['EMA_20']
         )
 
-        # 조건 3: EMA 기울기 양수
+        # 조건 2: EMA 기울기
         ema10_slope = last['EMA_10'] - prev['EMA_10']
         ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema50_slope = last['EMA_50'] - prev['EMA_50']
         slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0
 
-        # 조건 4: 거래량 증가
+        # 조건 3: 거래량 증가
         volume_up = last['Volume'] > last['Volume_MA5']
         volume_up2 = last['Volume'] > prev['Volume']
-        
-        # ❌ 조건 5: 당일 윗꼬리 음봉 제외
+
+        # 조건 4: 윗꼬리 음봉 제외
         is_bearish = last['Close'] < last['Open']
         upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        not_long_upper_shadow  = upper_shadow_ratio <= 0.5  # 윗꼬리 50% 이상이면 제외
+        not_long_upper_shadow = upper_shadow_ratio <= 0.5 #50% 이하만 매수
         long_upper_shadow = is_bearish
-        
-        # #✅ 조건 5: 고가 대비 종가 차이 10% 미만
-        # high_close_diff_ratio = (last['High'] - last['Close']) / last['High']
-        # not_big_gap_from_high = high_close_diff_ratio < 0.10
-        
-        # ✅ 추가 조건 6: 당일 종가가 전일 종가 대비 20% 이상 상승 종목 제외
-        price_increase_ratio = (close_price - float(prev['Close'])) / float(prev['Close'])
-        price_up_limit = price_increase_ratio < 0.2
-        
-            # 조건 6: 당일 종가가 전일 고점 돌파 + 고가 부근 마감
-        #breakout_high = last['Close'] > prev['High']
 
-        # ✅ 조건 7: 볼린저밴드 조건
-        if float(prev['Close']) < middle_band:
-            bb_condition = close_price > middle_band
-        else:
-            bb_condition = close_price > upper_band 
-        
-            # ✅ 최종 조건
-        buy_signal = (
-            cross_up and slope_up and volume_up and volume_up2 and
-            not long_upper_shadow and not_long_upper_shadow and bb_condition
-        
+        # 조건 5: 전일 종가 대비 20% 이상 상승 제외
+        # price_increase_ratio = (close_price - float(prev['Close'])) / float(prev['Close'])
+        # price_up_limit = price_increase_ratio < 0.2
+
+        # ✅ 조건 6: 볼린저밴드 돌파 조건 (중단선 or 상단선 돌파만 허용)
+        bb_middle_breakout = (
+            prev['Close'] < prev['BB_Middle'] and
+            last['Close'] > last['BB_Middle']
         )
 
+        bb_upper_breakout = (
+            prev['Close'] < prev['BB_Upper'] and
+            last['Close'] > last['BB_Upper']
+        )
 
-        # 매매 사유 작성
+        valid_bollinger_breakout = bb_middle_breakout or bb_upper_breakout
+
+        # ✅ 최종 조건
+        buy_signal = (
+            cross_up and slope_up and volume_up and volume_up2 and
+            not long_upper_shadow and not_long_upper_shadow and
+            valid_bollinger_breakout 
+        )
+
+        # 📌 매매 사유 작성
         if buy_signal:
             reason = (
-                f"매수 신호 발생: "
-                f"[현재 EMA10 상향 돌파 EMA50] {prev['EMA_10']:.2f} → {last['EMA_10']:.2f} vs EMA50 {last['EMA_50']:.2f}, "
+                f"매수 신호 발생: EMA 배열 상향 돌파 + 볼린저밴드 유효 돌파 "
+                f"[EMA10 상향 돌파 EMA50] {prev['EMA_10']:.2f} → {last['EMA_10']:.2f}, "
                 f"[기울기] EMA10: {ema10_slope:.2f}, EMA20: {ema20_slope:.2f}, EMA50: {ema50_slope:.2f}, "
                 f"[거래량] {last['Volume']:.0f} > 5일평균 {last['Volume_MA5']:.0f}"
             )
         else:
             if long_upper_shadow:
                 reason = "❌ 당일 윗꼬리 음봉 → 매수 조건 탈락"
+            elif not valid_bollinger_breakout:
+                reason = "❌ 볼린저밴드 돌파 조건 불충족"
             else:
-                reason = "EMA 배열 돌파 조건 불충족"
+                reason = "❌ EMA 배열 돌파 조건 불충족"
 
         return buy_signal, None
     
@@ -1398,18 +1391,55 @@ class TradingLogic:
     
     def break_prev_low(self, df):
         """
-        현재 종가가 전일 저가보다 낮아지면 매도 (지지선 이탈)
-        
-        df: DataFrame with columns ['Close', 'Low']
+        볼린저밴드 기반 매도 신호
+        전일 종가의 위치에 따라 상단, 중단, 하단 이탈 여부를 판단
+
+        df: DataFrame with columns ['Close', 'BB_Upper', 'BB_Middle', 'BB_Lower']
+        return: reason(str or None), sell_signal (bool)
         """
-        if len(df) < 2:
+        if len(df) < 3:
             return None, False  # 데이터 부족
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
 
-        # 전일 저가 이탈 여부
-        sell_signal = last['Close'] < prev['Low']
+        reason = None
+        sell_signal = False
+
+        # ✅ 조건 1: 상단선 돌파 후 하향 이탈
+        if prev['Close'] > prev['BB_Upper'] and last['Close'] < last['BB_Upper']:
+            reason = (
+                f"📉 상단 돌파 후 하락 → 매도: "
+                f"전날 {prev['Close']:.2f} > 상단 {prev['BB_Upper']:.2f}, "
+                f"오늘 {last['Close']:.2f} < 상단 {last['BB_Upper']:.2f}"
+            )
+            sell_signal = True
+
+        # ✅ 조건 2: 중단~상단 사이 → 중단 이탈
+        elif (
+            prev['Close'] < prev['BB_Upper'] and
+            prev['Close'] > prev['BB_Middle'] and
+            last['Close'] < last['BB_Middle']
+        ):
+            reason = (
+                f"📉 중단선 하향 이탈 → 매도: "
+                f"전날 {prev['Close']:.2f} ∈ ({prev['BB_Middle']:.2f}, {prev['BB_Upper']:.2f}), "
+                f"오늘 {last['Close']:.2f} < 중단 {last['BB_Middle']:.2f}"
+            )
+            sell_signal = True
+
+        # ✅ 조건 3: 하단 이탈
+        elif (
+            prev['Close'] < prev['BB_Middle'] and
+            prev['Close'] > prev['BB_Lower'] and
+            last['Close'] < last['BB_Lower']
+        ):
+            reason = (
+                f"📉 하단선 하향 이탈 → 매도: "
+                f"전날 {prev['Close']:.2f} ∈ ({prev['BB_Lower']:.2f}, {prev['BB_Middle']:.2f}), "
+                f"오늘 {last['Close']:.2f} < 하단 {last['BB_Lower']:.2f}"
+            )
+            sell_signal = True
 
         return None, sell_signal
     

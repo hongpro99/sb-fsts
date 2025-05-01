@@ -25,6 +25,41 @@ class TechnicalIndicator:
 
         return band
     
+    def cal_bollinger_bands(self, df: pd.DataFrame, window: int = 20) -> pd.DataFrame:
+        """
+        df에 볼린저 밴드 지표(Upper, Middle, Lower)를 추가하여 반환합니다.
+        - Middle: 단순 이동 평균(SMA)
+        - Upper: Middle + (표준편차 * 2)
+        - Lower: Middle - (표준편차 * 2)
+        - 표준편차 승수: 2
+        - 표준편차 계산 방식: 모집단 기준 (ddof=0)
+        
+        Parameters:
+            df (pd.DataFrame): OHLC 데이터프레임, 'Close' 컬럼이 반드시 있어야 함
+            window (int): 볼린저밴드 계산에 사용할 이동평균 구간 (기본값 20일)
+
+        Returns:
+            pd.DataFrame: 볼린저밴드 컬럼이 추가된 DataFrame
+        """
+        if 'Close' not in df.columns:
+            raise ValueError("DataFrame에 'Close' 컬럼이 필요합니다.")
+
+        # rolling = df['Close'].rolling(window=window)
+        # df['BB_Middle'] = rolling.mean()
+        # df['BB_Std'] = rolling.std()
+        # df['BB_Upper'] = df['BB_Middle'] + (df['BB_Std'] * 2)
+        # df['BB_Lower'] = df['BB_Middle'] - (df['BB_Std'] * 2)
+            # 볼린저 밴드 계산
+
+        df['BB_Middle'] = df['Close'].rolling(window=window).mean()
+        df['BB_Std'] = df['Close'].rolling(window=window).apply(lambda x: np.std(x, ddof=0), raw=True)
+        df['BB_Upper'] = df['BB_Middle'] + (df['BB_Std'] * 2)
+        df['BB_Lower'] = df['BB_Middle'] - (df['BB_Std'] * 2)
+
+        df.drop(columns=['BB_Std'], inplace=True)  # 표준편차 임시 컬럼 제거
+
+        return df
+
     # 이동평균 계산
     def cal_ma(self, close_prices, window):
         # 마지막 3일 이동평균 계산
