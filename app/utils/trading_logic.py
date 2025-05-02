@@ -818,6 +818,9 @@ class TradingLogic:
         # price_increase_ratio = (close_price - float(prev['Close'])) / float(prev['Close'])
         # price_up_limit = price_increase_ratio < 0.2
 
+        # #✅ 조건 5: 고가 대비 종가 차이 5% 미만
+        # close_near_high = last['Close'] >= last['High'] * 0.95
+        
         # ✅ 조건 6: 볼린저밴드 돌파 조건 (중단선 or 상단선 돌파만 허용)
         bb_middle_breakout = (
             prev['Close'] < prev['BB_Middle'] and
@@ -1248,13 +1251,26 @@ class TradingLogic:
         # 조건 4: 거래량 증가
         volume_up = last['Volume'] > last['Volume_MA5']
 
-        # ❌ 조건 5: 당일 윗꼬리 음봉 제외
+        # 조건 4: 윗꼬리 음봉 제외
         is_bearish = last['Close'] < last['Open']
-        # upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        # long_upper_shadow = is_bearish and upper_shadow_ratio > 0.4  # 윗꼬리 40% 이상이면 제외
+        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        not_long_upper_shadow = upper_shadow_ratio <= 0.5 #50% 이하만 매수
         long_upper_shadow = is_bearish
+        
+                # ✅ 조건 6: 볼린저밴드 돌파 조건 (중단선 or 상단선 돌파만 허용)
+        bb_middle_breakout = (
+            prev['Close'] < prev['BB_Middle'] and
+            last['Close'] > last['BB_Middle']
+        )
+
+        bb_upper_breakout = (
+            prev['Close'] < prev['BB_Upper'] and
+            last['Close'] > last['BB_Upper']
+        )
+
+        valid_bollinger_breakout = bb_middle_breakout or bb_upper_breakout
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow
+        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and valid_bollinger_breakout and not_long_upper_shadow
 
         # 매매 사유 작성
         if buy_signal:

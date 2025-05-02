@@ -442,22 +442,22 @@ class AutoTradingBot:
                         buy_yn = buy_yn1 or buy_yn2
                         
                     elif trading_logic == 'ema_breakout_trading2':
-                        buy_yn, _ = logic.ema_breakout_trading2(df, symbol)
+                        buy_yn, _ = logic.ema_breakout_trading2(current_df, symbol)
                         
                     elif trading_logic == 'trend_entry_trading':
                         buy_yn, _ = logic.trend_entry_trading(current_df)
                         
                     elif trading_logic == 'bottom_rebound_trading':
-                        buy_yn, _ = logic.bottom_rebound_trading(df)
+                        buy_yn, _ = logic.bottom_rebound_trading(current_df)
                         
                     elif trading_logic == 'sma_breakout_trading':
-                        buy_yn, _ = logic.sma_breakout_trading(df, symbol)
+                        buy_yn, _ = logic.sma_breakout_trading(current_df, symbol)
                         
                     elif trading_logic == 'ema_breakout_trading3':
-                        buy_yn, _ = logic.ema_breakout_trading3(df, symbol)
+                        buy_yn, _ = logic.ema_breakout_trading3(current_df, symbol)
                         
                     elif trading_logic == 'ema_crossover_trading':
-                        buy_yn, _ = logic.ema_crossover_trading(df, symbol)
+                        buy_yn, _ = logic.ema_crossover_trading(current_df, symbol)
                         
                     if buy_yn:
                         print(f"🔥 buy_trading_logic: {buy_trading_logic}")
@@ -1073,7 +1073,8 @@ class AutoTradingBot:
             avg_volume_20_days = sum(recent_20_days_volume) / len(recent_20_days_volume)
             
         final_buy_yn = False
-        reason = None
+        #reason = None
+        reasons = []  # 여러 매수 로직명을 저장할 리스트
 
         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)  # 미리 계산 (필요한 경우)
 
@@ -1106,15 +1107,16 @@ class AutoTradingBot:
             elif trading_logic == 'macd_trading':
                 result, _ = logic.macd_trading(candle, df, symbol)
 
-            # ✅ 하나라도 True이면 매수, 최초 로직명 기록
+            # ✅ 하나라도 True이면 매수, 여러 로직 만족 시 모두 기록
             if result and not final_buy_yn:
                 final_buy_yn = True
-                reason = trading_logic
+                reasons.append(trading_logic)
 
         # ✅ 매수 확정 시 실행
         if final_buy_yn:
+            reason_str = ", ".join(reasons)
             webhook.send_discord_webhook(
-                f"[reason:{reason}], {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW",
+                f"[reason:{reason_str}], {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW",
                 "trading"
             )
 
@@ -1125,7 +1127,7 @@ class AutoTradingBot:
             volume=volume,
             prev=prev,
             avg_volume_20_days=avg_volume_20_days,
-            trading_logic=reason,
+            trading_logic=reason_str,
             symbol=symbol,
             symbol_name=symbol_name,
             ohlc_data=ohlc_data,
@@ -1139,7 +1141,7 @@ class AutoTradingBot:
         # balance: KisBalance = account.balance()
 
         final_sell_yn = False
-        reason = None
+        reasons = []  # 여러 매수 로직명을 저장할 리스트
 
         # ✅ 전략 매도 로직 확인
         for trading_logic in sell_trading_logic:
@@ -1151,23 +1153,22 @@ class AutoTradingBot:
                 _, result = logic.rsi_trading(candle, df['rsi'], symbol)
             elif trading_logic == 'rsi_trading2':
                 _, result = logic.rsi_trading2(candle, df['rsi'], symbol)
-            elif trading_logic == 'mfi_trading':
-                _, result = logic.mfi_trading(df, symbol)
             elif trading_logic == 'top_reversal_sell_trading':
                 _, result = logic.top_reversal_sell_trading(df)
             elif trading_logic == 'downtrend_sell_trading':
                 _, result = logic.downtrend_sell_trading(df)
-            elif trading_logic == 'stochastic_trading':
-                _, result = logic.stochastic_trading(df, symbol)
-            elif trading_logic == 'bollinger_band_trading':
-                bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                _, result = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)
-            elif trading_logic == 'macd_trading':
-                _, result = logic.macd_trading(candle, df, symbol)
+            elif trading_logic == 'should_sell':
+                _, result = logic.should_sell(df)
+            elif trading_logic == 'break_prev_low':
+                _, result = logic.break_prev_low(df)         
+            elif trading_logic == 'downtrend_sell_trading':
+                _, result = logic.downtrend_sell_trading(df)         
+            elif trading_logic == 'sell_on_support_break':
+                _, result = logic.sell_on_support_break(df)
 
             if result and not final_sell_yn:
                 final_sell_yn = True
-                reason = trading_logic
+                reasons.append(trading_logic)
 
         # # ✅ 익절/손절 조건 확인
         # take_profit_hit = False
@@ -1190,11 +1191,11 @@ class AutoTradingBot:
 
         # ✅ 매도 실행
         if final_sell_yn:
+            reason_str = ", ".join(reasons)
             webhook.send_discord_webhook(
-                f"[reason:{reason}], {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW",
+                f"[reason:{reason_str}], {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW",
                 "trading"
             )
-            print(f"✅ 매도 조건 충족: {symbol_name} - 매도 사유: {reason}")
 
         # ✅ 매도 실행 요청
         self._trade_kis(
@@ -1203,7 +1204,7 @@ class AutoTradingBot:
             volume=volume,
             prev=prev,
             avg_volume_20_days=avg_volume_20_days,
-            trading_logic=reason,
+            trading_logic=reason_str,
             symbol=symbol,
             symbol_name=symbol_name,
             ohlc_data=ohlc_data,

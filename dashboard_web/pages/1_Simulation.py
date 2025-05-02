@@ -718,7 +718,7 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'should_sell':
             entry['trading_logic'] =  '추세 손절'
         elif entry.get('trading_logic') == 'break_prev_low':
-            entry['trading_logic'] =  '전일저가통과'
+            entry['trading_logic'] =  '볼린저밴드 이탈'
         elif entry.get('trading_logic') == 'sell_on_support_break':
             entry['trading_logic'] =  '지지선'                                                                                                                                                                
             
