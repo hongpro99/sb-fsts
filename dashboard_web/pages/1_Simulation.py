@@ -692,7 +692,7 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'rsi+mfi':
             entry['trading_logic'] = 'rsi+mfi'
         elif entry.get('trading_logic') == 'ema_breakout_trading':
-            entry['trading_logic'] = '지수이동평균선 확인'
+            entry['trading_logic'] = '상승추세형2'
         elif entry.get('trading_logic') == 'bollinger_band_trading':
             entry['trading_logic'] = '볼린저밴드 매매'
         elif entry.get('trading_logic') == 'bollinger+ema':
@@ -710,7 +710,7 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'sma_breakout_trading':
             entry['trading_logic'] =  '단순이동평균'
         elif entry.get('trading_logic') == 'ema_breakout_trading3':
-            entry['trading_logic'] =  '지수이동평균선 확인3'
+            entry['trading_logic'] =  '상승추세형3'
         elif entry.get('trading_logic') == 'rsi_trading2':
             entry['trading_logic'] =  'rsi2'
         elif entry.get('trading_logic') == 'ema_crossover_trading':

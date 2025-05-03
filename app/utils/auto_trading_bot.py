@@ -1048,6 +1048,7 @@ class AutoTradingBot:
         df = indicator.cal_sma_df(df, 5)
         df = indicator.cal_sma_df(df, 20)
         df = indicator.cal_sma_df(df, 40)
+        df = indicator.cal_bollinger_bands(df)
         
         # 볼린저 밴드 계산용 종가 리스트
         close_prices = df['Close'].tolist()
@@ -1075,6 +1076,7 @@ class AutoTradingBot:
         final_buy_yn = False
         #reason = None
         reasons = []  # 여러 매수 로직명을 저장할 리스트
+        reason_str = ""  # 또는 None
 
         bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)  # 미리 계산 (필요한 경우)
 
@@ -1142,7 +1144,8 @@ class AutoTradingBot:
 
         final_sell_yn = False
         reasons = []  # 여러 매수 로직명을 저장할 리스트
-
+        reason_str = ""  # 또는 None
+        
         # ✅ 전략 매도 로직 확인
         for trading_logic in sell_trading_logic:
             result = False
