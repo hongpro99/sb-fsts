@@ -5,3 +5,6 @@ langchain-core
 langchain-openai
 langgraph
 python-dotenv
+langchain-mcp-adapters
+mcp[cli]
+pytz
