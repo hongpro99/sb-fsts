@@ -1520,7 +1520,7 @@ def main():
                         df = indicator.cal_macd_df(df)
                         df = indicator.cal_stochastic_df(df)
                         df = indicator.cal_mfi_df(df)
-                        df = indicator.cal_bollinger_bands(df)
+                        df = indicator.cal_bollinger_band(df)
 
                         # 유효한 종목만 저장
                         valid_symbols[stock_name] = symbol

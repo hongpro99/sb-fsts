@@ -35,23 +35,6 @@ class AutoTradingBot:
         실전투자와 모의투자를 선택적으로 설정 가능
     """
     def __init__(self, id, virtual=False, app_key=None, secret_key=None, account=None):
-        
-        # sql_executor = SQLExecutor()
-
-        # query = """
-        #     SELECT * FROM fsts.user_info
-        #     WHERE name = :name;
-        # """
-
-        # params = {
-        #     "name": user_name
-        # }
-
-        # with get_db_session() as db:
-        #     result = sql_executor.execute_select(db, query, params)
-            
-        # if not result:
-        #     raise ValueError(f"사용자 {user_name}에 대한 정보를 찾을 수 없습니다.")
 
         result = list(UserInfo.scan(
             filter_condition=(UserInfo.id == id)
@@ -315,9 +298,11 @@ class AutoTradingBot:
 
         timestamps, ohlc, closes, previous_closes = [], [], [], []
         buy_signals, sell_signals = [], []
-        d_1 = d_2 = d_3 = None
+  
         logic.trade_reasons = []
         recent_buy_prices = {'price': 0, 'timestamp': None}
+
+        signal_reasons = []
 
         for candle in ohlc_data:
             timestamps.append(candle.time)
@@ -340,23 +325,16 @@ class AutoTradingBot:
         df = indicator.cal_macd_df(df)
         df = indicator.cal_stochastic_df(df)
         df = indicator.cal_mfi_df(df)
-        df = indicator.cal_bollinger_bands(df)
+        df = indicator.cal_bollinger_band(df)
         #print(f"timestamp: {timestamp}, bollinger_upper_band : {df['BB_Upper']}")
         
         for i in range(len(df)):
             timestamp = df.index[i]
             timestamp_date = timestamp.date()
-            if timestamp < start_date:
-                d_3, d_2, d_1 = d_2, d_1, ohlc_data[i]
-                continue
             
             candle = ohlc_data[i]  # ✅ 이 줄이 중요!
             row = df.iloc[i]
             current_df = df.iloc[:i+1]  # 매수/매도 로직에 넘길 슬라이스
-            
-            if d_1 is None or d_2 is None:
-                d_3, d_2, d_1 = d_2, d_1, candle
-                continue
 
             close_price = float(row["Close"])
             volume = float(row["Volume"])
@@ -376,98 +354,23 @@ class AutoTradingBot:
             logic.trade_reasons.append(trade_entry)
 
             # ✅ 매수형 로직 처리
-            any_buy_yn = False
-            triggered_buy_logic = None
-            
+            buy_logic_reasons = []
+            sell_logic_reasons = []
+
             # 매수형 로직 처리
             if buy_trading_logic:
-                for trading_logic in buy_trading_logic:
-                    buy_yn = False # 각 로직에 대한 매수 신호 초기화
-                    
-                    if trading_logic == 'check_wick':            
-                        # 볼린저 밴드 계산
-                        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        print(f"bollinger_band : {bollinger_band}")
-                        buy_yn, _ = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-                        
-                    elif trading_logic == 'rsi_trading':            
-                        buy_yn, _ = logic.rsi_trading(candle, current_df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
-
-                    elif trading_logic == 'penetrating':
-                        buy_yn, _ = logic.penetrating(candle, d_1, d_2, closes)
-
-                    elif trading_logic == 'engulfing':
-                        buy_yn, _ = logic.engulfing(candle, d_1, d_2, closes)
-
-                    elif trading_logic == 'engulfing2':
-                        buy_yn, _ = logic.engulfing2(candle, d_1, closes)
-
-                    elif trading_logic == 'counterattack':
-                        buy_yn, _ = logic.counterattack(candle, d_1, d_2, closes)
-
-                    elif trading_logic == 'doji_star':
-                        buy_yn, _ = logic.doji_star(candle, d_1, d_2, closes)
-
-                    elif trading_logic == 'harami':
-                        buy_yn, _ = logic.harami(candle, d_1, d_2, closes)
-
-                    elif trading_logic == 'morning_star':
-                        buy_yn, _ = logic.morning_star(candle, d_1, d_2, closes)
-                        
-                    elif trading_logic == 'macd_trading':
-                        buy_yn, _ = logic.macd_trading(candle, df, symbol)
-                                                
-                    elif trading_logic == 'mfi_trading':
-                        buy_yn, _ = logic.mfi_trading(df, symbol)    
-                        
-                    elif trading_logic == 'stochastic_trading':
-                        buy_yn, _ = logic.stochastic_trading(df, symbol)
-                        
-                    elif trading_logic == 'rsi+mfi':
-                        buy_yn1, _ = logic.mfi_trading(df)
-                        buy_yn2, _ = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
-                        buy_yn = buy_yn1 and buy_yn2
-                        
-                    elif trading_logic == 'ema_breakout_trading':
-                        buy_yn, _ = logic.ema_breakout_trading(current_df, symbol)
-                        
-                    elif trading_logic == 'bollinger_band_trading':
-                        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        buy_yn, _ = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)
-                        
-                    elif trading_logic == 'bollinger+ema':
-                        buy_yn1, _ = logic.ema_breakout_trading(df)
-                        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        buy_yn2, _ = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)                                                                        
-                        buy_yn = buy_yn1 or buy_yn2
-                        
-                    elif trading_logic == 'ema_breakout_trading2':
-                        buy_yn, _ = logic.ema_breakout_trading2(current_df, symbol)
-                        
-                    elif trading_logic == 'trend_entry_trading':
-                        buy_yn, _ = logic.trend_entry_trading(current_df)
-                        
-                    elif trading_logic == 'bottom_rebound_trading':
-                        buy_yn, _ = logic.bottom_rebound_trading(current_df)
-                        
-                    elif trading_logic == 'sma_breakout_trading':
-                        buy_yn, _ = logic.sma_breakout_trading(current_df, symbol)
-                        
-                    elif trading_logic == 'ema_breakout_trading3':
-                        buy_yn, _ = logic.ema_breakout_trading3(current_df, symbol)
-                        
-                    elif trading_logic == 'ema_crossover_trading':
-                        buy_yn, _ = logic.ema_crossover_trading(current_df, symbol)
-                        
-                    if buy_yn:
-                        print(f"🔥 buy_trading_logic: {buy_trading_logic}")
-                        any_buy_yn = True
-                        triggered_buy_logic = trading_logic
-                        break  # 하나라도 만족하면 종료
+                buy_logic_reasons = self._get_trading_logic_reasons(
+                    logic = logic,
+                    trading_logics=buy_trading_logic,
+                    symbol=symbol,
+                    candle=candle,
+                    ohlc_df=current_df,
+                    trade_type='BUY'
+                )
                 
             # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
             #if buy_yn and d_1 is not None and volume > d_1.volume and d_1.volume > avg_volume_20_days:
-            if any_buy_yn: # 일단 매수 거래량 조건 제거
+            if len(buy_logic_reasons) > 0: # 일단 매수 거래량 조건 제거
                             
                 can_buy = True
                 
@@ -513,7 +416,7 @@ class AutoTradingBot:
 
                     trading_history['history'].append({
                         'position': 'BUY',
-                        'trading_logic': triggered_buy_logic,
+                        'trading_logic': buy_logic_reasons,
                         'price': close_price,
                         'quantity': buy_quantity,
                         'target_price': target_price,
@@ -531,7 +434,6 @@ class AutoTradingBot:
                 
             # 매도형 로직 처리
             sell_yn = False
-            triggered_logic = None
 
             # ✅ 익절 / 손절 먼저 검사
             if trading_history['total_quantity'] > 0:
@@ -540,85 +442,22 @@ class AutoTradingBot:
 
                 if use_take_profit and take_profit_ratio is not None and current_return_rate >= take_profit_ratio:
                     sell_yn = True
-                    triggered_logic = '익절'
+                    sell_logic_reasons.append('익절')
                 elif use_stop_loss and stop_loss_ratio is not None and current_return_rate <= -stop_loss_ratio:
                     sell_yn = True
-                    triggered_logic = '손절'
-                    
-        
+                    sell_logic_reasons.append('손절')
+
             if not sell_yn and sell_trading_logic:
-                for trading_logic in sell_trading_logic:
-                    result = False
+                sell_logic_reasons = self._get_trading_logic_reasons(
+                    logic = logic,
+                    trading_logics=sell_trading_logic,
+                    symbol=symbol,
+                    candle=candle,
+                    ohlc_df=current_df,
+                    trade_type='SELL'
+                )
 
-                    if trading_logic == 'down_engulfing':
-                        _, result = logic.down_engulfing(candle, d_1, d_2)
-
-                    elif trading_logic == 'down_engulfing2':
-                        _, result = logic.down_engulfing2(candle, d_1)
-
-                    elif trading_logic == 'down_counterattack':
-                        _, result = logic.down_counterattack(candle, d_1, d_2)
-
-                    elif trading_logic == 'down_doji_star':
-                        _, result = logic.down_doji_star(candle, d_1, d_2)
-
-                    elif trading_logic == 'down_harami':
-                        _, result = logic.down_harami(candle, d_1, d_2)
-
-                    elif trading_logic == 'evening_star':
-                        _, result = logic.evening_star(candle, d_1, d_2)
-
-                    elif trading_logic == 'dark_cloud':
-                        _, result = logic.dark_cloud(candle, d_1, d_2)
-
-                    elif trading_logic == 'rsi_trading':
-                        _, result = logic.rsi_trading(candle, current_df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
-
-                    elif trading_logic == 'rsi_trading2':
-                        _, result = logic.rsi_trading2(candle, current_df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
-
-                    elif trading_logic == 'check_wick':
-                        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        _, result = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-
-                    elif trading_logic == 'mfi_trading':
-                        _, result = logic.mfi_trading(df, symbol)
-
-                    elif trading_logic == 'stochastic_trading':
-                        _, result = logic.stochastic_trading(df, symbol)
-
-                    elif trading_logic == 'macd_trading':
-                        _, result = logic.macd_trading(candle, df, symbol)
-
-                    elif trading_logic == 'rsi+mfi':
-                        _, r1 = logic.mfi_trading(df)
-                        _, r2 = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
-                        result = r1 and r2
-
-                    elif trading_logic == 'bollinger_band_trading':
-                        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)
-                        _, result = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)
-
-                    elif trading_logic == 'top_reversal_sell_trading':
-                        _, result = logic.top_reversal_sell_trading(df)
-
-                    elif trading_logic == 'downtrend_sell_trading':
-                        _, result = logic.downtrend_sell_trading(current_df)
-
-                    elif trading_logic == 'should_sell':
-                        _, result = logic.should_sell(current_df)
-
-                    elif trading_logic == 'break_prev_low':
-                        _, result = logic.break_prev_low(current_df)
-                        
-                    elif trading_logic == 'sell_on_support_break':
-                        _, result = logic.sell_on_support_break(current_df)
-
-                    # ✅ 조건 만족하면 즉시 기록
-                    if result:
-                        sell_yn = True
-                        triggered_logic = trading_logic  # 최초 만족한 로직만 기록
-                        break
+                sell_yn = len(sell_logic_reasons) > 0
 
             # 매도 실행
             if sell_yn and trading_history['total_quantity'] > 0:
@@ -636,7 +475,7 @@ class AutoTradingBot:
 
                     trading_history['history'].append({
                         'position': 'SELL',
-                        'trading_logic': triggered_logic,
+                        'trading_logic': sell_logic_reasons,
                         'price': close_price,
                         'quantity': sell_quantity,
                         'time': timestamp_iso,
@@ -646,11 +485,10 @@ class AutoTradingBot:
 
                     sell_signals.append((timestamp, close_price))
                     print(f"📉 매도 시점: {timestamp_iso}, 매도가: {close_price} KRW, 매도량: {sell_quantity}, "
-                        f"매도금액: {total_sale_amount:,.0f} KRW, 매도 사유: {triggered_logic}")
+                        f"매도금액: {total_sale_amount:,.0f} KRW, 매도 사유: {sell_logic_reasons}")
                 else:
                     print("⚠️ 매도 수량이 0이라서 거래 내역에 추가하지 않음")
                                 
-                    
                     # 손익 및 매매 횟수 계산
                     trading_history = self.calculate_pnl(trading_history, close_price)
 
@@ -659,7 +497,6 @@ class AutoTradingBot:
             
             # 손익 및 매매 횟수 계산
             trading_history = self.calculate_pnl(trading_history, close_price)
-            d_3, d_2, d_1 = d_2, d_1, candle
 
         # result_data 생성 시 시뮬레이션 구간 이후만 전달
         filtered_ohlc = []
@@ -687,6 +524,7 @@ class AutoTradingBot:
         print(f"총 실현 손익률 (unrealized_roi): {trading_history['unrealized_roi']}%")
         
         return result_data, trading_history, logic.trade_reasons
+
 
     def whole_simulate_trading2(
         self, symbol, end_date, df, ohlc_data, trade_ratio, fixed_portfolio_value,
@@ -755,6 +593,9 @@ class AutoTradingBot:
         stop_loss_hit = False
         sell_triggered = False
         
+        buy_logic_reasons = []
+        sell_logic_reasons = []
+        
         # ✅ 익절/손절 조건 우선 적용
         if total_quantity > 0:
             current_roi = ((close_price - avg_price) / avg_price) * 100
@@ -803,31 +644,17 @@ class AutoTradingBot:
         
         # ✅ 매도 조건 (익절/손절 먼저 처리됨, 이 블럭은 전략 로직 기반 매도)
         if not sell_signal:
-            for logic_name in (sell_trading_logic or []):
-                sell_yn = False
+            
+            sell_logic_reasons = self._get_trading_logic_reasons(
+                logic = logic,
+                trading_logics=sell_trading_logic,
+                symbol=symbol,
+                candle=candle,
+                ohlc_df=df,
+                trade_type='SELL'
+            )
 
-                if logic_name == 'rsi_trading':
-                    _, sell_yn = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
-
-                elif logic_name == 'rsi_trading2':
-                    _, sell_yn = logic.rsi_trading2(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
-
-                elif logic_name == 'should_sell':
-                    _, sell_yn = logic.should_sell(df)
-
-                elif logic_name == 'break_prev_low':
-                    _, sell_yn = logic.break_prev_low(df)
-                    
-                elif logic_name == 'downtrend_sell_trading':
-                    _, sell_yn = logic.downtrend_sell_trading(df)
-                    
-                elif logic_name == 'sell_on_support_break':
-                    _, sell_yn = logic.sell_on_support_break(df)                    
-
-                # ✅ 누적 조건 + 최초 발생한 로직 저장
-                if sell_yn and not sell_signal:
-                    sell_signal = True
-                    signal_reasons.append(logic_name)
+            sell_signal = len(sell_logic_reasons) > 0
 
             # ✅ 매도 실행
             if sell_signal and total_quantity > 0:
@@ -858,53 +685,18 @@ class AutoTradingBot:
             trade_ratio = trade_ratio if trade_ratio is not None else 100
             trade_amount = min(fixed_portfolio_value * (trade_ratio / 100), trading_history['initial_capital'])
         
-        # # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
-        # if target_trade_value_krw and target_trade_value_krw > 0:
-        #     # 예수금 부족하면 매수 생략
-        #     if trading_history['initial_capital'] < target_trade_value_krw:
-        #         print(f"🚫 매수 생략: 예수금({trading_history['initial_capital']:,})이 지정된 매수금액({target_trade_value_krw:,})보다 적음")
-        #         return  # 또는 return False 등으로 매수 로직 종료
-        #     trade_amount = target_trade_value_krw
-        # else:
-        #     trade_ratio = trade_ratio if trade_ratio is not None else 100
-        #     trade_amount = min(portfolio_value * (trade_ratio / 100), trading_history['initial_capital'])
-        
         # ✅ 매수 조건
-        
-        for logic_name in (buy_trading_logic or []):
-            current_buy_yn = False
+        buy_logic_reasons = self._get_trading_logic_reasons(
+            logic = logic,
+            trading_logics=buy_trading_logic,
+            symbol=symbol,
+            candle=candle,
+            ohlc_df=df,
+            trade_type='BUY'
+        )
 
-            if logic_name == 'rsi_trading':
-                current_buy_yn, _ = logic.rsi_trading(candle, df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
+        buy_signal = len(buy_logic_reasons) > 0
 
-            elif logic_name == 'ema_breakout_trading2':
-                current_buy_yn, _ = logic.ema_breakout_trading2(df, symbol)
-
-            elif logic_name == 'trend_entry_trading':
-                current_buy_yn, _ = logic.trend_entry_trading(df)
-
-            elif logic_name == 'bottom_rebound_trading':
-                current_buy_yn, _ = logic.bottom_rebound_trading(df)
-
-            elif logic_name == 'sma_breakout_trading':
-                current_buy_yn, _ = logic.sma_breakout_trading(df, symbol)
-
-            elif logic_name == 'ema_breakout_trading':
-                current_buy_yn, _ = logic.ema_breakout_trading(df, symbol)
-
-            elif logic_name == 'ema_breakout_trading3':
-                current_buy_yn, _ = logic.ema_breakout_trading3(df, symbol)
-
-            elif logic_name == 'ema_crossover_trading':
-                current_buy_yn, _ = logic.ema_crossover_trading(df, symbol)
-
-            # ✅ 조건 중 하나라도 True이면 매수 신호 발생
-            if current_buy_yn:
-                buy_signal = True
-                buy_logic_count = 1
-                signal_reasons.append(logic_name)
-
-        
         # ✅ 매수 조건 통과 시
         if buy_signal:
             buy_qty = math.floor(trade_amount / close_price)
@@ -977,6 +769,7 @@ class AutoTradingBot:
             "total_buy_cost": total_buy_cost
         }
     
+
     def save_trading_history_to_db_with_executor(self, trading_history, symbol):
         """
         trading_history 데이터를 DB에 저장하는 함수 (sql_executor 사용)
@@ -1048,11 +841,10 @@ class AutoTradingBot:
         df = indicator.cal_sma_df(df, 5)
         df = indicator.cal_sma_df(df, 20)
         df = indicator.cal_sma_df(df, 40)
-        df = indicator.cal_bollinger_bands(df)
+        df = indicator.cal_bollinger_band(df)
         
         # 볼린저 밴드 계산용 종가 리스트
         close_prices = df['Close'].tolist()
-        bollinger_band = indicator.cal_bollinger_band(close_prices[:-1], close_prices[-1])
         
         # 마지막 봉 기준 데이터 추출
         candle = ohlc_data[-1]
@@ -1066,6 +858,9 @@ class AutoTradingBot:
         volume = float(last['Volume'])
         previous_closes = df['Close'].iloc[:-1].tolist()
 
+        buy_logic_reasons = []
+        sell_logic_reasons = []
+
         recent_20_days_volume = []
         avg_volume_20_days = 0
 
@@ -1073,50 +868,22 @@ class AutoTradingBot:
             recent_20_days_volume = [float(c.volume) for c in ohlc_data[-20:]]
             avg_volume_20_days = sum(recent_20_days_volume) / len(recent_20_days_volume)
             
-        final_buy_yn = False
-        #reason = None
-        reasons = []  # 여러 매수 로직명을 저장할 리스트
         reason_str = ""  # 또는 None
 
-        bollinger_band = indicator.cal_bollinger_band(previous_closes, close_price)  # 미리 계산 (필요한 경우)
+        buy_logic_reasons = self._get_trading_logic_reasons(
+            logic = logic,
+            trading_logics=buy_trading_logic,
+            symbol=symbol,
+            candle=candle,
+            ohlc_df=df,
+            trade_type='BUY'
+        )
 
-        for trading_logic in buy_trading_logic:
-            result = False
-
-            if trading_logic == 'check_wick':
-                result, _ = logic.check_wick(candle, previous_closes, symbol,
-                                            bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-            elif trading_logic == 'rsi_trading':
-                result, _ = logic.rsi_trading(candle, df['rsi'], symbol)
-            elif trading_logic == 'mfi_trading':
-                result, _ = logic.mfi_trading(df, symbol)
-            elif trading_logic == 'stochastic_trading':
-                result, _ = logic.stochastic_trading(df, symbol)
-            elif trading_logic == 'ema_breakout_trading2':
-                result, _ = logic.ema_breakout_trading2(df, symbol)
-            elif trading_logic == 'ema_breakout_trading3':
-                result, _ = logic.ema_breakout_trading3(df, symbol)
-            elif trading_logic == 'trend_entry_trading':
-                result, _ = logic.trend_entry_trading(df)
-            elif trading_logic == 'bottom_rebound_trading':
-                result, _ = logic.bottom_rebound_trading(df)
-            elif trading_logic == 'ema_breakout_trading':
-                result, _ = logic.ema_breakout_trading(df, symbol)
-            elif trading_logic == 'sma_breakout_trading':
-                result, _ = logic.sma_breakout_trading(df, symbol)
-            elif trading_logic == 'bollinger_band_trading':
-                result, _ = logic.bollinger_band_trading(bollinger_band['lower'], bollinger_band['upper'], df)
-            elif trading_logic == 'macd_trading':
-                result, _ = logic.macd_trading(candle, df, symbol)
-
-            # ✅ 하나라도 True이면 매수, 여러 로직 만족 시 모두 기록
-            if result and not final_buy_yn:
-                final_buy_yn = True
-                reasons.append(trading_logic)
+        buy_signal = len(buy_logic_reasons) > 0
 
         # ✅ 매수 확정 시 실행
-        if final_buy_yn:
-            reason_str = ", ".join(reasons)
+        if buy_signal:
+            reason_str = ", ".join(buy_logic_reasons)
             webhook.send_discord_webhook(
                 f"[reason:{reason_str}], {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW",
                 "trading"
@@ -1124,7 +891,7 @@ class AutoTradingBot:
 
         # ✅ 매수 요청 실행
         self._trade_kis(
-            buy_yn=final_buy_yn,
+            buy_yn=buy_signal,
             sell_yn=False,
             volume=volume,
             prev=prev,
@@ -1141,37 +908,19 @@ class AutoTradingBot:
         # # 🟡 trade 함수 상단
         # account = self.kis.account()
         # balance: KisBalance = account.balance()
-
-        final_sell_yn = False
-        reasons = []  # 여러 매수 로직명을 저장할 리스트
         reason_str = ""  # 또는 None
         
         # ✅ 전략 매도 로직 확인
-        for trading_logic in sell_trading_logic:
-            result = False
+        sell_logic_reasons = self._get_trading_logic_reasons(
+            logic = logic,
+            trading_logics=sell_trading_logic,
+            symbol=symbol,
+            candle=candle,
+            ohlc_df=df,
+            trade_type='SELL'
+        )
 
-            if trading_logic == 'check_wick':
-                _, result = logic.check_wick(candle, previous_closes, symbol, bollinger_band['lower'], bollinger_band['middle'], bollinger_band['upper'])
-            elif trading_logic == 'rsi_trading':
-                _, result = logic.rsi_trading(candle, df['rsi'], symbol)
-            elif trading_logic == 'rsi_trading2':
-                _, result = logic.rsi_trading2(candle, df['rsi'], symbol)
-            elif trading_logic == 'top_reversal_sell_trading':
-                _, result = logic.top_reversal_sell_trading(df)
-            elif trading_logic == 'downtrend_sell_trading':
-                _, result = logic.downtrend_sell_trading(df)
-            elif trading_logic == 'should_sell':
-                _, result = logic.should_sell(df)
-            elif trading_logic == 'break_prev_low':
-                _, result = logic.break_prev_low(df)         
-            elif trading_logic == 'downtrend_sell_trading':
-                _, result = logic.downtrend_sell_trading(df)         
-            elif trading_logic == 'sell_on_support_break':
-                _, result = logic.sell_on_support_break(df)
-
-            if result and not final_sell_yn:
-                final_sell_yn = True
-                reasons.append(trading_logic)
+        sell_signal = len(sell_logic_reasons) > 0
 
         # # ✅ 익절/손절 조건 확인
         # take_profit_hit = False
@@ -1193,8 +942,8 @@ class AutoTradingBot:
         #         reason = "손절"
 
         # ✅ 매도 실행
-        if final_sell_yn:
-            reason_str = ", ".join(reasons)
+        if sell_signal:
+            reason_str = ", ".join(sell_logic_reasons)
             webhook.send_discord_webhook(
                 f"[reason:{reason_str}], {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW",
                 "trading"
@@ -1203,7 +952,7 @@ class AutoTradingBot:
         # ✅ 매도 실행 요청
         self._trade_kis(
             buy_yn=False,
-            sell_yn=final_sell_yn,
+            sell_yn=sell_signal,
             volume=volume,
             prev=prev,
             avg_volume_20_days=avg_volume_20_days,
@@ -1224,7 +973,101 @@ class AutoTradingBot:
         print(f'마지막 직전 봉 : {close_price - close_open_price}. 양봉 : {is_bullish_prev_candle}, 음봉 : {is_bearish_prev_candle}')
 
         return None
-    
+
+
+    def _get_trading_logic_reasons(self, logic, trading_logics, symbol, candle, ohlc_df, trade_type = 'BUY', rsi_buy_threshold = 30, rsi_sell_threshold = 70):
+
+        signal_reasons = []
+
+        if trade_type == 'BUY':
+            for trading_logic in trading_logics:
+                buy_yn = False # 각 로직에 대한 매수 신호 초기화
+                            
+                if trading_logic == 'rsi_trading':            
+                    buy_yn, _ = logic.rsi_trading(candle, ohlc_df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
+
+                elif trading_logic == 'macd_trading':
+                    buy_yn, _ = logic.macd_trading(candle, ohlc_df, symbol)
+                                            
+                elif trading_logic == 'mfi_trading':
+                    buy_yn, _ = logic.mfi_trading(ohlc_df, symbol)    
+                    
+                elif trading_logic == 'stochastic_trading':
+                    buy_yn, _ = logic.stochastic_trading(ohlc_df, symbol)
+                    
+                elif trading_logic == 'rsi+mfi':
+                    buy_yn1, _ = logic.mfi_trading(ohlc_df)
+                    buy_yn2, _ = logic.rsi_trading(candle, ohlc_df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
+                    buy_yn = buy_yn1 and buy_yn2
+                    
+                elif trading_logic == 'ema_breakout_trading':
+                    buy_yn, _ = logic.ema_breakout_trading(ohlc_df, symbol)
+                            
+                elif trading_logic == 'ema_breakout_trading2':
+                    buy_yn, _ = logic.ema_breakout_trading2(ohlc_df, symbol)
+                    
+                elif trading_logic == 'trend_entry_trading':
+                    buy_yn, _ = logic.trend_entry_trading(ohlc_df)
+                    
+                elif trading_logic == 'bottom_rebound_trading':
+                    buy_yn, _ = logic.bottom_rebound_trading(ohlc_df)
+                    
+                elif trading_logic == 'sma_breakout_trading':
+                    buy_yn, _ = logic.sma_breakout_trading(ohlc_df, symbol)
+                    
+                elif trading_logic == 'ema_breakout_trading3':
+                    buy_yn, _ = logic.ema_breakout_trading3(ohlc_df, symbol)
+                    
+                elif trading_logic == 'ema_crossover_trading':
+                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df, symbol)
+                    
+                if buy_yn:
+                    signal_reasons.append(trading_logic)
+        else:
+            for trading_logic in trading_logics:
+                result = False
+
+                if trading_logic == 'rsi_trading':
+                    _, result = logic.rsi_trading(candle, ohlc_df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
+
+                elif trading_logic == 'rsi_trading2':
+                    _, result = logic.rsi_trading2(candle, ohlc_df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
+
+                elif trading_logic == 'mfi_trading':
+                    _, result = logic.mfi_trading(ohlc_df, symbol)
+
+                elif trading_logic == 'stochastic_trading':
+                    _, result = logic.stochastic_trading(ohlc_df, symbol)
+
+                elif trading_logic == 'macd_trading':
+                    _, result = logic.macd_trading(candle, ohlc_df, symbol)
+
+                elif trading_logic == 'rsi+mfi':
+                    _, r1 = logic.mfi_trading(ohlc_df)
+                    _, r2 = logic.rsi_trading(candle, ohlc_df['rsi'], symbol, rsi_buy_threshold, rsi_sell_threshold)
+                    result = r1 and r2
+
+                elif trading_logic == 'top_reversal_sell_trading':
+                    _, result = logic.top_reversal_sell_trading(ohlc_df)
+
+                elif trading_logic == 'downtrend_sell_trading':
+                    _, result = logic.downtrend_sell_trading(ohlc_df)
+
+                elif trading_logic == 'should_sell':
+                    _, result = logic.should_sell(ohlc_df)
+
+                elif trading_logic == 'break_prev_low':
+                    _, result = logic.break_prev_low(ohlc_df)
+                    
+                elif trading_logic == 'sell_on_support_break':
+                    _, result = logic.sell_on_support_break(ohlc_df)
+
+                # ✅ 조건 만족하면 즉시 기록
+                if result:
+                    signal_reasons.append(trading_logic)
+        
+        return signal_reasons
+
 
     def _trade_kis(self, buy_yn, sell_yn, volume, prev, avg_volume_20_days, trading_logic, symbol, symbol_name, ohlc_data, trading_bot_name, target_trade_value_krw, max_allocation):
 
