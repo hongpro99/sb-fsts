@@ -981,7 +981,8 @@ class TradingLogic:
         ema10_slope = last['EMA_10'] - prev['EMA_10']
         ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema50_slope = last['EMA_50'] - prev['EMA_50']
-        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0
+        ema60_slope = last['EMA_60'] - prev['EMA_60']
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
 
         # 조건 4: 거래량 증가
         volume_up = last['Volume'] > last['Volume_MA5']
@@ -1251,7 +1252,8 @@ class TradingLogic:
         ema10_slope = last['EMA_10'] - prev['EMA_10']
         ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema50_slope = last['EMA_50'] - prev['EMA_50']
-        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0
+        ema60_slope = last['EMA_60'] - prev['EMA_60']
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
 
         # 조건 4: 거래량 증가
         volume_up = last['Volume'] > last['Volume_MA5']
@@ -1261,7 +1263,7 @@ class TradingLogic:
         is_bearish = last['Close'] < last['Open']
         long_upper_shadow = is_bearish
         upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        not_long_upper_shadow  = upper_shadow_ratio <= 0.3  # 윗꼬리 20% 이상이면 제외
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.8  # 윗꼬리 20% 이상이면 제외
         
         # #✅ 조건 5: 고가 대비 종가 차이 10% 미만
         # high_close_diff_ratio = (last['High'] - last['Close']) / last['High']
