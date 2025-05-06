@@ -396,7 +396,8 @@ class AutoTradingBot:
                         can_buy = False
                         
                 if can_buy:
-                    stop_loss_price = d_1.low if d_1 else None
+                    # stop_loss_price = d_1.low if d_1 else None
+                    stop_loss_price = None
                     float_stop_loss_price = float(stop_loss_price) if stop_loss_price else None
                     target_price = close_price + 2*(close_price - float_stop_loss_price) if float_stop_loss_price else None
                     
