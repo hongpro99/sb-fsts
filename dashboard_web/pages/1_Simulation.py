@@ -2,8 +2,8 @@ import sys
 import os
 import io
 import streamlit as st
+from io import StringIO
 import matplotlib.pyplot as plt
-from io import BytesIO
 import seaborn as sns
 from st_aggrid import AgGrid, GridUpdateMode, GridOptionsBuilder
 import pandas as pd
@@ -912,173 +912,14 @@ def setup_simulation_tab():
         "stop_loss_ratio": stop_loss_ratio
     }
 
+def read_csv_from_presigned_url(presigned_url):
 
-def setup_sidebar(sql_executer):
-    """
-    공통적으로 사용할 사이드바 UI를 설정하는 함수
-    """
-    
-    st.sidebar.header("Simulation Settings")
-
-    id = 'id1'
-
-    # AutoTradingBot 및 SQLExecutor 객체 생성
-    sql_executor = SQLExecutor()
-    auto_trading_stock = AutoTradingBot(id=id, virtual=False)
-    
-    current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
-    
-    # 사용자 입력
-    # user_name = st.sidebar.text_input("User Name", value="홍석문")
-    start_date = st.sidebar.date_input("Start Date", value=date(2023, 1, 1))
-    end_date = st.sidebar.date_input("End Date", value=current_date_kst)
-    target_trade_value_krw = st.sidebar.number_input("Target Trade Value (KRW)", value=1000000, step=100000)
-
-    result = list(StockSymbol.scan(
-        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'NASDAQ') | (StockSymbol.type == 'etf') )
-    ))
-    
-    type_order = {
-    'kospi200': 1,
-    'NASDAQ': 2,
-    'kosdaq150': 0,
-    'etf': 3
-    }#type 순서
-
-    #종목을 type 순서로 정렬한 후 이름순으로 정렬
-    sorted_items = sorted(
-    result,
-    key=lambda x: (
-        type_order.get(getattr(x, 'type', ''),99), 
-        getattr(x, 'symbol_name', ''))
-    )
-    
-
-    # Dropdown 메뉴를 통해 데이터 선택
-    symbol_options = {
-        # "삼성전자": "352820",
-        # "대한항공": "003490",
-    }
-
-    for stock in sorted_items:
-        key = stock.symbol_name  # 'a' 값을 키로
-        value = stock.symbol  # 'b' 값을 값으로
-        symbol_options[key] = value  # 딕셔너리에 추가
-            
-    # interval 설정
-    interval_options = {
-        "DAY": "day",
-        "WEEK": "week",
-        "MONTH": "month",
-    }
-
-    # 매수/매도 로직 설정
-    # JSON 파일 읽기
-    file_path = "./dashboard_web/trading_logic.json"
-    with open(file_path, "r", encoding="utf-8") as file:
-        trading_logic = json.load(file)
-
-    # 사용 예시
-    available_buy_logic = trading_logic["available_buy_logic"]
-    available_sell_logic = trading_logic["available_sell_logic"]
-    
-    selected_stock = st.sidebar.selectbox("Select a Stock", list(symbol_options.keys()))
-    selected_interval = st.sidebar.selectbox("Select Chart Interval", list(interval_options.keys()))
-    selected_buy_logic = st.sidebar.multiselect("Select Buy Logic(s):", list(available_buy_logic.keys()))
-    selected_sell_logic = st.sidebar.multiselect("Select Sell Logic(s):", list(available_sell_logic.keys()))
-    
-    # 3% 매수 조건 체크박스 (체크하면 'Y', 체크 해제하면 'N')
-    buy_condition_enabled = st.sidebar.checkbox("매수 제약 조건 활성화")  # True / False 반환
-    buy_condition_yn = "Y" if buy_condition_enabled else "N"
-    
-    # 사용자가 직접 매수 퍼센트 (%) 입력 (기본값 3%)
-    if buy_condition_yn == 'Y':
-        buy_percentage = st.sidebar.number_input("퍼센트 (%) 입력", min_value=0.0, max_value=100.0, value=3.0, step=0.1)
-    else:
-        buy_percentage = None
-        
-    symbol = symbol_options[selected_stock]
-    interval = interval_options[selected_interval]
-    
-    selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic] if selected_buy_logic else []
-    selected_sellTrading_logic = [available_sell_logic[logic] for logic in selected_sell_logic] if selected_sell_logic else []
-    
-    #mode
-    ohlc_mode_checkbox = st.sidebar.checkbox("차트 연결 모드")  # True / False 반환
-    ohlc_mode = "continuous" if ohlc_mode_checkbox else "default"
-    
-        # ✅ 실제 투자 조건 체크박스
-    real_trading_enabled = st.sidebar.checkbox("💰 실제 투자자본 설정")
-    real_trading_yn = "Y" if real_trading_enabled else "N"
-
-    # ✅ 매수 퍼센트 입력
-    initial_capital = None
-    if real_trading_yn == "Y":
-        initial_capital = st.sidebar.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000)
-        
-    use_take_profit = st.sidebar.checkbox("익절 조건", value=False)
-    take_profit_ratio = st.sidebar.number_input("익절(%)", value=5.0, min_value=0.0,  key="take_profit_ratio")
-
-    use_stop_loss = st.sidebar.checkbox("손절 조건", value=False)
-    stop_loss_ratio = st.sidebar.number_input("손절(%)", value=5.0, min_value=0.0,  key="stop_loss_ratio")
-        
-    #✅ rsi 조건값 입력
-    rsi_buy_threshold = st.sidebar.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1)
-    rsi_sell_threshold = st.sidebar.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1)
-    rsi_period = st.sidebar.number_input("📈 RSI 기간 설정", min_value=0, max_value=100, value=25, step=1)
-    
-    # 📌 Streamlit 체크박스 입력
-    st.sidebar.subheader("📊 차트 지표 선택")
-    # 체크박스로 사용자 선택 받기
-    selected_indicators = []
-    if st.sidebar.checkbox("EMA 5", value=True):
-        selected_indicators.append("ema_5")
-    if st.sidebar.checkbox("EMA 10", value=True):
-        selected_indicators.append("ema_10")
-    if st.sidebar.checkbox("EMA 20", value=True):
-        selected_indicators.append("ema_20")
-    if st.sidebar.checkbox("EMA 50", value=True):
-        selected_indicators.append("ema_50")        
-    if st.sidebar.checkbox("EMA 60", value=True):
-        selected_indicators.append("ema_60")
-    if st.sidebar.checkbox("SMA 5", value=False):
-        selected_indicators.append("sma_5")
-    if st.sidebar.checkbox("SMA 20", value=False):
-        selected_indicators.append("sma_20")
-    if st.sidebar.checkbox("SMA 40", value=False):
-        selected_indicators.append("sma_40")
-    if st.sidebar.checkbox("SMA 200", value=False):
-        selected_indicators.append("sma_200")
-    if st.sidebar.checkbox("SMA 120", value=False):
-        selected_indicators.append("sma_120")                 
-    if st.sidebar.checkbox("bollinger band", value=False):
-        selected_indicators.append("bollinger")
-        
-    # ✅ 설정 값을 딕셔너리 형태로 반환
-    return {
-        "id": id,
-        "start_date": start_date,
-        "end_date": end_date,
-        "target_trade_value_krw": target_trade_value_krw,
-        "kospi200": symbol_options,
-        "symbol": symbol,
-        "selected_stock": selected_stock,
-        "interval": interval,
-        "buy_trading_logic": selected_buyTrading_logic,
-        "sell_trading_logic": selected_sellTrading_logic,
-        "buy_condition_yn": buy_condition_yn,
-        "buy_percentage": buy_percentage,
-        "ohlc_mode": ohlc_mode,
-        "rsi_buy_threshold" : rsi_buy_threshold,
-        "rsi_sell_threshold" : rsi_sell_threshold,
-        "rsi_period" : rsi_period,
-        "selected_indicators" : selected_indicators,
-        "initial_capital" : initial_capital,
-        "use_take_profit" : use_take_profit,
-        "take_profit_ratio": take_profit_ratio,
-        "use_stop_loss": use_stop_loss,
-        "stop_loss_ratio": stop_loss_ratio
-    }
+    print(f"presigned_url = {presigned_url}")
+    response = requests.get(presigned_url)
+    response.raise_for_status()  # 에러 나면 여기서 멈춤
+    csv_buffer = StringIO(response.text)
+    df = pd.read_csv(csv_buffer)
+    return df
     
 def setup_my_page():
     """
@@ -1295,9 +1136,6 @@ def main():
     #         st.session_state["authenticated"] = False
     #         st.query_params = {"page" : "login", "login": "false"}
     #         st.rerun()  # 로그아웃 후 페이지 새로고침
-        
-    # ✅ 공통 사이드바 설정 함수 실행 후 값 가져오기
-    # sidebar_settings = setup_sidebar(sql_executor)
     
     # 탭 생성
     tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "🛠 Settings", "📈Auto Trading Bot Balance", "🏆Ranking"])
@@ -1364,31 +1202,60 @@ def main():
         if st.button("개별 종목 시뮬레이션 실행", key = 'simulation_button'):
             auto_trading_stock = AutoTradingBot(id=sidebar_settings["id"], virtual=False)
             
-            
             with st.container():
                 st.write(f"📊 {sidebar_settings['selected_stock']} 시뮬레이션 실행 중...")
                 
+                url = "http://localhost:7001/stock/simulate/single"
+
+                payload = {
+                    "user_id": sidebar_settings["id"],
+                    "symbol": sidebar_settings["symbol"],
+                    "start_date": sidebar_settings["start_date"].isoformat(),
+                    "end_date": sidebar_settings["end_date"].isoformat(),
+                    "target_trade_value_krw": sidebar_settings["target_trade_value_krw"],
+                    "buy_trading_logic": sidebar_settings["buy_trading_logic"],
+                    "sell_trading_logic": sidebar_settings["sell_trading_logic"],
+                    "interval": sidebar_settings["interval"],
+                    "buy_percentage": sidebar_settings["buy_percentage"],
+                    "ohlc_mode": sidebar_settings["ohlc_mode"],
+                    "rsi_buy_threshold": sidebar_settings["rsi_buy_threshold"],
+                    "rsi_sell_threshold": sidebar_settings["rsi_sell_threshold"],
+                    "rsi_period": sidebar_settings["rsi_period"],
+                    "initial_capital": sidebar_settings["initial_capital"],
+                    "use_take_profit": sidebar_settings["use_take_profit"],
+                    "take_profit_ratio": sidebar_settings["take_profit_ratio"],
+                    "use_stop_loss": sidebar_settings["use_stop_loss"],
+                    "stop_loss_ratio": sidebar_settings["stop_loss_ratio"]
+                }
+
+                response = requests.post(url, json=payload).json()
+                print(response)
+
+                data_url = response['data_url']
+                data_df = read_csv_from_presigned_url(data_url)
+                trading_history = response['trading_history']
+                trade_reasons = response['trade_reasons']
+
                 #시뮬레이션 실행
-                data_df, trading_history, trade_reasons = auto_trading_stock.simulate_trading(
-                    symbol=sidebar_settings["symbol"],
-                    start_date=sidebar_settings["start_date"],
-                    end_date=sidebar_settings["end_date"],
-                    target_trade_value_krw=sidebar_settings["target_trade_value_krw"],
-                    buy_trading_logic=sidebar_settings["buy_trading_logic"],
-                    sell_trading_logic=sidebar_settings["sell_trading_logic"],
-                    interval=sidebar_settings["interval"],
-                    buy_percentage=sidebar_settings["buy_percentage"],
-                    ohlc_mode = sidebar_settings["ohlc_mode"],
-                    rsi_buy_threshold= sidebar_settings['rsi_buy_threshold'],
-                    rsi_sell_threshold= sidebar_settings['rsi_sell_threshold'],
-                    rsi_period= sidebar_settings['rsi_period'],
-                    initial_capital = sidebar_settings['initial_capital'],
-                    use_take_profit=sidebar_settings["use_take_profit"],
-                    take_profit_ratio=sidebar_settings["take_profit_ratio"],
-                    use_stop_loss=sidebar_settings["use_stop_loss"],
-                    stop_loss_ratio=sidebar_settings["stop_loss_ratio"]
-                    
-                )
+                # data_df, trading_history, trade_reasons = auto_trading_stock.simulate_trading(
+                #     symbol=sidebar_settings["symbol"],
+                #     start_date=sidebar_settings["start_date"],
+                #     end_date=sidebar_settings["end_date"],
+                #     target_trade_value_krw=sidebar_settings["target_trade_value_krw"],
+                #     buy_trading_logic=sidebar_settings["buy_trading_logic"],
+                #     sell_trading_logic=sidebar_settings["sell_trading_logic"],
+                #     interval=sidebar_settings["interval"],
+                #     buy_percentage=sidebar_settings["buy_percentage"],
+                #     ohlc_mode = sidebar_settings["ohlc_mode"],
+                #     rsi_buy_threshold= sidebar_settings['rsi_buy_threshold'],
+                #     rsi_sell_threshold= sidebar_settings['rsi_sell_threshold'],
+                #     rsi_period= sidebar_settings['rsi_period'],
+                #     initial_capital = sidebar_settings['initial_capital'],
+                #     use_take_profit=sidebar_settings["use_take_profit"],
+                #     take_profit_ratio=sidebar_settings["take_profit_ratio"],
+                #     use_stop_loss=sidebar_settings["use_stop_loss"],
+                #     stop_loss_ratio=sidebar_settings["stop_loss_ratio"]
+                # )
                 # 시뮬레이션 결과를 session_state에 저장
                 st.session_state.simulation_result = {
                     "data_df": data_df,

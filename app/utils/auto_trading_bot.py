@@ -342,14 +342,27 @@ class AutoTradingBot:
             timestamp_str = timestamp.date().isoformat()
 
             trade_entry = {
-                'symbol': symbol, 'Time': timestamp, 'price': close_price, 'volume': volume,
-                'rsi': row['rsi'], 'mfi': row['mfi'], 'macd': row['macd'],
-                'macd_signal': row['macd_signal'], 'macd_histogram': row['macd_histogram'],
-                'stochastic_k': row['stochastic_k'], 'stochastic_d': row['stochastic_d'],
-                'EMA_10': row['EMA_10'], 'EMA_20': row['EMA_20'],
-                'EMA_50': row['EMA_50'], 'EMA_60': row['EMA_60'],
-                'SMA_5': row['SMA_5'], 'SMA_20': row['SMA_20'], 'SMA_40': row['SMA_40'],
-                'BB_Upper': row['BB_Upper'], 'BB_Middle': row['BB_Middle'], 'BB_Lower': row['BB_Lower']
+                'symbol': symbol,
+                'Time': timestamp,
+                'price': close_price,
+                'volume': volume,
+                'rsi': self._convert_float(row['rsi']),
+                'mfi': self._convert_float(row['mfi']),
+                'macd': self._convert_float(row['macd']),
+                'macd_signal': self._convert_float(row['macd_signal']),
+                'macd_histogram': self._convert_float(row['macd_histogram']),
+                'stochastic_k': self._convert_float(row['stochastic_k']),
+                'stochastic_d': self._convert_float(row['stochastic_d']),
+                'EMA_10': self._convert_float(row['EMA_10']),
+                'EMA_20': self._convert_float(row['EMA_20']),
+                'EMA_50': self._convert_float(row['EMA_50']),
+                'EMA_60': self._convert_float(row['EMA_60']),
+                'SMA_5': self._convert_float(row['SMA_5']),
+                'SMA_20': self._convert_float(row['SMA_20']),
+                'SMA_40': self._convert_float(row['SMA_40']),
+                'BB_Upper': self._convert_float(row['BB_Upper']),
+                'BB_Middle': self._convert_float(row['BB_Middle']),
+                'BB_Lower': self._convert_float(row['BB_Lower'])
             }
             logic.trade_reasons.append(trade_entry)
 
@@ -526,6 +539,11 @@ class AutoTradingBot:
         
         return result_data, trading_history, logic.trade_reasons
 
+    def _convert_float(self, value):
+        f = float(value)
+        if np.isnan(f):
+            return None
+        return f
 
     def whole_simulate_trading2(
         self, symbol, end_date, df, ohlc_data, trade_ratio, fixed_portfolio_value,
@@ -536,7 +554,7 @@ class AutoTradingBot:
         use_stop_loss=False, stop_loss_ratio=5.0):
         
         df = df[df.index <= pd.Timestamp(end_date)]
-                        
+        
         # 시뮬레이션 시작 전 초기화
         previous_closes = []
         # ✅ 아무 데이터도 없으면 조용히 빠져나가기
