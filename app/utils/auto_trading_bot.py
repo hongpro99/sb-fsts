@@ -1266,6 +1266,7 @@ class AutoTradingBot:
     
             if actual_trade_value == target_trade_value_krw:
                 qty = math.floor(actual_trade_value / adjusted_price)
+                #qty = qty - 1 #개수를 1개 줄여서 매수 실패 방지
             else:
                 qty = max_buy_qty
                 qty = max(0, qty - 1) #개수를 1개 줄여서 매수 실패 방지

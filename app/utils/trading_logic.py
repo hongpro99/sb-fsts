@@ -973,8 +973,8 @@ class TradingLogic:
 
         # 조건 2: EMA_10이 EMA_20 상향 돌파
         cross_up = (
-            prev['EMA_10'] < prev['EMA_20'] and
-            last['EMA_10'] > last['EMA_20']
+            prev['EMA_5'] < prev['EMA_10'] and
+            last['EMA_5'] > last['EMA_10']
         )
 
         # 조건 3: EMA 기울기 양수
@@ -1242,10 +1242,10 @@ class TradingLogic:
         # 조건 1: 거래대금 계산(30억 이상)
         trade_value = close_price * volume
 
-        # 조건 2: EMA_10이 EMA_20 상향 돌파
+        # 조건 2: EMA_5이 EMA_20 상향 돌파
         cross_up = (
-            prev['EMA_10'] < prev['EMA_20'] and
-            last['EMA_10'] > last['EMA_20']
+            prev['EMA_5'] < prev['EMA_20'] and
+            last['EMA_5'] > last['EMA_20']
         )
 
         # 조건 3: EMA 기울기 양수
