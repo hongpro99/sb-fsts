@@ -991,7 +991,7 @@ class TradingLogic:
         # ❌ 조건 5: 당일 윗꼬리 음봉 제외, 윗꼬리 조건 추가
         is_bearish = last['Close'] < last['Open']
         upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        not_long_upper_shadow  = upper_shadow_ratio <= 0.5  # 윗꼬리 50% 이상이면 제외
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.8  # 윗꼬리 80% 이상이면 제외
         long_upper_shadow = is_bearish
         
         # #✅ 조건 5: 고가 대비 종가 차이 10% 미만
