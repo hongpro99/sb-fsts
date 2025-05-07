@@ -32,10 +32,15 @@ async def predict(req: MessageInput):
         temperature=0  # 창의성 조정,
     )
 
+    system_prompt = """당신은 주식에 대해 다양한 정보를 제공해주는 에이전트입니다.
+    현재 혹은 오늘 날짜의 데이터를 요구할 때는 get_current_time tool 을 꼭 사용해서 현재 시간을 가져오고 이후 작업을 해야합니다.
+    """
+
     async with MultiServerMCPClient(
         {
-            "math": {
-                "url": "http://3.35.136.196:7004/sse",
+            "local-mcp": {
+                # "url": "http://3.35.136.196:7004/sse",
+                "url": "http://localhost:7005/sse",
                 "transport": "sse"
             },
             "tavily-mcp": {
@@ -49,7 +54,11 @@ async def predict(req: MessageInput):
         }
     ) as client:
         print(client.get_tools())
-        agent = create_react_agent(llm, client.get_tools())
+        agent = create_react_agent(
+            llm,
+            client.get_tools(),
+            prompt=system_prompt
+        )
         response = await agent.ainvoke({"messages": req.messages})
 
         print(f'response = {response}')
