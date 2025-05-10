@@ -2,13 +2,14 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 import os
-from dotenv import load_dotenv
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import AzureChatOpenAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from app.utils.utils import setup_env
 
 
-load_dotenv()
+# env 파일 로드
+setup_env()
 
 # FastAPI 인스턴스
 app = FastAPI()
