@@ -720,7 +720,9 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'break_prev_low':
             entry['trading_logic'] =  '볼린저밴드 이탈'
         elif entry.get('trading_logic') == 'sell_on_support_break':
-            entry['trading_logic'] =  '지지선'                                                                                                                                                                
+            entry['trading_logic'] =  '지지선'
+        elif entry.get('trading_logic') == 'anti_retail_ema_entry':
+            entry['trading_logic'] =  '반개미'                                                                                                                                                                            
             
 def login_page():
     """
@@ -1207,55 +1209,55 @@ def main():
                 
                 url = "http://localhost:7001/stock/simulate/single"
 
-                payload = {
-                    "user_id": sidebar_settings["id"],
-                    "symbol": sidebar_settings["symbol"],
-                    "start_date": sidebar_settings["start_date"].isoformat(),
-                    "end_date": sidebar_settings["end_date"].isoformat(),
-                    "target_trade_value_krw": sidebar_settings["target_trade_value_krw"],
-                    "buy_trading_logic": sidebar_settings["buy_trading_logic"],
-                    "sell_trading_logic": sidebar_settings["sell_trading_logic"],
-                    "interval": sidebar_settings["interval"],
-                    "buy_percentage": sidebar_settings["buy_percentage"],
-                    "ohlc_mode": sidebar_settings["ohlc_mode"],
-                    "rsi_buy_threshold": sidebar_settings["rsi_buy_threshold"],
-                    "rsi_sell_threshold": sidebar_settings["rsi_sell_threshold"],
-                    "rsi_period": sidebar_settings["rsi_period"],
-                    "initial_capital": sidebar_settings["initial_capital"],
-                    "use_take_profit": sidebar_settings["use_take_profit"],
-                    "take_profit_ratio": sidebar_settings["take_profit_ratio"],
-                    "use_stop_loss": sidebar_settings["use_stop_loss"],
-                    "stop_loss_ratio": sidebar_settings["stop_loss_ratio"]
-                }
+                # payload = {
+                #     "user_id": sidebar_settings["id"],
+                #     "symbol": sidebar_settings["symbol"],
+                #     "start_date": sidebar_settings["start_date"].isoformat(),
+                #     "end_date": sidebar_settings["end_date"].isoformat(),
+                #     "target_trade_value_krw": sidebar_settings["target_trade_value_krw"],
+                #     "buy_trading_logic": sidebar_settings["buy_trading_logic"],
+                #     "sell_trading_logic": sidebar_settings["sell_trading_logic"],
+                #     "interval": sidebar_settings["interval"],
+                #     "buy_percentage": sidebar_settings["buy_percentage"],
+                #     "ohlc_mode": sidebar_settings["ohlc_mode"],
+                #     "rsi_buy_threshold": sidebar_settings["rsi_buy_threshold"],
+                #     "rsi_sell_threshold": sidebar_settings["rsi_sell_threshold"],
+                #     "rsi_period": sidebar_settings["rsi_period"],
+                #     "initial_capital": sidebar_settings["initial_capital"],
+                #     "use_take_profit": sidebar_settings["use_take_profit"],
+                #     "take_profit_ratio": sidebar_settings["take_profit_ratio"],
+                #     "use_stop_loss": sidebar_settings["use_stop_loss"],
+                #     "stop_loss_ratio": sidebar_settings["stop_loss_ratio"]
+                # }
 
-                response = requests.post(url, json=payload).json()
-                print(response)
+                # response = requests.post(url, json=payload).json()
+                # print(response)
 
-                data_url = response['data_url']
-                data_df = read_csv_from_presigned_url(data_url)
-                trading_history = response['trading_history']
-                trade_reasons = response['trade_reasons']
+                # data_url = response['data_url']
+                # data_df = read_csv_from_presigned_url(data_url)
+                # trading_history = response['trading_history']
+                # trade_reasons = response['trade_reasons']
 
                 #시뮬레이션 실행
-                # data_df, trading_history, trade_reasons = auto_trading_stock.simulate_trading(
-                #     symbol=sidebar_settings["symbol"],
-                #     start_date=sidebar_settings["start_date"],
-                #     end_date=sidebar_settings["end_date"],
-                #     target_trade_value_krw=sidebar_settings["target_trade_value_krw"],
-                #     buy_trading_logic=sidebar_settings["buy_trading_logic"],
-                #     sell_trading_logic=sidebar_settings["sell_trading_logic"],
-                #     interval=sidebar_settings["interval"],
-                #     buy_percentage=sidebar_settings["buy_percentage"],
-                #     ohlc_mode = sidebar_settings["ohlc_mode"],
-                #     rsi_buy_threshold= sidebar_settings['rsi_buy_threshold'],
-                #     rsi_sell_threshold= sidebar_settings['rsi_sell_threshold'],
-                #     rsi_period= sidebar_settings['rsi_period'],
-                #     initial_capital = sidebar_settings['initial_capital'],
-                #     use_take_profit=sidebar_settings["use_take_profit"],
-                #     take_profit_ratio=sidebar_settings["take_profit_ratio"],
-                #     use_stop_loss=sidebar_settings["use_stop_loss"],
-                #     stop_loss_ratio=sidebar_settings["stop_loss_ratio"]
-                # )
+                data_df, trading_history, trade_reasons = auto_trading_stock.simulate_trading(
+                    symbol=sidebar_settings["symbol"],
+                    start_date=sidebar_settings["start_date"],
+                    end_date=sidebar_settings["end_date"],
+                    target_trade_value_krw=sidebar_settings["target_trade_value_krw"],
+                    buy_trading_logic=sidebar_settings["buy_trading_logic"],
+                    sell_trading_logic=sidebar_settings["sell_trading_logic"],
+                    interval=sidebar_settings["interval"],
+                    buy_percentage=sidebar_settings["buy_percentage"],
+                    ohlc_mode = sidebar_settings["ohlc_mode"],
+                    rsi_buy_threshold= sidebar_settings['rsi_buy_threshold'],
+                    rsi_sell_threshold= sidebar_settings['rsi_sell_threshold'],
+                    rsi_period= sidebar_settings['rsi_period'],
+                    initial_capital = sidebar_settings['initial_capital'],
+                    use_take_profit=sidebar_settings["use_take_profit"],
+                    take_profit_ratio=sidebar_settings["take_profit_ratio"],
+                    use_stop_loss=sidebar_settings["use_stop_loss"],
+                    stop_loss_ratio=sidebar_settings["stop_loss_ratio"]
+                )
                 # 시뮬레이션 결과를 session_state에 저장
                 st.session_state.simulation_result = {
                     "data_df": data_df,

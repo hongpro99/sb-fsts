@@ -11,7 +11,8 @@
         "저점반등형 매수": "bottom_rebound_trading",
         "단순이동평균" : "sma_breakout_trading",
         "상승추세형3": "ema_breakout_trading3",
-        "눌림": "ema_crossover_trading"
+        "눌림": "ema_crossover_trading",
+        "반개미": "anti_retail_ema_entry"
         
     },
     "available_sell_logic": {

@@ -1040,6 +1040,9 @@ class AutoTradingBot:
                 elif trading_logic == 'ema_crossover_trading':
                     buy_yn, _ = logic.ema_crossover_trading(ohlc_df, symbol)
                     
+                elif trading_logic == 'anti_retail_ema_entry':
+                    buy_yn, _ = logic.anti_retail_ema_entry(ohlc_df)
+                    
                 if buy_yn:
                     signal_reasons.append(trading_logic)
         else:

@@ -802,7 +802,8 @@ class TradingLogic:
         ema10_slope = last['EMA_10'] - prev['EMA_10']
         ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema50_slope = last['EMA_50'] - prev['EMA_50']
-        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0
+        ema60_slope = last['EMA_60'] - prev['EMA_60']
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0 
 
         # 조건 3: 거래량 증가
         volume_up = last['Volume'] > last['Volume_MA5']
@@ -811,7 +812,7 @@ class TradingLogic:
         # 조건 4: 윗꼬리 음봉 제외
         is_bearish = last['Close'] < last['Open']
         upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        not_long_upper_shadow = upper_shadow_ratio <= 0.5 #50% 이하만 매수
+        not_long_upper_shadow = upper_shadow_ratio <= 0.8 #50% 이하만 매수
         long_upper_shadow = is_bearish
 
         # 조건 5: 전일 종가 대비 20% 이상 상승 제외
@@ -973,8 +974,8 @@ class TradingLogic:
 
         # 조건 2: EMA_10이 EMA_20 상향 돌파
         cross_up = (
-            prev['EMA_5'] < prev['EMA_10'] and
-            last['EMA_5'] > last['EMA_10']
+            prev['EMA_10'] < prev['EMA_20'] and
+            last['EMA_10'] > last['EMA_20']
         )
 
         # 조건 3: EMA 기울기 양수
@@ -1064,7 +1065,8 @@ class TradingLogic:
         ema10_slope = last['EMA_10'] - prev['EMA_10']
         ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema50_slope = last['EMA_50'] - prev['EMA_50']
-        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0
+        ema60_slope = last['EMA_60'] - prev['EMA_60']
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
 
         # 조건 4: 거래량 증가
         volume_up = last['Volume'] > last['Volume_MA5']
@@ -1073,12 +1075,12 @@ class TradingLogic:
         # ❌ 조건 5: 당일 윗꼬리 음봉 제외
         is_bearish = last['Close'] < last['Open']
         upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        not_long_upper_shadow  = upper_shadow_ratio <= 0.5  # 윗꼬리 50% 이상이면 제외
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.8  # 윗꼬리 50% 이상이면 제외
         long_upper_shadow = is_bearish
         
         # ✅ 추가 조건 6: 당일 종가가 전일 종가 대비 15% 이상 상승
         price_increase_ratio = (close_price - float(prev['Close'])) / float(prev['Close'])
-        price_up_15 = price_increase_ratio >= 0.15
+        price_up_15 = price_increase_ratio <= 0.03 # 5퍼센트 미만만 사도록
         # #✅ 조건 5: 고가 대비 종가 차이 10% 미만
         # high_close_diff_ratio = (last['High'] - last['Close']) / last['High']
         # not_big_gap_from_high = high_close_diff_ratio < 0.10
@@ -1244,8 +1246,8 @@ class TradingLogic:
 
         # 조건 2: EMA_5이 EMA_20 상향 돌파
         cross_up = (
-            prev['EMA_5'] < prev['EMA_20'] and
-            last['EMA_5'] > last['EMA_20']
+            prev['EMA_10'] < prev['EMA_20'] and
+            last['EMA_10'] > last['EMA_20']
         )
 
         # 조건 3: EMA 기울기 양수
@@ -1280,7 +1282,7 @@ class TradingLogic:
         # body_ratio = body_length / candle_range
         # body_sufficient = body_ratio >= 0.3
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and volume_up2 and not_long_upper_shadow
+        buy_signal = cross_up and slope_up and volume_up and volume_up2 and not_long_upper_shadow
         print(f"buy_signal: {buy_signal}")
         # 매매 사유 작성
         if buy_signal:
@@ -1509,3 +1511,22 @@ class TradingLogic:
             reason = "조건 미충족"
 
         return None, sell_signal
+    
+    def anti_retail_ema_entry(self, df):
+        if len(df) < 3:
+            return False, None
+
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+
+        buy_signal = (
+            last['rsi'] < 30 and
+            #last['mfi'] < 20 and
+            last['Close'] > last['EMA_60'] * 0.98 and last['Close'] < last['EMA_60'] * 1.02 and
+            last['Volume'] < prev['Volume']
+        )
+
+        if buy_signal:
+            reason = "공포 매도 구간에서 반대로 매수 (RSI<30, MFI<20, 이동평균선 지지)"
+            return True, reason
+        return False, None
