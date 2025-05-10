@@ -544,6 +544,178 @@ class AutoTradingBot:
         if np.isnan(f):
             return None
         return f
+    
+    def simulate_trading_bulk(self, simulation_settings):
+
+        precomputed_df_dict = {}
+        precomputed_ohlc_dict = {}
+        valid_symbols = {}
+        failed_indicator_symbols = []
+
+        start_date = simulation_settings["start_date"] - timedelta(days=180)
+        end_date = simulation_settings["end_date"]
+        interval = simulation_settings["interval"]
+
+        auto_trading_stock = AutoTradingBot(id=simulation_settings["user_id"], virtual=False)
+
+        for stock_name, symbol in simulation_settings["selected_symbols"].items():
+            try:
+                # ✅ OHLC 데이터 가져오기
+                ohlc_data = auto_trading_stock._get_ohlc(symbol, start_date, end_date, interval)
+                precomputed_ohlc_dict[symbol] = ohlc_data
+
+                # ✅ OHLC → DataFrame 변환
+                timestamps = [c.time for c in ohlc_data]
+                ohlc = [
+                    [c.time, float(c.open), float(c.high), float(c.low), float(c.close), float(c.volume)]
+                    for c in ohlc_data
+                ]
+                df = pd.DataFrame(ohlc, columns=["Time", "Open", "High", "Low", "Close", "Volume"], index=pd.DatetimeIndex(timestamps))
+                df.index = df.index.tz_localize(None)
+                indicator = TechnicalIndicator()
+                rsi_period = simulation_settings['rsi_period']
+                
+                # 지표 계산
+                df = indicator.cal_ema_df(df, 10)
+                df = indicator.cal_ema_df(df, 20)
+                df = indicator.cal_ema_df(df, 50)
+                df = indicator.cal_ema_df(df, 60)
+                df = indicator.cal_ema_df(df, 5)
+                
+                df = indicator.cal_sma_df(df, 5)
+                df = indicator.cal_sma_df(df, 20)
+                df = indicator.cal_sma_df(df, 40)
+
+                df = indicator.cal_rsi_df(df, rsi_period)
+                df = indicator.cal_macd_df(df)
+                df = indicator.cal_stochastic_df(df)
+                df = indicator.cal_mfi_df(df)
+                df = indicator.cal_bollinger_band(df)
+
+                # 유효한 종목만 저장
+                valid_symbols[stock_name] = symbol
+                precomputed_df_dict[symbol] = df
+                precomputed_ohlc_dict[symbol] = ohlc_data
+
+            except Exception as e:
+                # 지표 계사에 실패한 종목 리스트
+                failed_indicator_symbols.append((stock_name, str(e)))
+                        
+        # ✅ 세션 상태에 저장
+        simulation_settings["selected_symbols"] = valid_symbols
+        simulation_settings["precomputed_df_dict"] = precomputed_df_dict
+        simulation_settings["precomputed_ohlc_dict"] = precomputed_ohlc_dict
+
+        symbols = valid_symbols
+        target_ratio = simulation_settings.get("target_trade_value_ratio", None)  # None이면 직접 입력 방식
+        target_trade_value = simulation_settings["target_trade_value_krw"]
+        date_range = pd.date_range(start=simulation_settings["start_date"], end=simulation_settings["end_date"])
+
+        global_state = {
+            'initial_capital': simulation_settings["initial_capital"],
+            'realized_pnl': 0,
+            'buy_dates': [],
+            'sell_dates': [],
+        }
+
+        holding_state = {
+            symbol: {
+                'total_quantity': 0,
+                'average_price': 0,
+                'total_cost': 0,
+                'buy_count': 0,
+                'sell_count': 0,
+                'buy_dates': [],
+                'sell_dates': [],
+            } for symbol in symbols.values()
+        }
+
+        results = []
+        failed_stocks = set()  # 중복 제거 자동 처리
+        
+        start_date = pd.Timestamp(simulation_settings["start_date"]).normalize()
+        # 공통된 모든 날짜 모으기
+        all_dates = set()
+        for symbol in symbols.values():
+            ohlc_data = simulation_settings["precomputed_ohlc_dict"][symbol]
+            dates = [pd.Timestamp(c.time).tz_localize(None).normalize() for c in ohlc_data]
+            all_dates.update(d for d in dates if d >= start_date)
+
+        date_range = sorted(list(all_dates))  # 날짜 정렬
+
+        # ✅ 시뮬레이션 시작
+        for current_date in date_range:                                                                # ✅ 하루 기준 고정 portfolio_value 계산 (종목별 보유 상태 반영)
+            portfolio_value_fixed = global_state["initial_capital"] + sum(
+                holding_state[symbol]["total_quantity"] * simulation_settings["precomputed_df_dict"][symbol].loc[current_date]["Close"]
+                for symbol in symbols.values()
+                if current_date in simulation_settings["precomputed_df_dict"][symbol].index
+            )
+            
+            for stock_name, symbol in symbols.items():
+                try:
+                    df = simulation_settings["precomputed_df_dict"][symbol]
+                    ohlc_data = simulation_settings["precomputed_ohlc_dict"][symbol]
+                    
+                    if not any(pd.Timestamp(c.time).tz_localize(None).normalize() == current_date for c in ohlc_data):
+                        continue
+                    
+                    # ✅ 날짜별 거래 금액 계산
+                    if target_ratio is not None:
+                        trade_ratio  = target_ratio
+                    else:
+                        target_trade_value = target_trade_value
+                        trade_ratio = 100  # 기본값 설정 (예: 100%)
+                        
+                    trading_history = auto_trading_stock.whole_simulate_trading2(
+                        symbol=symbol,
+                        end_date=current_date,
+                        df=df,
+                        ohlc_data=ohlc_data,
+                        trade_ratio = trade_ratio,
+                        target_trade_value_krw=target_trade_value,
+                        buy_trading_logic=simulation_settings["buy_trading_logic"],
+                        sell_trading_logic=simulation_settings["sell_trading_logic"],
+                        interval=simulation_settings["interval"],
+                        buy_percentage=simulation_settings["buy_percentage"],
+                        initial_capital=global_state["initial_capital"],
+                        rsi_buy_threshold=simulation_settings["rsi_buy_threshold"],
+                        rsi_sell_threshold=simulation_settings["rsi_sell_threshold"],
+                        global_state=global_state,  #공유 상태
+                        holding_state=holding_state[symbol], # 종목별 상태
+                        use_take_profit=simulation_settings["use_take_profit"],
+                        take_profit_ratio=simulation_settings["take_profit_ratio"],
+                        use_stop_loss=simulation_settings["use_stop_loss"],
+                        stop_loss_ratio=simulation_settings["stop_loss_ratio"],
+                        fixed_portfolio_value=portfolio_value_fixed
+                    )
+
+                    if trading_history is None:
+                        print(f"❌ {stock_name} 시뮬레이션 실패 (None 반환됨)")
+                        continue
+
+                    trading_history.update({
+                        "symbol": stock_name,
+                        "sim_date": current_date.strftime('%Y-%m-%d'),
+                        "total_quantity": holding_state[symbol]["total_quantity"],
+                        "average_price": holding_state[symbol]["average_price"],
+                        "buy_count": holding_state[symbol]["buy_count"],
+                        "sell_count": holding_state[symbol]["sell_count"],
+                        "buy_dates": holding_state[symbol]["buy_dates"],
+                        "sell_dates": holding_state[symbol]["sell_dates"]
+                    })
+                    
+                    print(f"📌 {symbol} 보유 수량: {holding_state[symbol]['total_quantity']}, "
+                    f"평균단가: {holding_state[symbol]['average_price']:.2f}, "
+                    f"총비용: {holding_state[symbol]['total_cost']:.0f}")
+                    
+                    #global_state = trading_history.copy()
+                    results.append(trading_history)
+
+                except Exception as e:
+                    failed_stocks.add(stock_name)
+        
+        return results, failed_stocks
+
 
     def whole_simulate_trading2(
         self, symbol, end_date, df, ohlc_data, trade_ratio, fixed_portfolio_value,
