@@ -14,7 +14,7 @@ class SimulationTradingBulkModel(BaseModel):
     buy_trading_logic: Optional[List[str]]
     sell_trading_logic: Optional[List[str]]
     buy_condition_yn: bool
-    buy_percentage: float
+    buy_percentage: Optional[float]
     initial_capital: float
     rsi_buy_threshold: int
     rsi_sell_threshold: int

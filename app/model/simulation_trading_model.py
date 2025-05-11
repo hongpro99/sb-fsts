@@ -11,7 +11,7 @@ class SimulationTradingModel(BaseModel):
     buy_trading_logic: Optional[List[str]]
     sell_trading_logic: Optional[List[str]]
     interval: str
-    buy_percentage: float
+    buy_percentage: Optional[float]
     ohlc_mode: Optional[str]
     rsi_buy_threshold: int
     rsi_sell_threshold: int
