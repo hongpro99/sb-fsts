@@ -60,7 +60,7 @@ async def simulate_single_trade(data: SimulationTradingModel):
         buy_trading_logic=simulation_data["buy_trading_logic"],
         sell_trading_logic=simulation_data["sell_trading_logic"],
         interval=simulation_data["interval"],
-        buy_percentage=simulation_data["buy_percentage"],
+        buy_percentage=simulation_data.get("buy_percentage"),
         ohlc_mode = simulation_data["ohlc_mode"],
         rsi_buy_threshold= simulation_data['rsi_buy_threshold'],
         rsi_sell_threshold= simulation_data['rsi_sell_threshold'],
