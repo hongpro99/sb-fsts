@@ -1288,12 +1288,11 @@ def main():
         selected_sellTrading_logic = [available_sell_logic[logic] for logic in selected_sell_logic] if selected_sell_logic else []
 
         # ✅ 3% 매수 조건 체크박스
-        buy_condition_enabled = st.checkbox("💰 매수 제약 조건 활성화", key="buy_condition_enabled")
-        buy_condition_yn = "Y" if buy_condition_enabled else "N"
+        buy_condition_yn = st.checkbox("💰 매수 제약 조건 활성화", key="buy_condition_enabled")
 
-        # ✅ 매수 퍼센트 입력
         buy_percentage = None
-        if buy_condition_yn == "Y":
+        # ✅ 매수 퍼센트 입력
+        if buy_condition_yn:
             buy_percentage = st.number_input("💵 퍼센트 (%) 입력", min_value=0.0, max_value=100.0, value=3.0, step=0.1, key="buy_percentage")
             
         use_take_profit = st.checkbox("익절 조건 사용", value=False)
@@ -1333,7 +1332,6 @@ def main():
                 "use_stop_loss": use_stop_loss,
                 "stop_loss_ratio" : stop_loss_ratio 
             }
-            st.success("✅ 설정이 저장되었습니다!")
 
             # ✅ 저장된 설정 확인
             if "my_page_settings" in st.session_state:

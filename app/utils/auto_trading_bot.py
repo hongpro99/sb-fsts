@@ -550,7 +550,6 @@ class AutoTradingBot:
         precomputed_df_dict = {}
         precomputed_ohlc_dict = {}
         valid_symbols = {}
-        failed_indicator_symbols = []
 
         start_date = simulation_settings["start_date"] - timedelta(days=180)
         end_date = simulation_settings["end_date"]
@@ -598,8 +597,8 @@ class AutoTradingBot:
                 precomputed_ohlc_dict[symbol] = ohlc_data
 
             except Exception as e:
-                # 지표 계사에 실패한 종목 리스트
-                failed_indicator_symbols.append((stock_name, str(e)))
+                # 지표 계산에 실패한 종목 리스트
+                print(f'{stock_name} 지표 계산 실패. 사유 : {str(e)}')
                         
         # ✅ 세션 상태에 저장
         simulation_settings["selected_symbols"] = valid_symbols
@@ -675,8 +674,6 @@ class AutoTradingBot:
                         target_trade_value_krw=target_trade_value,
                         buy_trading_logic=simulation_settings["buy_trading_logic"],
                         sell_trading_logic=simulation_settings["sell_trading_logic"],
-                        interval=simulation_settings["interval"],
-                        buy_percentage=simulation_settings["buy_percentage"],
                         initial_capital=global_state["initial_capital"],
                         rsi_buy_threshold=simulation_settings["rsi_buy_threshold"],
                         rsi_sell_threshold=simulation_settings["rsi_sell_threshold"],
@@ -712,6 +709,7 @@ class AutoTradingBot:
                     results.append(trading_history)
 
                 except Exception as e:
+                    print(f'{stock_name} 시뮬레이션 실패. 사유 : {str(e)}')
                     failed_stocks.add(stock_name)
         
         return results, failed_stocks
@@ -720,7 +718,6 @@ class AutoTradingBot:
     def whole_simulate_trading2(
         self, symbol, end_date, df, ohlc_data, trade_ratio, fixed_portfolio_value,
         target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None,
-        interval='day', buy_percentage=None,
         initial_capital=None, rsi_buy_threshold=30, rsi_sell_threshold=70,
         global_state=None, holding_state=None,use_take_profit=False, take_profit_ratio=5.0,
         use_stop_loss=False, stop_loss_ratio=5.0):
