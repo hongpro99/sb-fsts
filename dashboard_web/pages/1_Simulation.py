@@ -926,199 +926,7 @@ def read_csv_from_presigned_url(presigned_url):
     csv_buffer = StringIO(response.text)
     df = pd.read_csv(csv_buffer)
     return df
-    
-def setup_my_page():
-    """
-    마이페이지 설정 탭: 사용자 맞춤 설정 저장
-    """
-    st.header("🛠 마이페이지 설정")
-
-    # AutoTradingBot, trading_logic 및 SQLExecutor 객체 생성
-    id = "id1"  # 사용자 이름 (고정값)
-    auto_trading_stock = AutoTradingBot(id=id, virtual=False)
-    
-    current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
-
-    start_date = st.date_input("📅 Start Date", value=date(2023, 1, 1))
-    end_date = st.date_input("📅 End Date", value=current_date_kst)
-    
-    #target_trade_value_krw = st.number_input("💰 Target Trade Value (KRW)", value=2000000, step=100000)
-    st.subheader("💰 매수 금액 설정 방식")
-
-    target_method = st.radio(
-        "매수 금액을 어떻게 설정할까요?",
-        ["직접 입력", "자본 비율 (%)"],
-        index=0
-    )
-
-    if target_method == "직접 입력":
-        target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000)
-        target_trade_value_ratio = None
-    else:
-        target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 50) #마우스 커서로 왔다갔다 하는 기능
-        target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
-    # ✅ 실제 투자 조건 체크박스
-    real_trading_enabled = st.checkbox("💰 실제 투자자본 설정", key="real_trading_enabled")
-    real_trading_yn = "Y" if real_trading_enabled else "N"
-
-    # ✅ 매수 퍼센트 입력
-    initial_capital = None
-    if real_trading_yn == "Y":
-        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key="initial_capital")
-        
-    # ✅ DB에서 종목 리스트 가져오기
-    result = list(StockSymbol.scan(
-        filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
-    ))
-
-    # ✅ StockSymbol2에서도 종목 가져오기 (kosdaq 전체)
-    kosdaq_all_result = list(StockSymbol2.scan(
-        filter_condition=(StockSymbol2.type == 'kosdaq')
-    ))
-
-    type_order = {
-        'kospi200': 1,
-        'kosdaq150': 2
-    }
-
-    # ✅ 정렬
-    sorted_items = sorted(
-        result,
-        key=lambda x: (
-            type_order.get(getattr(x, 'type', ''), 99),
-            getattr(x, 'symbol_name', '')
-        )
-    )
-
-    # ✅ 분리
-    kospi200_items = [row for row in sorted_items if getattr(row, 'type', '') == 'kospi200']
-    kosdaq150_items = [row for row in sorted_items if getattr(row, 'type', '') == 'kosdaq150']
-    kosdaq_items = [row for row in kosdaq_all_result if getattr(row, 'type', '') == 'kosdaq']
-
-    kospi200_names = [row.symbol_name for row in kospi200_items]
-    kosdaq150_names = [row.symbol_name for row in kosdaq150_items]
-    kosdaq_all_names = [row.symbol_name for row in kosdaq_items]
-
-    # ✅ 전체 종목 이름 리스트 (StockSymbol + StockSymbol2)
-    all_symbol_names = list(set(
-        row.symbol_name for row in (sorted_items + kosdaq_items)
-    ))
-
-    # ✅ 병합된 symbol_options
-    symbol_options_main = {row.symbol_name: row.symbol for row in sorted_items}
-    symbol_options_kosdaq = {row.symbol_name: row.symbol for row in kosdaq_items}
-    symbol_options = {**symbol_options_main, **symbol_options_kosdaq}
-
-    # ✅ 버튼 UI
-    col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 4])
-
-    with col1:
-        if st.button("✅ 전체 선택"):
-            st.session_state["selected_stocks"] = all_symbol_names
-            print(len(all_symbol_names))
-
-    with col2:
-        if st.button("🏦 코스피 200 선택"):
-            st.session_state["selected_stocks"] = kospi200_names
-            print(len(kospi200_names))
-
-    with col3:
-        if st.button("📈 코스닥 150 선택"):
-            st.session_state["selected_stocks"] = kosdaq150_names
-            print(len(kosdaq150_names))
-
-    with col4:
-        if st.button("📊 코스닥 전체 선택"):
-            st.session_state["selected_stocks"] = kosdaq_all_names
-            print(len(kosdaq_all_names))
-
-    with col5:
-        if st.button("❌ 선택 해제"):
-            st.session_state["selected_stocks"] = []
-
-    # ✅ 세션 상태에 저장된 값 중, 현재 옵션에 존재하는 것만 유지
-    if "selected_stocks" in st.session_state:
-        st.session_state["selected_stocks"] = [
-            s for s in st.session_state["selected_stocks"] if s in symbol_options
-        ]
-        
-    # ✅ 사용자가 원하는 종목 선택 (다중 선택 가능)
-    selected_stocks = st.multiselect("📌 원하는 종목 선택", all_symbol_names, key="selected_stocks")
-    selected_symbols = {stock: symbol_options[stock] for stock in selected_stocks}
-
-    # ✅ 차트 간격 (interval) 설정
-    interval_options = {"DAY": "day", "WEEK": "week", "MONTH": "month"}
-    selected_interval = st.selectbox("⏳ 차트 간격 선택", list(interval_options.keys()), key="selected_interval")
-    interval = interval_options[selected_interval]
-
-    # ✅ 매수/매도 로직 설정
-    file_path = "./dashboard_web/trading_logic.json"
-    with open(file_path, "r", encoding="utf-8") as file:
-        trading_logic = json.load(file)
-
-    available_buy_logic = trading_logic["available_buy_logic"]
-    available_sell_logic = trading_logic["available_sell_logic"]
-
-    # ✅ 매수/매도 전략 선택
-    selected_buy_logic = st.multiselect("📈 매수 로직 선택", list(available_buy_logic.keys()), key="selected_buy_logic")
-    selected_sell_logic = st.multiselect("📉 매도 로직 선택", list(available_sell_logic.keys()), key="selected_sell_logic")
-
-    selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic] if selected_buy_logic else []
-    selected_sellTrading_logic = [available_sell_logic[logic] for logic in selected_sell_logic] if selected_sell_logic else []
-
-    # ✅ 3% 매수 조건 체크박스
-    buy_condition_enabled = st.checkbox("💰 매수 제약 조건 활성화", key="buy_condition_enabled")
-    buy_condition_yn = "Y" if buy_condition_enabled else "N"
-
-    # ✅ 매수 퍼센트 입력
-    buy_percentage = None
-    if buy_condition_yn == "Y":
-        buy_percentage = st.number_input("💵 퍼센트 (%) 입력", min_value=0.0, max_value=100.0, value=3.0, step=0.1, key="buy_percentage")
-        
-    use_take_profit = st.checkbox("익절 조건 사용", value=False)
-    take_profit_ratio = st.number_input("익절 기준 (%)", value=5.0, min_value=0.0)
-
-    use_stop_loss = st.checkbox("손절 조건 사용", value=False)
-    stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0)        
-
-    #✅ rsi 조건값 입력
-    st.subheader("🎯 RSI 조건값 설정")
-    rsi_buy_threshold = st.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1, key = 'rsi_buy_threshold')
-    rsi_sell_threshold = st.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1, key = 'rsi_sell_threshold')
-    rsi_period = st.number_input("📈 RSI 기간 설정", min_value=0, max_value=100, value=25, step=1, key = 'rsi_period')
-
-    # ✅ 설정 저장 버튼
-    if st.button("✅ 설정 저장"):
-        st.session_state["my_page_settings"] = {
-            "id": id,
-            "start_date": start_date,
-            "end_date": end_date,
-            "target_trade_value_krw": target_trade_value_krw,
-            "target_trade_value_ratio": target_trade_value_ratio,
-            "selected_stocks": selected_stocks, #이름만
-            "selected_symbols": selected_symbols, #이름+코드(key,value)
-            "interval": interval,
-            "selected_buyTrading_logic": selected_buyTrading_logic,
-            "selected_sellTrading_logic": selected_sellTrading_logic,
-            "buy_condition_yn": buy_condition_yn,
-            "buy_percentage": buy_percentage,
-            "initial_capital": initial_capital,
-            "rsi_buy_threshold" : rsi_buy_threshold,
-            "rsi_sell_threshold" : rsi_sell_threshold,
-            "rsi_period" : rsi_period,
-            "use_take_profit": use_take_profit,
-            "take_profit_ratio": take_profit_ratio,
-            "use_stop_loss": use_stop_loss,
-            "stop_loss_ratio" : stop_loss_ratio 
-        }
-        st.success("✅ 설정이 저장되었습니다!")
-
-    # ✅ 저장된 설정 확인
-    if "my_page_settings" in st.session_state:
-        st.subheader("📌 저장된 설정값")
-        st.write(st.session_state["my_page_settings"])
-
-            
+                
 def main():
     
     # for DB
@@ -1144,7 +952,7 @@ def main():
     #         st.rerun()  # 로그아웃 후 페이지 새로고침
     
     # 탭 생성
-    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "🛠 Settings", "📈Auto Trading Bot Balance", "🏆Ranking"])
+    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "📈Auto Trading Bot Balance", "🏆Ranking"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
@@ -1348,9 +1156,189 @@ def main():
             
     with tabs[2]:
         
-        if st.button("✅ 1. 시뮬레이션 전체 실행"):
+        id = "id1"  # 사용자 이름 (고정값)
+        auto_trading_stock = AutoTradingBot(id=id, virtual=False)
+        
+        current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
 
-            auto_trading_stock = AutoTradingBot(id=sidebar_settings["id"], virtual=False)
+        start_date = st.date_input("📅 Start Date", value=date(2023, 1, 1))
+        end_date = st.date_input("📅 End Date", value=current_date_kst)
+        
+        st.subheader("💰 매수 금액 설정 방식")
+
+        target_method = st.radio(
+            "매수 금액을 어떻게 설정할까요?",
+            ["직접 입력", "자본 비율 (%)"],
+            index=0
+        )
+
+        if target_method == "직접 입력":
+            target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000)
+            target_trade_value_ratio = None
+        else:
+            target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 50) #마우스 커서로 왔다갔다 하는 기능
+            target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
+        # ✅ 실제 투자 조건 체크박스
+        real_trading_enabled = st.checkbox("💰 실제 투자자본 설정", value=True, key="real_trading_enabled")
+        real_trading_yn = "Y" if real_trading_enabled else "N"
+
+        # ✅ 매수 퍼센트 입력
+        initial_capital = None
+        if real_trading_yn == "Y":
+            initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key="initial_capital")
+            
+        # ✅ DB에서 종목 리스트 가져오기
+        result = list(StockSymbol.scan(
+            filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
+        ))
+
+        # ✅ StockSymbol2에서도 종목 가져오기 (kosdaq 전체)
+        kosdaq_all_result = list(StockSymbol2.scan(
+            filter_condition=(StockSymbol2.type == 'kosdaq')
+        ))
+
+        type_order = {
+            'kospi200': 1,
+            'kosdaq150': 2
+        }
+
+        # ✅ 정렬
+        sorted_items = sorted(
+            result,
+            key=lambda x: (
+                type_order.get(getattr(x, 'type', ''), 99),
+                getattr(x, 'symbol_name', '')
+            )
+        )
+
+        # ✅ 분리
+        kospi200_items = [row for row in sorted_items if getattr(row, 'type', '') == 'kospi200']
+        kosdaq150_items = [row for row in sorted_items if getattr(row, 'type', '') == 'kosdaq150']
+        kosdaq_items = [row for row in kosdaq_all_result if getattr(row, 'type', '') == 'kosdaq']
+
+        kospi200_names = [row.symbol_name for row in kospi200_items]
+        kosdaq150_names = [row.symbol_name for row in kosdaq150_items]
+        kosdaq_all_names = [row.symbol_name for row in kosdaq_items]
+
+        # ✅ 전체 종목 이름 리스트 (StockSymbol + StockSymbol2)
+        all_symbol_names = list(set(
+            row.symbol_name for row in (sorted_items + kosdaq_items)
+        ))
+
+        # ✅ 병합된 symbol_options
+        symbol_options_main = {row.symbol_name: row.symbol for row in sorted_items}
+        symbol_options_kosdaq = {row.symbol_name: row.symbol for row in kosdaq_items}
+        symbol_options = {**symbol_options_main, **symbol_options_kosdaq}
+
+        # ✅ 버튼 UI
+        col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 4])
+
+        with col1:
+            if st.button("✅ 전체 선택"):
+                st.session_state["selected_stocks"] = all_symbol_names
+                print(len(all_symbol_names))
+
+        with col2:
+            if st.button("🏦 코스피 200 선택"):
+                st.session_state["selected_stocks"] = kospi200_names
+                print(len(kospi200_names))
+
+        with col3:
+            if st.button("📈 코스닥 150 선택"):
+                st.session_state["selected_stocks"] = kosdaq150_names
+                print(len(kosdaq150_names))
+
+        with col4:
+            if st.button("📊 코스닥 전체 선택"):
+                st.session_state["selected_stocks"] = kosdaq_all_names
+                print(len(kosdaq_all_names))
+
+        with col5:
+            if st.button("❌ 선택 해제"):
+                st.session_state["selected_stocks"] = []
+
+        # ✅ 세션 상태에 저장된 값 중, 현재 옵션에 존재하는 것만 유지
+        if "selected_stocks" in st.session_state:
+            st.session_state["selected_stocks"] = [
+                s for s in st.session_state["selected_stocks"] if s in symbol_options
+            ]
+            
+        # ✅ 사용자가 원하는 종목 선택 (다중 선택 가능)
+        selected_stocks = st.multiselect("📌 원하는 종목 선택", all_symbol_names, key="selected_stocks")
+        selected_symbols = {stock: symbol_options[stock] for stock in selected_stocks}
+
+        # ✅ 차트 간격 (interval) 설정
+        interval_options = {"DAY": "day", "WEEK": "week", "MONTH": "month"}
+        selected_interval = st.selectbox("⏳ 차트 간격 선택", list(interval_options.keys()), key="selected_interval")
+        interval = interval_options[selected_interval]
+
+        # ✅ 매수/매도 로직 설정
+        file_path = "./dashboard_web/trading_logic.json"
+        with open(file_path, "r", encoding="utf-8") as file:
+            trading_logic = json.load(file)
+
+        available_buy_logic = trading_logic["available_buy_logic"]
+        available_sell_logic = trading_logic["available_sell_logic"]
+
+        # ✅ 매수/매도 전략 선택
+        selected_buy_logic = st.multiselect("📈 매수 로직 선택", list(available_buy_logic.keys()), key="selected_buy_logic")
+        selected_sell_logic = st.multiselect("📉 매도 로직 선택", list(available_sell_logic.keys()), key="selected_sell_logic")
+
+        selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic] if selected_buy_logic else []
+        selected_sellTrading_logic = [available_sell_logic[logic] for logic in selected_sell_logic] if selected_sell_logic else []
+
+        # ✅ 3% 매수 조건 체크박스
+        buy_condition_enabled = st.checkbox("💰 매수 제약 조건 활성화", key="buy_condition_enabled")
+        buy_condition_yn = "Y" if buy_condition_enabled else "N"
+
+        # ✅ 매수 퍼센트 입력
+        buy_percentage = None
+        if buy_condition_yn == "Y":
+            buy_percentage = st.number_input("💵 퍼센트 (%) 입력", min_value=0.0, max_value=100.0, value=3.0, step=0.1, key="buy_percentage")
+            
+        use_take_profit = st.checkbox("익절 조건 사용", value=False)
+        take_profit_ratio = st.number_input("익절 기준 (%)", value=5.0, min_value=0.0)
+
+        use_stop_loss = st.checkbox("손절 조건 사용", value=False)
+        stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0)        
+
+        #✅ rsi 조건값 입력
+        st.subheader("🎯 RSI 조건값 설정")
+        rsi_buy_threshold = st.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1, key = 'rsi_buy_threshold')
+        rsi_sell_threshold = st.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1, key = 'rsi_sell_threshold')
+        rsi_period = st.number_input("📈 RSI 기간 설정", min_value=0, max_value=100, value=25, step=1, key = 'rsi_period')
+
+        if st.button("✅ 시뮬레이션 전체 실행"):
+            
+            # 설정 저장
+            st.session_state["my_page_settings"] = {
+                "id": id,
+                "start_date": start_date,
+                "end_date": end_date,
+                "target_trade_value_krw": target_trade_value_krw,
+                "target_trade_value_ratio": target_trade_value_ratio,
+                "selected_stocks": selected_stocks, #이름만
+                "selected_symbols": selected_symbols, #이름+코드(key,value)
+                "interval": interval,
+                "selected_buyTrading_logic": selected_buyTrading_logic,
+                "selected_sellTrading_logic": selected_sellTrading_logic,
+                "buy_condition_yn": buy_condition_yn,
+                "buy_percentage": buy_percentage,
+                "initial_capital": initial_capital,
+                "rsi_buy_threshold" : rsi_buy_threshold,
+                "rsi_sell_threshold" : rsi_sell_threshold,
+                "rsi_period" : rsi_period,
+                "use_take_profit": use_take_profit,
+                "take_profit_ratio": take_profit_ratio,
+                "use_stop_loss": use_stop_loss,
+                "stop_loss_ratio" : stop_loss_ratio 
+            }
+            st.success("✅ 설정이 저장되었습니다!")
+
+            # ✅ 저장된 설정 확인
+            if "my_page_settings" in st.session_state:
+                st.subheader("📌 저장된 설정값")
+                st.write(st.session_state["my_page_settings"])
 
             with st.spinner("📈 전체 종목 OHLC 및 지표 계산 중..."):
                 
@@ -1599,12 +1587,7 @@ def main():
                 else:
                     st.warning("⚠️ 시뮬레이션 결과가 없습니다.")
 
-
-    with tabs[3]:  # 🛠 마이페이지 설정
-        setup_my_page()            
-    
-
-    with tabs[4]:
+    with tabs[3]:
         st.header("🏠 Auto Trading Bot Balance")
         
         data = {
@@ -1654,7 +1637,7 @@ def main():
             update_mode=GridUpdateMode.NO_UPDATE  # ✅ 핵심! 클릭해도 아무 일 없음
         )
         
-    with tabs[5]:
+    with tabs[4]:
         
         st.header("Ranking")
         # CSV 파일 로드
