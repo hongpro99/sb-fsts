@@ -1447,13 +1447,15 @@ class AutoTradingBot:
             max_buy_amt = int(psbl_order_info['output']['nrcvb_buy_amt']) # 최대 매수 가능 금액
             max_buy_qty = int(psbl_order_info['output']['max_buy_qty'])      # 최대 매수 가능 수량
             print(f"max_buy_amt: {max_buy_amt}, max_buy_qty: {max_buy_qty}, target_trade_value_krw: {target_trade_value_krw}")
-            # ✅ 실제 매수 금액 결정 (요청 금액 vs 가능 금액 중 작은 값)
+            
+                # ✅ 매수 가능 금액이 50만원 미만이면 매수 생략
+            if max_buy_amt < 500_000:
+                print(f"[{datetime.now()}] 🚫 매수 생략: 매수 가능 금액이 50만원 미만 ({max_buy_amt:,}원)")
+                return
+    
             # ✅ 수수료 포함하여 수량 계산
             adjusted_price = float(quote.close) * (1 + 0.00014)  # 수수료 포함 단가
-            # 📌 adjusted_price에 여유를 추가 (0.5% 더)
-            #adjusted_price = float(quote.close) * (1 + 0.00014 + 0.005)
-            
-            
+
             # 1. 원래 요청 금액과 최대 가능 금액 중 작은 금액 선택
             actual_trade_value = min(target_trade_value_krw, max_buy_amt)
     

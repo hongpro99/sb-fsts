@@ -1233,6 +1233,13 @@ class TradingLogic:
 
         if 'Volume_MA5' not in df.columns:
             df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+            
+        # 🔧 EMA 기울기 추가 및 이동평균 계산
+        df['EMA_50_Slope'] = df['EMA_50'] - df['EMA_50'].shift(1)
+        df['EMA_60_Slope'] = df['EMA_60'] - df['EMA_60'].shift(1)
+
+        df['EMA_50_Slope_MA'] = df['EMA_50_Slope'].rolling(window=3).mean()
+        df['EMA_60_Slope_MA'] = df['EMA_60_Slope'].rolling(window=3).mean()
         
         last = df.iloc[-1]
         prev = df.iloc[-2]
@@ -1247,7 +1254,8 @@ class TradingLogic:
         # 조건 2: EMA_5이 EMA_20 상향 돌파
         cross_up = (
             prev['EMA_10'] < prev['EMA_20'] and
-            last['EMA_10'] > last['EMA_20']
+            last['EMA_10'] > last['EMA_20'] and
+            last['EMA_10'] > last['EMA_50'] > last['EMA_60']
         )
 
         # 조건 3: EMA 기울기 양수
@@ -1255,7 +1263,14 @@ class TradingLogic:
         ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema50_slope = last['EMA_50'] - prev['EMA_50']
         ema60_slope = last['EMA_60'] - prev['EMA_60']
+        
         slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
+        
+            # ✅ 조건 3-1: EMA_50, EMA_60 기울기 평균도 양수여야 함
+        slope_ma_up = (
+            last['EMA_50_Slope_MA'] > 0
+            and last['EMA_60_Slope_MA'] > 0
+        )
 
         # 조건 4: 거래량 증가
         volume_up = last['Volume'] > last['Volume_MA5']
@@ -1263,7 +1278,6 @@ class TradingLogic:
         
         # ❌ 조건 5: 당일 윗꼬리 음봉 제외, 윗꼬리 조건 강화
         is_bearish = last['Close'] < last['Open']
-        long_upper_shadow = is_bearish
         upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
         not_long_upper_shadow  = upper_shadow_ratio <= 0.8  # 윗꼬리 20% 이상이면 제외
         
@@ -1282,8 +1296,9 @@ class TradingLogic:
         # body_ratio = body_length / candle_range
         # body_sufficient = body_ratio >= 0.3
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and volume_up2 and not_long_upper_shadow
-        print(f"buy_signal: {buy_signal}")
+        buy_signal = cross_up and slope_up and volume_up and volume_up2 and not_long_upper_shadow and slope_ma_up and not is_bearish
+        print(f"EMA_50_Slope_MA: {last['EMA_50_Slope_MA']}")
+        print(f"EMA_60_Slope_MA: {last['EMA_60_Slope_MA']}")
         # 매매 사유 작성
         if buy_signal:
             reason = (
@@ -1293,7 +1308,7 @@ class TradingLogic:
                 f"[거래량] {last['Volume']:.0f} > 5일평균 {last['Volume_MA5']:.0f}"
             )
         else:
-            if long_upper_shadow:
+            if is_bearish:
                 reason = "❌ 당일 윗꼬리 음봉 → 매수 조건 탈락"
             else:
                 reason = "EMA 배열 돌파 조건 불충족"

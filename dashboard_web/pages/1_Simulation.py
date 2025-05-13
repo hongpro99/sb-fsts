@@ -354,7 +354,7 @@ def draw_lightweight_chart(data_df, selected_indicators):
             "type": 'Line',
             "data": ema_5,
             "options": {
-                "color": 'black', #빨간색
+                "color": 'black', #검은색
                 "lineWidth": 2,
                 "priceScaleId": "right",
                 "lastValueVisible": False,
@@ -869,15 +869,15 @@ def setup_simulation_tab():
     st.subheader("📊 차트 지표 선택")
     # 체크박스로 사용자 선택 받기
     selected_indicators = []
-    if st.checkbox("EMA 5", value=True):
+    if st.checkbox("EMA 5(검)", value=True):
         selected_indicators.append("ema_5")
-    if st.checkbox("EMA 10", value=True):
+    if st.checkbox("EMA 10(빨)", value=True):
         selected_indicators.append("ema_10")
-    if st.checkbox("EMA 20", value=True):
+    if st.checkbox("EMA 20(초)", value=True):
         selected_indicators.append("ema_20")
-    if st.checkbox("EMA 50", value=True):
+    if st.checkbox("EMA 50(파)", value=True):
         selected_indicators.append("ema_50")        
-    if st.checkbox("EMA 60", value=True):
+    if st.checkbox("EMA 60(청록)", value=True):
         selected_indicators.append("ema_60")
     if st.checkbox("SMA 5", value=False):
         selected_indicators.append("sma_5")
