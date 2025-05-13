@@ -8,3 +8,4 @@ python-dotenv
 langchain-mcp-adapters
 mcp[cli]
 pytz
+python-dotenv

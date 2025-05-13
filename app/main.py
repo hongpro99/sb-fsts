@@ -59,12 +59,12 @@ async def simulate_single_trade(data: SimulationTradingModel):
         buy_trading_logic=simulation_data["buy_trading_logic"],
         sell_trading_logic=simulation_data["sell_trading_logic"],
         interval=simulation_data["interval"],
-        buy_percentage=simulation_data["buy_percentage"],
+        buy_percentage=simulation_data.get("buy_percentage"),
         ohlc_mode = simulation_data["ohlc_mode"],
         rsi_buy_threshold= simulation_data['rsi_buy_threshold'],
         rsi_sell_threshold= simulation_data['rsi_sell_threshold'],
         rsi_period= simulation_data['rsi_period'],
-        initial_capital = simulation_data['initial_capital'],
+        initial_capital = simulation_data.get('initial_capital'),
         use_take_profit=simulation_data["use_take_profit"],
         take_profit_ratio=simulation_data["take_profit_ratio"],
         use_stop_loss=simulation_data["use_stop_loss"],
@@ -108,6 +108,8 @@ async def simulate_bulk_trade(data: SimulationTradingBulkModel):
         "failed_stocks": failed_stocks
     }
 
+    print(f'response_dict = {response_dict}')
+
     return response_dict
 
 
@@ -119,7 +121,7 @@ async def health_check():
 
 def save_json_to_s3(response_dict, bucket_name, folder_prefix="simulation-results/"):
 
-    s3_client = boto3.client('s3', endpoint_url='https://s3.ap-northeast-2.amazonaws.com')
+    s3_client = boto3.client('s3', region_name='ap-northeast-2', endpoint_url='https://s3.ap-northeast-2.amazonaws.com', config=boto3.session.Config(signature_version='s3v4'))
 
     # JSON 데이터를 메모리 스트림으로 변환
     json_bytes = BytesIO(json.dumps(response_dict, ensure_ascii=False, indent=4, default=str).encode('utf-8'))
@@ -154,7 +156,7 @@ def save_df_to_s3(data_df, bucket_name, folder_prefix="simulation-results/"):
     # S3 경로 생성
     s3_key = f"{folder_prefix}{key}.csv"
     
-    s3_client = boto3.client('s3', endpoint_url='https://s3.ap-northeast-2.amazonaws.com')
+    s3_client = boto3.client('s3', region_name='ap-northeast-2', endpoint_url='https://s3.ap-northeast-2.amazonaws.com', config=boto3.session.Config(signature_version='s3v4'))
     s3_client.put_object(
         Bucket=bucket_name,
         Key=s3_key,
