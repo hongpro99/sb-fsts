@@ -298,7 +298,7 @@ class AutoTradingBot:
 
         timestamps, ohlc, closes, previous_closes = [], [], [], []
         buy_signals, sell_signals = [], []
-  
+
         logic.trade_reasons = []
         recent_buy_prices = {'price': 0, 'timestamp': None}
 
@@ -427,23 +427,24 @@ class AutoTradingBot:
                     # 예수금 차감
                     if real_trading:
                         trading_history['initial_capital'] -= total_trade_cost
+                    if timestamp >= start_date:
+                        
+                        trading_history['history'].append({
+                            'position': 'BUY',
+                            'trading_logic': buy_logic_reasons,
+                            'price': close_price,
+                            'quantity': buy_quantity,
+                            'target_price': target_price,
+                            'stop_loss_price': float_stop_loss_price,
+                            'time': timestamp_iso
+                        })
 
-                    trading_history['history'].append({
-                        'position': 'BUY',
-                        'trading_logic': buy_logic_reasons,
-                        'price': close_price,
-                        'quantity': buy_quantity,
-                        'target_price': target_price,
-                        'stop_loss_price': float_stop_loss_price,
-                        'time': timestamp_iso
-                    })
-
-                    buy_signals.append((timestamp, close_price))
-                    recent_buy_prices.update({
-                        'price' : close_price,
-                        'timestamp' : timestamp_iso
-                    
-                    })
+                        buy_signals.append((timestamp, close_price))
+                        recent_buy_prices.update({
+                            'price' : close_price,
+                            'timestamp' : timestamp_iso
+                        
+                        })
                     print(f"매수 시점: {timestamp_iso}, 매수가: {close_price} KRW, 매수량: {buy_quantity}, 손절가격: {stop_loss_price}, 익절 가격: {target_price}")        
                 
             # 매도형 로직 처리
@@ -486,18 +487,20 @@ class AutoTradingBot:
 
                     if real_trading:
                         trading_history['initial_capital'] += total_sale_amount
+                        
+                    if timestamp >= start_date:
+                        
+                        trading_history['history'].append({
+                            'position': 'SELL',
+                            'trading_logic': sell_logic_reasons,
+                            'price': close_price,
+                            'quantity': sell_quantity,
+                            'time': timestamp_iso,
+                            'realized_pnl': realized_pnl,
+                            'realized_roi': float(realized_roi)
+                        })
 
-                    trading_history['history'].append({
-                        'position': 'SELL',
-                        'trading_logic': sell_logic_reasons,
-                        'price': close_price,
-                        'quantity': sell_quantity,
-                        'time': timestamp_iso,
-                        'realized_pnl': realized_pnl,
-                        'realized_roi': float(realized_roi)
-                    })
-
-                    sell_signals.append((timestamp, close_price))
+                        sell_signals.append((timestamp, close_price))
                     print(f"📉 매도 시점: {timestamp_iso}, 매도가: {close_price} KRW, 매도량: {sell_quantity}, "
                         f"매도금액: {total_sale_amount:,.0f} KRW, 매도 사유: {sell_logic_reasons}")
                 else:
