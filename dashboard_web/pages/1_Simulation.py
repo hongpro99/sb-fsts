@@ -852,7 +852,7 @@ def setup_simulation_tab():
     # ✅ 매수 퍼센트 입력
     initial_capital = None
     if real_trading_yn == "Y":
-        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000)
+        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10000000, step=1000000)
         
     use_take_profit = st.checkbox("익절 조건", value=False)
     take_profit_ratio = st.number_input("익절(%)", value=5.0, min_value=0.0,  key="take_profit_ratio")
