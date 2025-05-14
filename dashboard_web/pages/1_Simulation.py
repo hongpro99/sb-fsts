@@ -1392,8 +1392,11 @@ def main():
                 response = requests.post(url, json=payload).json()
                 print(response)
 
-                results = response['results']
-                failed_stocks = response['failed_stocks']
+                json_url = response['json_url']
+                json_data = read_json_from_presigned_url(json_url)
+
+                results = json_data['results']
+                failed_stocks = json_data['failed_stocks']
 
                 # results, failed_stocks = auto_trading_stock.simulate_trading_bulk(simulation_settings)
                 signal_logs = []

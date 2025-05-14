@@ -105,13 +105,17 @@ async def simulate_bulk_trade(data: SimulationTradingBulkModel):
     # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan).fillna(0)
     # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan)
 
-    response_dict = {
+    json_dict = {
         "results": results,
         # "data_df": data_df_cleaned.to_dict(orient="records") if hasattr(data_df_cleaned, "to_dict") else data_df_cleaned,
         "failed_stocks": failed_stocks
     }
 
-    print(f'response_dict = {response_dict}')
+    json_url = save_json_to_s3(json_dict, bucket_name="sb-fsts")
+
+    response_dict = {
+        "json_url": json_url
+    }
 
     return response_dict
 
