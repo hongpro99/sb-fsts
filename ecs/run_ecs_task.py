@@ -16,18 +16,16 @@ response = ecs.run_task(
             'assignPublicIp': 'ENABLED'  # 퍼블릭 접근 필요시
         }
     },
-    # overrides={
-    #     'containerOverrides': [
-    #         {
-    #             'name': 'fsts-ecs-container',
-    #             'environment': [
-    #                 {'name': 'JOB_ID', 'value': job_id},
-    #                 {'name': 'S3_INPUT_PATH', 'value': s3_input_path},
-    #                 {'name': 'CALLBACK_URL', 'value': callback_url},
-    #             ]
-    #         }
-    #     ]
-    # }
+    overrides={
+        'containerOverrides': [
+            {
+                'name': 'fsts-ecs-container',
+                'environment': [
+                    {'name': 'SIMULATION_DATA_S3_PATH', 'value': 'abc/de'},
+                ]
+            }
+        ]
+    }
 )
 
 print(response)

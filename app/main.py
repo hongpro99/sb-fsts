@@ -101,6 +101,10 @@ async def simulate_bulk_trade(data: SimulationTradingBulkModel):
     simulation_data["start_date"] = datetime.fromisoformat(simulation_data["start_date"])
     simulation_data["end_date"] = datetime.fromisoformat(simulation_data["end_date"])
 
+    key = uuid.uuid4()
+
+    json_url = save_json_to_s3(simulation_data, bucket_name="sb-fsts", save_path=f"simulation-results/{key}/simulation_data.json")
+
     results, failed_stocks = auto_trading_stock.simulate_trading_bulk(simulation_data)
     # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan).fillna(0)
     # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan)
@@ -111,7 +115,7 @@ async def simulate_bulk_trade(data: SimulationTradingBulkModel):
         "failed_stocks": failed_stocks
     }
 
-    json_url = save_json_to_s3(json_dict, bucket_name="sb-fsts")
+    json_url = save_json_to_s3(json_dict, bucket_name="sb-fsts", save_path=f"simulation-results/{key}/simulation_result.json")
 
     response_dict = {
         "json_url": json_url
@@ -126,17 +130,14 @@ async def health_check():
     return {"status": "healthy!!"}
 
 
-def save_json_to_s3(response_dict, bucket_name, folder_prefix="simulation-results/"):
+def save_json_to_s3(response_dict, bucket_name, save_path="simulation-results/"):
 
     s3_client = boto3.client('s3', region_name='ap-northeast-2', endpoint_url='https://s3.ap-northeast-2.amazonaws.com', config=boto3.session.Config(signature_version='s3v4'))
 
     # JSON 데이터를 메모리 스트림으로 변환
     json_bytes = BytesIO(json.dumps(response_dict, ensure_ascii=False, indent=4, default=str).encode('utf-8'))
 
-    # 업로드
-    key = uuid.uuid4()
-    # S3 경로 생성
-    s3_key = f"{folder_prefix}{key}.json"
+    s3_key = save_path
 
     s3_client.put_object(
         Bucket=bucket_name,
