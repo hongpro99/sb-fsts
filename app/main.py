@@ -2,6 +2,7 @@ import uuid
 from fastapi import FastAPI, HTTPException
 from typing import Optional
 from datetime import date, datetime, timedelta
+import pytz
 import asyncio
 import requests
 from contextlib import asynccontextmanager
@@ -19,6 +20,7 @@ from app.scheduler import auto_trading_scheduler
 from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.database import get_db, get_db_session
 from app.utils.crud_sql import SQLExecutor
+from ecs.run_ecs_task import run_ecs_task
 
 app = FastAPI() 
 
@@ -101,9 +103,19 @@ async def simulate_bulk_trade(data: SimulationTradingBulkModel):
     simulation_data["start_date"] = datetime.fromisoformat(simulation_data["start_date"])
     simulation_data["end_date"] = datetime.fromisoformat(simulation_data["end_date"])
 
-    key = uuid.uuid4()
+    kst = pytz.timezone('Asia/Seoul')
+    now = datetime.now(kst)
+    # 마이크로초를 문자열로 만들어서 앞에서 4자리만 사용
+    ms4 = f"{now.microsecond:06d}"[:4]
+    
+    timstamp_key = now.strftime("%Y%m%d_%H%M%S_") + ms4
+
+    key = f'{timstamp_key}_{str(uuid.uuid4()).replace('-', '')[:16]}'  # 16자리 예시
+    # key = str(uuid.uuid4())
 
     json_url = save_json_to_s3(simulation_data, bucket_name="sb-fsts", save_path=f"simulation-results/{key}/simulation_data.json")
+
+    run_ecs_task(json_url, s3_key=key)
 
     results, failed_stocks = auto_trading_stock.simulate_trading_bulk(simulation_data)
     # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan).fillna(0)

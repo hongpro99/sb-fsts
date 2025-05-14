@@ -10,8 +10,8 @@ response = ecs.register_task_definition(
     networkMode='awsvpc',
     cpu='1024',  # 1 vCPU
     memory='2048',  # 2 GB
-    executionRoleArn='arn:aws:iam::196441063343:role/ecsTaskExecutionRole',
-    taskRoleArn='arn:aws:iam::196441063343:role/ecsTaskExecutionRole',
+    executionRoleArn='arn:aws:iam::196441063343:role/sb-common-role',
+    taskRoleArn='arn:aws:iam::196441063343:role/sb-common-role',
     containerDefinitions=[
         {
             'name': 'fsts-ecs-container',
