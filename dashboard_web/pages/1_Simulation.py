@@ -926,6 +926,18 @@ def read_csv_from_presigned_url(presigned_url):
     csv_buffer = StringIO(response.text)
     df = pd.read_csv(csv_buffer)
     return df
+
+def read_json_from_presigned_url(presigned_url):
+    print(f"presigned_url = {presigned_url}")
+    
+    response = requests.get(presigned_url)
+    response.raise_for_status()  # 오류 발생 시 예외 발생
+    
+    # response.text 또는 response.json() 선택 가능
+    # 만약 JSON 파일 구조가 DataFrame으로 바로 변환 가능한 형식이면:
+    data = response.json()
+    
+    return data
                 
 def main():
     
@@ -1048,10 +1060,12 @@ def main():
                 response = requests.post(url, json=payload).json()
                 print(response)
 
-                data_url = response['data_url']
+                json_url = response['json_url']
+                json_data = read_json_from_presigned_url(json_url)
+                data_url = json_data['data_url']
                 data_df = read_csv_from_presigned_url(data_url)
-                trading_history = response['trading_history']
-                trade_reasons = response['trade_reasons']
+                trading_history = json_data['trading_history']
+                trade_reasons = json_data['trade_reasons']
 
                 #시뮬레이션 실행
                 # data_df, trading_history, trade_reasons = auto_trading_stock.simulate_trading(

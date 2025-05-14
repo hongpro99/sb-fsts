@@ -72,19 +72,22 @@ async def simulate_single_trade(data: SimulationTradingModel):
     )
 
     csv_url = save_df_to_s3(data_df, bucket_name="sb-fsts")
-    print(csv_url)
+
     # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan).fillna(0)
     # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan)
 
-    response_dict = {
+    json_dict = {
         "data_url": csv_url,
         # "data_df": data_df_cleaned.to_dict(orient="records") if hasattr(data_df_cleaned, "to_dict") else data_df_cleaned,
         "trading_history": trading_history,
         "trade_reasons": trade_reasons
     }
 
-    json_url = save_json_to_s3(response_dict, bucket_name="sb-fsts")
-    print(json_url)
+    json_url = save_json_to_s3(json_dict, bucket_name="sb-fsts")
+
+    response_dict = {
+        "json_url": json_url
+    }
 
     return response_dict
 
