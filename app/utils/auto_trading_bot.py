@@ -353,6 +353,7 @@ class AutoTradingBot:
                 'macd_histogram': self._convert_float(row['macd_histogram']),
                 'stochastic_k': self._convert_float(row['stochastic_k']),
                 'stochastic_d': self._convert_float(row['stochastic_d']),
+                'EMA_5': self._convert_float(row['EMA_5']),
                 'EMA_10': self._convert_float(row['EMA_10']),
                 'EMA_20': self._convert_float(row['EMA_20']),
                 'EMA_50': self._convert_float(row['EMA_50']),
@@ -1156,12 +1157,7 @@ class AutoTradingBot:
             max_allocation=max_allocation
         )
 
-
-        # 마지막 직전 봉 음봉, 양봉 계산
-        is_bearish_prev_candle = close_price < close_open_price  # 음봉 확인
-        is_bullish_prev_candle = close_price > close_open_price  # 양봉 확인
-
-        print(f'마지막 직전 봉 : {close_price - close_open_price}. 양봉 : {is_bullish_prev_candle}, 음봉 : {is_bearish_prev_candle}')
+        print(f'마지막 직전 봉 : {close_price - close_open_price}. buy_signal : {buy_signal}, 음봉 : {sell_signal}')
 
         return None
 
@@ -1267,8 +1263,10 @@ class AutoTradingBot:
 
         if buy_yn:
             order_type = 'buy'
+            print(f"현재 종목: {symbol}, order type: {order_type}")
+            
             # 매수 주문은 특정 로직에서만 실행
-            if trading_logic == 'trend_entry_trading' or trading_logic == 'ema_breakout_trading3':
+            if 'trend_entry_trading' in trading_logic or 'ema_breakout_trading3' in trading_logic:
                 self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
 
             position = 'BUY'
@@ -1439,34 +1437,39 @@ class AutoTradingBot:
         sell_price = None # 시장가 매도
 
         if order_type == 'buy':
-            psbl_order_info = self.inquire_psbl_order(symbol)
-            if psbl_order_info is None:
-                print(f"[{datetime.now()}] ❌ 주문가능금액 조회 실패")
-                return
+            if not self.virtual:
+                psbl_order_info = self.inquire_psbl_order(symbol)
+                if psbl_order_info is None:
+                    print(f"[{datetime.now()}] ❌ 주문가능금액 조회 실패")
+                    return
 
-            max_buy_amt = int(psbl_order_info['output']['nrcvb_buy_amt']) # 최대 매수 가능 금액
-            max_buy_qty = int(psbl_order_info['output']['max_buy_qty'])      # 최대 매수 가능 수량
-            print(f"max_buy_amt: {max_buy_amt}, max_buy_qty: {max_buy_qty}, target_trade_value_krw: {target_trade_value_krw}")
-            
-                # ✅ 매수 가능 금액이 50만원 미만이면 매수 생략
-            if max_buy_amt < 500_000:
-                print(f"[{datetime.now()}] 🚫 매수 생략: 매수 가능 금액이 50만원 미만 ({max_buy_amt:,}원)")
-                return
-    
-            # ✅ 수수료 포함하여 수량 계산
-            adjusted_price = float(quote.close) * (1 + 0.00014)  # 수수료 포함 단가
-
-            # 1. 원래 요청 금액과 최대 가능 금액 중 작은 금액 선택
-            actual_trade_value = min(target_trade_value_krw, max_buy_amt)
-    
-            if actual_trade_value == target_trade_value_krw:
-                qty = math.floor(actual_trade_value / adjusted_price)
-                #qty = qty - 1 #개수를 1개 줄여서 매수 실패 방지
-            else:
-                qty = max_buy_qty
-                qty = max(0, qty - 1) #개수를 1개 줄여서 매수 실패 방지
+                max_buy_amt = int(psbl_order_info['output']['nrcvb_buy_amt']) # 최대 매수 가능 금액
+                max_buy_qty = int(psbl_order_info['output']['max_buy_qty'])      # 최대 매수 가능 수량
+                print(f"max_buy_amt: {max_buy_amt}, max_buy_qty: {max_buy_qty}, target_trade_value_krw: {target_trade_value_krw}")
                 
-            
+                    # ✅ 매수 가능 금액이 50만원 미만이면 매수 생략
+                if max_buy_amt < 500_000:
+                    print(f"[{datetime.now()}] 🚫 매수 생략: 매수 가능 금액이 50만원 미만 ({max_buy_amt:,}원)")
+                    return
+    
+                # ✅ 수수료 포함하여 수량 계산
+                adjusted_price = float(quote.close) * (1 + 0.00014)  # 수수료 포함 단가
+
+                # 1. 원래 요청 금액과 최대 가능 금액 중 작은 금액 선택
+                actual_trade_value = min(target_trade_value_krw, max_buy_amt)
+        
+                if actual_trade_value == target_trade_value_krw:
+                    qty = math.floor(actual_trade_value / adjusted_price)
+                    #qty = qty - 1 #개수를 1개 줄여서 매수 실패 방지
+                else:
+                    qty = max_buy_qty
+                    qty = max(0, qty - 1) #개수를 1개 줄여서 매수 실패 방지
+                    
+            else:  # ✅ 모의투자인 경우 psbl 조회 건너뛰고 target_trade_value로만 계산
+                adjusted_price = float(quote.close) * (1 + 0.00014)
+                qty = math.floor(target_trade_value_krw / adjusted_price)
+                print(f"[{datetime.now()}] (모의투자) 계산된 매수 수량: {qty} (단가: {adjusted_price:.2f})")
+
             if qty <= 0:
                 print(f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}")
                 return
@@ -1657,3 +1660,77 @@ class AutoTradingBot:
         except requests.RequestException as e:
             print("❌ API 호출 실패:", e)
             return None
+        
+    def get_investor_trend_estimate(self, symbol):
+        """
+        한국투자증권 실전투자 API - 종목별 외인기관 추정가 집계 요청
+
+        Parameters:
+            symbol (str): 종목코드 (e.g. "005930")
+            access_token (str): 발급받은 OAuth Access Token
+            app_key (str): 발급받은 App Key
+            app_secret (str): 발급받은 App Secret
+
+        Returns:
+            dict: 응답 JSON 데이터
+            1: 09시 30분 입력
+            2: 10시 00분 입력
+            3: 11시 20분 입력
+            4: 13시 20분 입력
+            5: 14시 30분 입력
+        """
+
+        # 실전 투자용 도메인 및 URL
+        url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/quotations/investor-trend-estimate"
+
+        # HTTP Headers
+        headers = {
+            "content-type": "application/json; charset=utf-8",
+            "authorization": str(self.kis.token),
+            "appkey": self.app_key,
+            "appsecret": self.secret_key,
+            "tr_id": "HHPTJ04160200",
+            "custtype": "P",  # 개인 고객용
+        }
+
+        # Query Parameters
+        params = {
+            "MKSC_SHRN_ISCD": symbol  # 종목코드
+        }
+
+        # API 요청
+        response = requests.get(url, headers=headers, params=params)
+
+        # 결과 확인
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print("❌ 요청 실패:", response.status_code, response.text)
+            return None
+
+    def calculate_trade_value_from_fake_qty(self, api_response: dict, close_price: float, symbol) -> int:
+        """
+        종가 * sum_fake_ntby_qty(bsob_hour_gb = '3')로 거래대금을 계산
+
+        Parameters:
+            api_response (dict): API 응답 결과
+            close_price (float): 해당 시점의 종가
+
+        Returns:
+            int: 계산된 거래대금 (원 단위)
+        """
+        api_response = self.get_investor_trend_estimate(symbol)
+        try:
+            output2 = api_response.get("output2", [])
+            for item in output2:
+                if item.get("bsop_hour_gb") == "3":
+                    raw_qty = item.get("sum_fake_ntby_qty", "0")
+                    # 부호 처리 포함 정수 변환
+                    qty = int(raw_qty.replace("-", "-").lstrip("0") or "0")
+                    trade_value = qty * close_price
+                    return trade_value
+            print("❌ 'bsop_hour_gb' == '3' 항목을 찾을 수 없습니다.")
+            return 0
+        except Exception as e:
+            print(f"❌ 계산 오류: {e}")
+            return 0

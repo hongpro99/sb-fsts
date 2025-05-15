@@ -12,7 +12,8 @@ from pykis import KisBalance
 from app.utils.webhook import Webhook
 # db = get_db()
 sql_executor = SQLExecutor()
-
+#보조지표 클래스
+webhook = Webhook()
 
 def scheduled_trading_schedulerbot_task():
     scheduled_trading(id='schedulerbot', virtual= False, trading_bot_name = 'schedulerbot')
@@ -133,7 +134,10 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
                 print(f"❌ {symbol} 매도 실패: {e}")
                     
     print(f'------ {trading_bot_name}의 계좌 익절/손절이 완료되었습니다. 이제부터 주식 자동 트레이딩을 시작합니다!')            
-                    
+    webhook.send_discord_webhook(
+    f'----------------------- {trading_bot_name}의 계좌 익절/손절이 완료되었습니다. 이제부터 주식 자동 트레이딩을 시작합니다!',
+    "trading"
+    )
     #✅ enumerate로 종목 번호 부여 (1부터 시작)
     for i, stock in enumerate(sorted_result, start=1):
         symbol = stock.symbol

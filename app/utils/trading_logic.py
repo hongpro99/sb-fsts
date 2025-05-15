@@ -1255,7 +1255,7 @@ class TradingLogic:
         cross_up = (
             prev['EMA_10'] < prev['EMA_20'] and
             last['EMA_10'] > last['EMA_20'] and
-            last['EMA_10'] > last['EMA_50'] > last['EMA_60']
+            last['EMA_5'] > last['EMA_10'] > last['EMA_20']
         )
 
         # 조건 3: EMA 기울기 양수
@@ -1295,8 +1295,11 @@ class TradingLogic:
         # candle_range = last['High'] - last['Low'] + 1e-6
         # body_ratio = body_length / candle_range
         # body_sufficient = body_ratio >= 0.3
+        
+        #조건 6
+        prev_high_up = last['Close'] >= prev['High']
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and volume_up2 and not_long_upper_shadow and slope_ma_up and not is_bearish
+        buy_signal = cross_up and slope_up and not_long_upper_shadow and slope_ma_up and not is_bearish and volume_up and volume_up2 and prev_high_up
         print(f"EMA_50_Slope_MA: {last['EMA_50_Slope_MA']}")
         print(f"EMA_60_Slope_MA: {last['EMA_60_Slope_MA']}")
         # 매매 사유 작성
