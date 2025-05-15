@@ -2,6 +2,7 @@ import uuid
 from fastapi import FastAPI, HTTPException
 from typing import Optional
 from datetime import date, datetime, timedelta
+import pytz
 import asyncio
 import requests
 from contextlib import asynccontextmanager
@@ -19,6 +20,7 @@ from app.scheduler import auto_trading_scheduler
 from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.database import get_db, get_db_session
 from app.utils.crud_sql import SQLExecutor
+from ecs.run_ecs_task import run_ecs_task
 
 app = FastAPI() 
 
@@ -72,19 +74,22 @@ async def simulate_single_trade(data: SimulationTradingModel):
     )
 
     csv_url = save_df_to_s3(data_df, bucket_name="sb-fsts")
-    print(csv_url)
+
     # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan).fillna(0)
     # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan)
 
-    response_dict = {
+    json_dict = {
         "data_url": csv_url,
         # "data_df": data_df_cleaned.to_dict(orient="records") if hasattr(data_df_cleaned, "to_dict") else data_df_cleaned,
         "trading_history": trading_history,
         "trade_reasons": trade_reasons
     }
 
-    json_url = save_json_to_s3(response_dict, bucket_name="sb-fsts")
-    print(json_url)
+    json_url = save_json_to_s3(json_dict, bucket_name="sb-fsts")
+
+    response_dict = {
+        "json_url": json_url
+    }
 
     return response_dict
 
@@ -98,17 +103,35 @@ async def simulate_bulk_trade(data: SimulationTradingBulkModel):
     simulation_data["start_date"] = datetime.fromisoformat(simulation_data["start_date"])
     simulation_data["end_date"] = datetime.fromisoformat(simulation_data["end_date"])
 
+    kst = pytz.timezone('Asia/Seoul')
+    now = datetime.now(kst)
+    # 마이크로초를 문자열로 만들어서 앞에서 4자리만 사용
+    ms4 = f"{now.microsecond:06d}"[:4]
+    
+    timstamp_key = now.strftime("%Y%m%d_%H%M%S_") + ms4
+
+    key = f'{timstamp_key}_{str(uuid.uuid4()).replace('-', '')[:16]}'  # 16자리 예시
+    # key = str(uuid.uuid4())
+
+    json_url = save_json_to_s3(simulation_data, bucket_name="sb-fsts", save_path=f"simulation-results/{key}/simulation_data.json")
+
+    run_ecs_task(json_url, s3_key=key)
+
     results, failed_stocks = auto_trading_stock.simulate_trading_bulk(simulation_data)
     # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan).fillna(0)
     # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan)
 
-    response_dict = {
+    json_dict = {
         "results": results,
         # "data_df": data_df_cleaned.to_dict(orient="records") if hasattr(data_df_cleaned, "to_dict") else data_df_cleaned,
         "failed_stocks": failed_stocks
     }
 
-    print(f'response_dict = {response_dict}')
+    json_url = save_json_to_s3(json_dict, bucket_name="sb-fsts", save_path=f"simulation-results/{key}/simulation_result.json")
+
+    response_dict = {
+        "json_url": json_url
+    }
 
     return response_dict
 
@@ -119,17 +142,14 @@ async def health_check():
     return {"status": "healthy!!"}
 
 
-def save_json_to_s3(response_dict, bucket_name, folder_prefix="simulation-results/"):
+def save_json_to_s3(response_dict, bucket_name, save_path="simulation-results/"):
 
     s3_client = boto3.client('s3', region_name='ap-northeast-2', endpoint_url='https://s3.ap-northeast-2.amazonaws.com', config=boto3.session.Config(signature_version='s3v4'))
 
     # JSON 데이터를 메모리 스트림으로 변환
     json_bytes = BytesIO(json.dumps(response_dict, ensure_ascii=False, indent=4, default=str).encode('utf-8'))
 
-    # 업로드
-    key = uuid.uuid4()
-    # S3 경로 생성
-    s3_key = f"{folder_prefix}{key}.json"
+    s3_key = save_path
 
     s3_client.put_object(
         Bucket=bucket_name,
