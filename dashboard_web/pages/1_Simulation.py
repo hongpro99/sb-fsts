@@ -1354,7 +1354,7 @@ def main():
             # ✅ 저장된 설정 확인
             if "my_page_settings" in st.session_state:
                 st.subheader("📌 저장된 설정값")
-                st.write(st.session_state["my_page_settings"])
+                st.json(st.session_state["my_page_settings"], expanded=False)
 
             with st.spinner("📈 전체 종목 OHLC 및 지표 계산 중..."):
                 
