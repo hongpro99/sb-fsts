@@ -5,9 +5,12 @@ from io import StringIO, BytesIO
 import boto3
 import json
 from datetime import datetime
+from pytz import timezone
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
+from app.utils.dynamodb.crud import DynamoDBExecutor
 from app.utils.auto_trading_bot import AutoTradingBot
 
 
@@ -48,13 +51,35 @@ def save_json_to_s3(response_dict, bucket_name, save_path="simulation-results/")
 
 
 simulation_data_url = os.environ.get("SIMULATION_DATA_S3_PATH")
-key = os.environ.get("s3_key")
+simulation_id = os.environ.get("simulation_id")
+result_save_path = os.environ.get("result_save_path")
 
 simulation_data = read_json_from_presigned_url(simulation_data_url)
 
 auto_trading_stock = AutoTradingBot(id=simulation_data["user_id"], virtual=False)
 simulation_data["start_date"] = datetime.fromisoformat(simulation_data["start_date"])
 simulation_data["end_date"] = datetime.fromisoformat(simulation_data["end_date"])
+
+dynamodb_executor = DynamoDBExecutor()
+
+pk_name = 'simulation_id'
+
+# 한국 시간대
+kst = timezone("Asia/Seoul")
+# 현재 시간을 KST로 변환
+current_time = datetime.now(kst)
+updated_at = int(current_time.timestamp() * 1000)  # ✅ 밀리세컨드 단위로 SK 생성
+updated_at_dt = current_time.strftime("%Y-%m-%d %H:%M:%S")
+status = "running"
+
+data_model = SimulationHistory(
+    simulation_id=simulation_id,
+    updated_at=updated_at,
+    updated_at_dt=updated_at_dt,
+    status=status
+)
+
+result = dynamodb_executor.execute_update(data_model, pk_name)
 
 results, failed_stocks = auto_trading_stock.simulate_trading_bulk(simulation_data)
 
@@ -64,6 +89,23 @@ json_dict = {
     "failed_stocks": failed_stocks
 }
 
-simulation_result_json_url = save_json_to_s3(json_dict, bucket_name="sb-fsts", save_path=f"simulation-results/{key}/simulation_result.json")
+simulation_result_json_url = save_json_to_s3(json_dict, bucket_name="sb-fsts", save_path=result_save_path)
 
 print(f'simulation_result_json_url = {simulation_result_json_url}')
+
+# 한국 시간대
+kst = timezone("Asia/Seoul")
+# 현재 시간을 KST로 변환
+current_time = datetime.now(kst)
+updated_at = int(current_time.timestamp() * 1000)  # ✅ 밀리세컨드 단위로 SK 생성
+updated_at_dt = current_time.strftime("%Y-%m-%d %H:%M:%S")
+status = "completed"
+
+data_model = SimulationHistory(
+    simulation_id=simulation_id,
+    updated_at=updated_at,
+    updated_at_dt=updated_at_dt,
+    status=status
+)
+
+result = dynamodb_executor.execute_update(data_model, pk_name)

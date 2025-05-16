@@ -15,6 +15,7 @@ import json
 import numpy as np
 import plotly.express as px
 import requests
+import time
 
 # 프로젝트 루트를 PYTHONPATH에 추가
 #sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1321,6 +1322,9 @@ def main():
         rsi_sell_threshold = st.number_input("📈 RSI 매도 임계값", min_value=0, max_value=100, value=70, step=1, key = 'rsi_sell_threshold')
         rsi_period = st.number_input("📈 RSI 기간 설정", min_value=0, max_value=100, value=25, step=1, key = 'rsi_period')
 
+        # 시뮬레이션 polling request 여부 확인
+        polling_request = False
+
         if st.button("✅ 시뮬레이션 전체 실행"):
             
             # 설정 저장
@@ -1392,13 +1396,25 @@ def main():
                 response = requests.post(url, json=payload).json()
                 print(response)
 
-                json_url = response['json_url']
-                json_data = read_json_from_presigned_url(json_url)
+                simulation_id = response['simulation_id']
+                get_simulation_result_url = f"{backend_base_url}/stock/simulate/bulk/result"
+                result_presigned_url = None
+                
+                # polling 으로 현재 상태 확인
+                while True:
+                    params={"simulation_id": simulation_id}
+                    response = requests.get(get_simulation_result_url, params=params).json()
+                    print(response)
+                    if response["status"] == "completed":
+                        result_presigned_url = response["result_presigned_url"]
+                        break
+                    time.sleep(5)
+                
+                json_data = read_json_from_presigned_url(result_presigned_url)
 
                 results = json_data['results']
                 failed_stocks = json_data['failed_stocks']
 
-                # results, failed_stocks = auto_trading_stock.simulate_trading_bulk(simulation_settings)
                 signal_logs = []
 
                 if results:

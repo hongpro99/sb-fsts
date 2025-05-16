@@ -20,6 +20,7 @@ from app.scheduler import auto_trading_scheduler
 from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.database import get_db, get_db_session
 from app.utils.crud_sql import SQLExecutor
+from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
 from ecs.run_ecs_task import run_ecs_task
 
 app = FastAPI() 
@@ -108,29 +109,45 @@ async def simulate_bulk_trade(data: SimulationTradingBulkModel):
     # 마이크로초를 문자열로 만들어서 앞에서 4자리만 사용
     ms4 = f"{now.microsecond:06d}"[:4]
     
-    timstamp_key = now.strftime("%Y%m%d_%H%M%S_") + ms4
+    timestamp_key = now.strftime("%Y%m%d_%H%M%S_") + ms4
 
-    key = f'{timstamp_key}_{str(uuid.uuid4()).replace('-', '')[:16]}'  # 16자리 예시
+    key = f'{timestamp_key}_{str(uuid.uuid4()).replace("-", "")[:16]}'  # 16자리 예시
     # key = str(uuid.uuid4())
 
     json_url = save_json_to_s3(simulation_data, bucket_name="sb-fsts", save_path=f"simulation-results/{key}/simulation_data.json")
+    result_save_path = f"simulation-results/{key}/simulation_result.json"
 
-    run_ecs_task(json_url, s3_key=key)
-
-    results, failed_stocks = auto_trading_stock.simulate_trading_bulk(simulation_data)
-    # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan).fillna(0)
-    # data_df_cleaned = data_df.replace([np.inf, -np.inf], np.nan)
-
-    json_dict = {
-        "results": results,
-        # "data_df": data_df_cleaned.to_dict(orient="records") if hasattr(data_df_cleaned, "to_dict") else data_df_cleaned,
-        "failed_stocks": failed_stocks
-    }
-
-    json_url = save_json_to_s3(json_dict, bucket_name="sb-fsts", save_path=f"simulation-results/{key}/simulation_result.json")
+    result = run_ecs_task(simulation_data["user_id"], json_url, key, result_save_path)
 
     response_dict = {
-        "json_url": json_url
+        "simulation_id": key
+    }
+
+    return response_dict
+
+
+@app.get('/stock/simulate/bulk/result')
+async def get_simulation_bulk(simulation_id: str):
+
+    item = SimulationHistory.get(simulation_id)
+
+    result_presigned_url = ""
+    status = item.status
+
+    if status == "completed":
+        
+        s3_client = boto3.client('s3', region_name='ap-northeast-2', endpoint_url='https://s3.ap-northeast-2.amazonaws.com', config=boto3.session.Config(signature_version='s3v4'))
+        bucket_name="sb-fsts"
+        result_save_path = f"simulation-results/{simulation_id}/simulation_result.json"
+        result_presigned_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': bucket_name, 'Key': result_save_path},
+            ExpiresIn=3600
+        )
+
+    response_dict = {
+        "status": status,
+        "result_presigned_url": result_presigned_url
     }
 
     return response_dict

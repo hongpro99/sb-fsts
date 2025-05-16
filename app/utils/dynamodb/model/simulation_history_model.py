@@ -9,18 +9,13 @@ class SimulationHistory(Model):
         table_name = "fsts-simulation-history"
         region = "ap-northeast-2"
 
-    symbol = UnicodeAttribute(hash_key=True)  # ✅ PK
-    created_at = NumberAttribute(range_key=True)  # ✅ SK (밀리세컨드 단위)
+    simulation_id = UnicodeAttribute(hash_key=True)  # ✅ PK
+    created_at = NumberAttribute()
+    created_at_dt = UnicodeAttribute(null=True)
     updated_at = NumberAttribute(null=True)
-    average_price = NumberAttribute()
-    realized_pnl = NumberAttribute()
-    unrealized_pnl = NumberAttribute()
-    realized_roi = NumberAttribute()
-    unrealized_roi = NumberAttribute()
-    total_cost = NumberAttribute()
-    total_quantity = NumberAttribute()
-    buy_count = NumberAttribute()
-    sell_count = NumberAttribute()
-    buy_dates = UnicodeAttribute()
-    sell_dates = UnicodeAttribute()
-    history = UnicodeAttribute(null=True)
+    updated_at_dt = UnicodeAttribute(null=True)
+    type = UnicodeAttribute()
+    status = UnicodeAttribute()
+    trigger_user = UnicodeAttribute()
+    trigger_type = UnicodeAttribute()
+    description = UnicodeAttribute(null=True)
