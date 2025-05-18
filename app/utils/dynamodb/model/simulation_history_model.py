@@ -19,3 +19,5 @@ class SimulationHistory(Model):
     trigger_user = UnicodeAttribute()
     trigger_type = UnicodeAttribute()
     description = UnicodeAttribute(null=True)
+    total_task_cnt = NumberAttribute(null=True)
+    completed_task_cnt = NumberAttribute(null=True)

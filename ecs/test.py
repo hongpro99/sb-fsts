@@ -59,6 +59,7 @@ simulation_data = read_json_from_presigned_url(simulation_data_url)
 auto_trading_stock = AutoTradingBot(id=simulation_data["user_id"], virtual=False)
 simulation_data["start_date"] = datetime.fromisoformat(simulation_data["start_date"])
 simulation_data["end_date"] = datetime.fromisoformat(simulation_data["end_date"])
+simulation_data["simulation_id"] = simulation_id
 
 dynamodb_executor = DynamoDBExecutor()
 

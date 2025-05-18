@@ -611,7 +611,7 @@ class AutoTradingBot:
 
         symbols = valid_symbols
         target_ratio = simulation_settings.get("target_trade_value_ratio", None)  # None이면 직접 입력 방식
-        target_trade_value = simulation_settings["target_trade_value_krw"]
+        target_trade_value = simulation_settings.get("target_trade_value_krw")
         date_range = pd.date_range(start=simulation_settings["start_date"], end=simulation_settings["end_date"])
 
         global_state = {
@@ -646,8 +646,30 @@ class AutoTradingBot:
 
         date_range = sorted(list(all_dates))  # 날짜 정렬
 
+        # total count 반영
+        dynamodb_executor = DynamoDBExecutor()
+
+        pk_name = 'simulation_id'
+
+        # 한국 시간대
+        kst = timezone("Asia/Seoul")
+        # 현재 시간을 KST로 변환
+        current_time = datetime.now(kst)
+        updated_at = int(current_time.timestamp() * 1000)  # ✅ 밀리세컨드 단위로 SK 생성
+        updated_at_dt = current_time.strftime("%Y-%m-%d %H:%M:%S")
+        completed_task_cnt = 0
+
+        data_model = SimulationHistory(
+            simulation_id=simulation_settings['simulation_id'],
+            updated_at=updated_at,
+            updated_at_dt=updated_at_dt,
+            total_task_cnt=len(date_range)
+        )
+
+        result = dynamodb_executor.execute_update(data_model, pk_name)
+
         # ✅ 시뮬레이션 시작
-        for current_date in date_range:                                                                # ✅ 하루 기준 고정 portfolio_value 계산 (종목별 보유 상태 반영)
+        for current_date in date_range: # ✅ 하루 기준 고정 portfolio_value 계산 (종목별 보유 상태 반영)
             portfolio_value_fixed = global_state["initial_capital"] + sum(
                 holding_state[symbol]["total_quantity"] * simulation_settings["precomputed_df_dict"][symbol].loc[current_date]["Close"]
                 for symbol in symbols.values()
@@ -715,6 +737,18 @@ class AutoTradingBot:
                 except Exception as e:
                     print(f'{stock_name} 시뮬레이션 실패. 사유 : {str(e)}')
                     failed_stocks.add(stock_name)
+            
+            # completed_task_cnt 반영
+            completed_task_cnt = completed_task_cnt + 1
+            data_model = SimulationHistory(
+                simulation_id=simulation_settings['simulation_id'],
+                updated_at=updated_at,
+                updated_at_dt=updated_at_dt,
+                completed_task_cnt=completed_task_cnt
+            )
+
+            result = dynamodb_executor.execute_update(data_model, pk_name)
+
         
         return results, failed_stocks
 

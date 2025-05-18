@@ -133,6 +133,8 @@ async def get_simulation_bulk(simulation_id: str):
 
     result_presigned_url = ""
     status = item.status
+    total_task_cnt = item.total_task_cnt
+    completed_task_cnt = item.completed_task_cnt
 
     if status == "completed":
         
@@ -147,6 +149,8 @@ async def get_simulation_bulk(simulation_id: str):
 
     response_dict = {
         "status": status,
+        "total_task_cnt": total_task_cnt,
+        "completed_task_cnt": completed_task_cnt,
         "result_presigned_url": result_presigned_url
     }
 

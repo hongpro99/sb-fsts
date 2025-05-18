@@ -66,6 +66,8 @@ def _save_trading_history(user_id: str, simulation_id: str):
         status = 'starting' # starting, running, completed
         trigger_type = 'manual' # manual, auto
         description = None
+        total_task_cnt = 0
+        completed_task_cnt = 0
 
         data_model = SimulationHistory(
             simulation_id=simulation_id,
@@ -77,7 +79,9 @@ def _save_trading_history(user_id: str, simulation_id: str):
             status=status,
             trigger_user=user_id,
             trigger_type=trigger_type,
-            description=description
+            description=description,
+            total_task_cnt=total_task_cnt,
+            completed_task_cnt=completed_task_cnt
         )
 
         result = dynamodb_executor.execute_save(data_model)
