@@ -117,7 +117,7 @@ async def simulate_bulk_trade(data: SimulationTradingBulkModel):
     json_url = save_json_to_s3(simulation_data, bucket_name="sb-fsts", save_path=f"simulation-results/{key}/simulation_data.json")
     result_save_path = f"simulation-results/{key}/simulation_result.json"
 
-    result = run_ecs_task(simulation_data["user_id"], json_url, key, result_save_path)
+    result = run_ecs_task(simulation_data, json_url, key, result_save_path)
 
     response_dict = {
         "simulation_id": key

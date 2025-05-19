@@ -6,9 +6,11 @@ from app.utils.dynamodb.crud import DynamoDBExecutor
 from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
 
 
-def run_ecs_task(user_id: str, SIMULATION_DATA_S3_PATH: str, simulation_id: str, result_save_path:str):
+def run_ecs_task(simulation_data: str, SIMULATION_DATA_S3_PATH: str, simulation_id: str, result_save_path:str):
 
     ecs = boto3.client('ecs', region_name='ap-northeast-2')
+    user_id = simulation_data['user_id']
+    initial_capital = simulation_data['initial_capital']
 
     response = ecs.list_task_definitions(familyPrefix='sb-fsts-td', sort='DESC', maxResults=1)
     latest_def = response['taskDefinitionArns'][0]
@@ -38,12 +40,12 @@ def run_ecs_task(user_id: str, SIMULATION_DATA_S3_PATH: str, simulation_id: str,
         }
     )
 
-    _save_trading_history(user_id, simulation_id)
+    _save_trading_history(user_id, simulation_id, initial_capital)
 
     print(response)
 
 
-def _save_trading_history(user_id: str, simulation_id: str):
+def _save_trading_history(user_id: str, simulation_id: str, initial_capital: float):
         """
         trading_history 데이터를 DB에 저장하는 함수 (sql_executor 사용)
         
@@ -81,7 +83,8 @@ def _save_trading_history(user_id: str, simulation_id: str):
             trigger_type=trigger_type,
             description=description,
             total_task_cnt=total_task_cnt,
-            completed_task_cnt=completed_task_cnt
+            completed_task_cnt=completed_task_cnt,
+            initial_capital=initial_capital
         )
 
         result = dynamodb_executor.execute_save(data_model)
