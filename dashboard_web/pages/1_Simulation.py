@@ -1588,45 +1588,49 @@ def main():
                 }
 
                 response = requests.post(url, json=payload).json()
-                print(response)
-
+                simulation_id = None
                 simulation_id = response['simulation_id']
-                get_simulation_result_url = f"{backend_base_url}/stock/simulate/bulk/result"
-                result_presigned_url = None
 
-                # 프로그레스 바 초기화
-                progress_bar = st.progress(0)
-                progress_text = st.empty()  # 숫자 출력을 위한 공간
+                if simulation_id is not None:
+                    st.success(f"시뮬레이션 요청 성공! simulation id : {simulation_id}")
+                else:
+                    st.warning("⚠️ 시뮬레이션 요청에 실패했습니다.")
+                # get_simulation_result_url = f"{backend_base_url}/stock/simulate/bulk/result"
+                # result_presigned_url = None
+
+                # # 프로그레스 바 초기화
+                # progress_bar = st.progress(0)
+                # progress_text = st.empty()  # 숫자 출력을 위한 공간
                 
-                # polling 으로 현재 상태 확인
-                while True:
-                    params={"simulation_id": simulation_id}
-                    response = requests.get(get_simulation_result_url, params=params).json()
-                    print(response)
+                # # polling 으로 현재 상태 확인
+                # while True:
+                #     params={"simulation_id": simulation_id}
+                #     response = requests.get(get_simulation_result_url, params=params).json()
+                #     print(response)
 
-                    total_task_cnt = response["total_task_cnt"]
-                    completed_task_cnt = response["completed_task_cnt"]
+                #     total_task_cnt = response["total_task_cnt"]
+                #     completed_task_cnt = response["completed_task_cnt"]
 
-                    if total_task_cnt == 0:
-                        total_task_cnt = 10000 # 임시
+                #     if total_task_cnt == 0:
+                #         total_task_cnt = 10000 # 임시
 
-                    progress_bar.progress(completed_task_cnt / total_task_cnt)
-                    progress_text.text(f"{completed_task_cnt} / {total_task_cnt} 완료")
+                #     progress_bar.progress(completed_task_cnt / total_task_cnt)
+                #     progress_text.text(f"{completed_task_cnt} / {total_task_cnt} 완료")
 
-                    if response["status"] == "completed":
-                        result_presigned_url = response["result_presigned_url"]
-                        break
+                #     if response["status"] == "completed":
+                #         result_presigned_url = response["result_presigned_url"]
+                #         break
 
-                    time.sleep(5)
+                #     time.sleep(5)
 
-                st.success("모든 작업 완료!")
+                # st.success("모든 작업 완료!")
                 
-                json_data = read_json_from_presigned_url(result_presigned_url)
+                # json_data = read_json_from_presigned_url(result_presigned_url)
 
-                results = json_data['results']
-                failed_stocks = json_data['failed_stocks']
+                # results = json_data['results']
+                # failed_stocks = json_data['failed_stocks']
 
-                draw_bulk_simulation_result(simulation_settings, results, failed_stocks)
+                # draw_bulk_simulation_result(simulation_settings, results, failed_stocks)
     
     with tabs[3]:
         st.header("🏠 Simulation Result")
