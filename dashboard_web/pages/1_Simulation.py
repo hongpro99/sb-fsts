@@ -1444,7 +1444,7 @@ def main():
                     reorder_columns = [
                         "sim_date", "symbol", "initial_capital", "portfolio_value", "buy_count", "sell_count", "quantity",
                         "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi",
-                        "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", 'buy_logic_count', "signal_reasons", "total_buy_cost", "history"
+                        "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", 'buy_logic_count', "signal_reasons", "total_buy_cost", "history" , "buy_logic_reasons"
                     ]
                     results_df = results_df[[col for col in reorder_columns if col in results_df.columns]]
 

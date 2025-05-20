@@ -40,35 +40,54 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     # 잔고 조회 여기에 추가
     trading_bot = AutoTradingBot(id=id, virtual=virtual)
     print(f"{trading_bot_name}의 자동 트레이딩을 시작합니다")
-    
-    # sql_executor = SQLExecutor()
-
-    # query = """
-    #     SELECT 종목코드, 종목이름 FROM fsts.kospi200;
-    # """
-
-    # params = {
-    # }
-
-    # with get_db_session() as db:
-    #     result = sql_executor.execute_select(db, query, params)
-
-    # result = list(StockSymbol.scan(
-    #     filter_condition=((StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'kospi200'))
-    # )) #scan은 랜덤, 정렬 불가 -> 종목 순서 기준은 추후 검토
-    
-    result = list(StockSymbol.scan(
-        filter_condition=((StockSymbol.type == 'kosdaq150'))
-    )) #scan은 랜덤, 정렬 불가 -> 종목 순서 기준은 추후 검토
-    
-    sorted_result = sorted(
-        result,
-        key=lambda x: (x.type, x.symbol_name)
-    )
 
     # 당일로부터 1년전 기간으로 차트 분석
     end_date = date.today()
     start_date = end_date - timedelta(days=180)
+    interval = "day"
+    
+        # ✅ 코스닥150 종목 가져오기
+    result = list(StockSymbol.scan(
+        filter_condition=(StockSymbol.type == 'kosdaq150')
+    ))
+
+    # ✅ 거래대금 기준 정렬 함수
+    def get_estimated_trade_value(stock):
+        try:
+            symbol = stock.symbol
+
+            # OHLC 데이터 가져오기 (최신 종가용)
+            ohlc_data = trading_bot._get_ohlc(symbol, start_date, end_date, interval)
+            if not ohlc_data:
+                print(f"❌ {symbol} OHLC 데이터 없음")
+                return -1
+
+            # 가장 마지막 종가
+            last_candle = ohlc_data[-1]
+            close_price = last_candle.close
+
+            # 외국인+기관 순매수 기반 거래대금 계산
+            trade_value = trading_bot.calculate_trade_value_from_fake_qty(
+                api_response=None,  # 내부에서 API 호출함
+                close_price=close_price,
+                symbol=symbol
+            )
+
+            print(f"📊 {stock.symbol_name} | 종가: {close_price:,} | 예상 거래대금: {trade_value:,}원")
+            return trade_value
+        except Exception as e:
+            print(f"❌ {stock.symbol} 거래대금 계산 실패: {e}")
+            return -1
+
+    # ✅ 거래대금 기준 내림차순 정렬
+    sorted_result = sorted(
+        result,
+        key=lambda stock: get_estimated_trade_value(stock),
+        reverse=True
+    )
+
+    print(f"sorted_result : {sorted_result}")
+    print(f"개수 : {len(sorted_result)}")
     
     #target_trade_value_krw = 100000
     
@@ -175,7 +194,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
                     print(f"Skipping {symbol_name} after {max_retries} failed attempts.")
                     
     trading_bot._upsert_account_balance(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨
-    #trading_bot.update_roi(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨
+    trading_bot.update_roi(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨
 
 
 def scheduled_single_buy_task():

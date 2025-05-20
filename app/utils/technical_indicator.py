@@ -176,7 +176,7 @@ class TechnicalIndicator:
         return df
 
 
-    def cal_ema_df(self, df, period, round_digits=1):
+    def cal_ema_df(self, df, period, round_digits=0):
         """
             DataFrame에서 EMA(지수이동평균)를 계산하여 추가합니다.
             :param df: 입력 DataFrame
@@ -189,7 +189,7 @@ class TechnicalIndicator:
         
         ema_column_name = f'EMA_{period}'
         
-        df[ema_column_name] = df['Close'].ewm(span=period, adjust=False).mean()
+        df[ema_column_name] = df['Close'].ewm(span=period, adjust=True).mean()
         df[ema_column_name] = df[ema_column_name].round(round_digits)
         
         return df

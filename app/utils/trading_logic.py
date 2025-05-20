@@ -1080,13 +1080,13 @@ class TradingLogic:
         
         # ✅ 추가 조건 6: 당일 종가가 전일 종가 대비 15% 이상 상승
         price_increase_ratio = (close_price - float(prev['Close'])) / float(prev['Close'])
-        price_up_15 = price_increase_ratio <= 0.03 # 5퍼센트 미만만 사도록
+        price_up3_to_15 = 0.03 <= price_increase_ratio < 0.15 # 3퍼센트에서 15퍼센트 사도록 수정
         # #✅ 조건 5: 고가 대비 종가 차이 10% 미만
         # high_close_diff_ratio = (last['High'] - last['Close']) / last['High']
         # not_big_gap_from_high = high_close_diff_ratio < 0.10
         
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and volume_up2 and not_long_upper_shadow and price_up_15
+        buy_signal = cross_up and slope_up and volume_up and not long_upper_shadow and volume_up2 and not_long_upper_shadow and price_up3_to_15
 
         # 매매 사유 작성
         if buy_signal:
@@ -1238,8 +1238,8 @@ class TradingLogic:
         df['EMA_50_Slope'] = df['EMA_50'] - df['EMA_50'].shift(1)
         df['EMA_60_Slope'] = df['EMA_60'] - df['EMA_60'].shift(1)
 
-        df['EMA_50_Slope_MA'] = df['EMA_50_Slope'].rolling(window=3).mean()
-        df['EMA_60_Slope_MA'] = df['EMA_60_Slope'].rolling(window=3).mean()
+        df['EMA_50_Slope_MA'] = df['EMA_50_Slope'].rolling(window=5).mean()
+        df['EMA_60_Slope_MA'] = df['EMA_60_Slope'].rolling(window=5).mean()
         
         last = df.iloc[-1]
         prev = df.iloc[-2]
@@ -1298,8 +1298,9 @@ class TradingLogic:
         
         #조건 6
         prev_high_up = last['Close'] >= prev['High']
+        
         # 최종 조건
-        buy_signal = cross_up and slope_up and not_long_upper_shadow and slope_ma_up and not is_bearish and volume_up and volume_up2 and prev_high_up
+        buy_signal = cross_up and slope_up and not_long_upper_shadow and slope_ma_up and not is_bearish and volume_up and prev_high_up
         print(f"EMA_50_Slope_MA: {last['EMA_50_Slope_MA']}")
         print(f"EMA_60_Slope_MA: {last['EMA_60_Slope_MA']}")
         # 매매 사유 작성

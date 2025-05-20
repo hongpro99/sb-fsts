@@ -326,7 +326,7 @@ class AutoTradingBot:
         df = indicator.cal_stochastic_df(df)
         df = indicator.cal_mfi_df(df)
         df = indicator.cal_bollinger_band(df)
-        #print(f"timestamp: {timestamp}, bollinger_upper_band : {df['BB_Upper']}")
+        
         
         for i in range(len(df)):
             timestamp = df.index[i]
@@ -340,7 +340,8 @@ class AutoTradingBot:
             volume = float(row["Volume"])
             timestamp_iso = timestamp.isoformat()
             timestamp_str = timestamp.date().isoformat()
-
+            
+            print(f"timestamp: {timestamp}, EMA_10 : {df['EMA_10']}")
             trade_entry = {
                 'symbol': symbol,
                 'Time': timestamp,
@@ -948,9 +949,6 @@ class AutoTradingBot:
         unrealized_roi = (unrealized_pnl / total_cost) * 100 if total_cost > 0 else 0
         realized_roi = (realized_pnl / total_cost) * 100 if realized_pnl and total_cost > 0 else 0
 
-        # print(f"📅 {timestamp_str} 기준 Portfolio Value: {fixed_portfolio_value:,.0f}원 "
-        # f"(Initial: {trading_history['initial_capital']:,.0f}원, "
-        # f"Unrealized PnL: {unrealized_pnl:,.0f}원)")
         print(f"🛠️ BUY CHECK | {symbol} @ {timestamp_str} | buy_signal: {buy_signal}, trade_amount: {trade_amount}")
         # ✅ 상태 업데이트
         state.update({
@@ -981,6 +979,7 @@ class AutoTradingBot:
             'sell_dates': trading_history['sell_dates'],
             'buy_signal': buy_signal,
             'sell_signal': sell_signal,
+            'buy_logic_reasons': buy_logic_reasons,
             'signal_reasons': signal_reasons,
             'take_profit_hit': take_profit_hit,
             'stop_loss_hit': stop_loss_hit,
@@ -1191,7 +1190,7 @@ class AutoTradingBot:
             max_allocation=max_allocation
         )
 
-        print(f'마지막 직전 봉 : {close_price - close_open_price}. buy_signal : {buy_signal}, 음봉 : {sell_signal}')
+        print(f' buy_signal : {buy_signal}, sell_signal : {sell_signal}')
 
         return None
 
@@ -1744,7 +1743,7 @@ class AutoTradingBot:
 
     def calculate_trade_value_from_fake_qty(self, api_response: dict, close_price: float, symbol) -> int:
         """
-        종가 * sum_fake_ntby_qty(bsob_hour_gb = '3')로 거래대금을 계산
+        종가 * sum_fake_ntby_qty(bsob_hour_gb = '5')로 거래대금을 계산
 
         Parameters:
             api_response (dict): API 응답 결과
@@ -1757,13 +1756,13 @@ class AutoTradingBot:
         try:
             output2 = api_response.get("output2", [])
             for item in output2:
-                if item.get("bsop_hour_gb") == "3":
-                    raw_qty = item.get("sum_fake_ntby_qty", "0")
+                if item.get("bsop_hour_gb") == "5":
+                    raw_qty = item.get("sum_fake_ntby_qty", "0") #만약 key값이 없다면 0으로 반환
                     # 부호 처리 포함 정수 변환
                     qty = int(raw_qty.replace("-", "-").lstrip("0") or "0")
                     trade_value = qty * close_price
                     return trade_value
-            print("❌ 'bsop_hour_gb' == '3' 항목을 찾을 수 없습니다.")
+            
             return 0
         except Exception as e:
             print(f"❌ 계산 오류: {e}")
