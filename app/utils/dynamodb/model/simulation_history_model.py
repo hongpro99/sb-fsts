@@ -21,3 +21,4 @@ class SimulationHistory(Model):
     description = UnicodeAttribute(null=True)
     total_task_cnt = NumberAttribute(null=True)
     completed_task_cnt = NumberAttribute(null=True)
+    initial_capital = NumberAttribute(null=True)
