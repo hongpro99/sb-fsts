@@ -17,8 +17,6 @@ import plotly.express as px
 import requests
 import time
 
-from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
-
 # 프로젝트 루트를 PYTHONPATH에 추가
 #sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -29,6 +27,7 @@ from app.utils.database import get_db, get_db_session
 from app.utils.trading_logic import TradingLogic
 from app.utils.dynamodb.model.stock_symbol_model import StockSymbol, StockSymbol2
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
+from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
 from app.utils.dynamodb.model.user_info_model import UserInfo
 from app.utils.dynamodb.model.auto_trading_balance_model import AutoTradingBalance
 from app.utils.technical_indicator import TechnicalIndicator
@@ -1272,27 +1271,6 @@ def main():
                 trading_history = json_data['trading_history']
                 trade_reasons = json_data['trade_reasons']
 
-                #시뮬레이션 실행
-                # data_df, trading_history, trade_reasons = auto_trading_stock.simulate_trading(
-                #     symbol=sidebar_settings["symbol"],
-                #     start_date=sidebar_settings["start_date"],
-                #     end_date=sidebar_settings["end_date"],
-                #     target_trade_value_krw=sidebar_settings["target_trade_value_krw"],
-                #     buy_trading_logic=sidebar_settings["buy_trading_logic"],
-                #     sell_trading_logic=sidebar_settings["sell_trading_logic"],
-                #     interval=sidebar_settings["interval"],
-                #     buy_percentage=sidebar_settings["buy_percentage"],
-                #     ohlc_mode = sidebar_settings["ohlc_mode"],
-                #     rsi_buy_threshold= sidebar_settings['rsi_buy_threshold'],
-                #     rsi_sell_threshold= sidebar_settings['rsi_sell_threshold'],
-                #     rsi_period= sidebar_settings['rsi_period'],
-                #     initial_capital = sidebar_settings['initial_capital'],
-                #     use_take_profit=sidebar_settings["use_take_profit"],
-                #     take_profit_ratio=sidebar_settings["take_profit_ratio"],
-                #     use_stop_loss=sidebar_settings["use_stop_loss"],
-                #     stop_loss_ratio=sidebar_settings["stop_loss_ratio"]
-                # )
-                # 시뮬레이션 결과를 session_state에 저장
                 simulation_result = {
                     "data_df": data_df,
                     "trading_history": trading_history,
@@ -1303,7 +1281,6 @@ def main():
             data_df = result["data_df"]
             trading_history = result["trading_history"]
             trade_reasons = result["trade_reasons"]
-            
             
             # CSV 다운로드 버튼 - trade_reasons DataFrame 생성 후 다운로드
             if trade_reasons:
