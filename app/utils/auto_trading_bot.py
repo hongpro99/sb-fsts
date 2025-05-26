@@ -327,6 +327,13 @@ class AutoTradingBot:
         df = indicator.cal_mfi_df(df)
         df = indicator.cal_bollinger_band(df)
         
+                # 🔧 EMA 기울기 추가 및 이동평균 계산
+        df['EMA_50_Slope'] = df['EMA_50'] - df['EMA_50'].shift(1)
+        df['EMA_60_Slope'] = df['EMA_60'] - df['EMA_60'].shift(1)
+
+        df['EMA_50_Slope_MA'] = df['EMA_50_Slope'].rolling(window=3).mean()
+        df['EMA_60_Slope_MA'] = df['EMA_60_Slope'].rolling(window=3).mean()
+        
         
         for i in range(len(df)):
             timestamp = df.index[i]
@@ -364,7 +371,9 @@ class AutoTradingBot:
                 'SMA_40': self._convert_float(row['SMA_40']),
                 'BB_Upper': self._convert_float(row['BB_Upper']),
                 'BB_Middle': self._convert_float(row['BB_Middle']),
-                'BB_Lower': self._convert_float(row['BB_Lower'])
+                'BB_Lower': self._convert_float(row['BB_Lower']),
+                'EMA_50_Slope_MA': self._convert_float(row['EMA_50_Slope_MA']),
+                'EMA_60_Slope_MA': self._convert_float(row['EMA_60_Slope_MA'])
             }
             logic.trade_reasons.append(trade_entry)
 
@@ -382,7 +391,7 @@ class AutoTradingBot:
                     ohlc_df=current_df,
                     trade_type='BUY'
                 )
-                
+            
             # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
             #if buy_yn and d_1 is not None and volume > d_1.volume and d_1.volume > avg_volume_20_days:
             if len(buy_logic_reasons) > 0: # 일단 매수 거래량 조건 제거
@@ -559,7 +568,8 @@ class AutoTradingBot:
         start_date = simulation_settings["start_date"] - timedelta(days=180)
         end_date = simulation_settings["end_date"]
         interval = simulation_settings["interval"]
-
+        
+        failed_stocks = set()  # 중복 제거 자동 처리
         auto_trading_stock = AutoTradingBot(id=simulation_settings["user_id"], virtual=False)
 
         for stock_name, symbol in simulation_settings["selected_symbols"].items():
@@ -604,6 +614,7 @@ class AutoTradingBot:
             except Exception as e:
                 # 지표 계산에 실패한 종목 리스트
                 print(f'{stock_name} 지표 계산 실패. 사유 : {str(e)}')
+                failed_stocks.add(stock_name)
                         
         # ✅ 세션 상태에 저장
         simulation_settings["selected_symbols"] = valid_symbols
@@ -899,6 +910,7 @@ class AutoTradingBot:
                 trade_quantity = total_quantity
                 trading_history['sell_dates'].append(timestamp_str)
                 state['sell_dates'].append(timestamp_str)
+                signal_reasons.append(sell_logic_reasons)
 
         # ✅ 평가 자산 기반 거래 금액 계산
         stock_value = total_quantity * close_price
@@ -926,6 +938,8 @@ class AutoTradingBot:
 
         # ✅ 매수 조건 통과 시
         if buy_signal:
+            buy_logic_count = 1 # 매수로직 개수
+            
             buy_qty = math.floor(trade_amount / close_price)
 
             if buy_qty > 0:
@@ -948,7 +962,8 @@ class AutoTradingBot:
         unrealized_pnl = (close_price - avg_price) * total_quantity if total_quantity > 0 else 0
         unrealized_roi = (unrealized_pnl / total_cost) * 100 if total_cost > 0 else 0
         realized_roi = (realized_pnl / total_cost) * 100 if realized_pnl and total_cost > 0 else 0
-
+        
+        print(f"buy_logic_count : {buy_logic_count}")
         print(f"🛠️ BUY CHECK | {symbol} @ {timestamp_str} | buy_signal: {buy_signal}, trade_amount: {trade_amount}")
         # ✅ 상태 업데이트
         state.update({
@@ -1053,6 +1068,7 @@ class AutoTradingBot:
         df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
 
         # 지표 계산 (전체 df에 대해)
+        df = indicator.cal_ema_df(df, 5)
         df = indicator.cal_ema_df(df, 10)
         df = indicator.cal_ema_df(df, 20)
         df = indicator.cal_ema_df(df, 50)
@@ -1243,6 +1259,10 @@ class AutoTradingBot:
                     
                 elif trading_logic == 'anti_retail_ema_entry':
                     buy_yn, _ = logic.anti_retail_ema_entry(ohlc_df)
+                    
+                elif trading_logic == 'trendline_breakout_trading':
+                    buy_yn, _ = logic.trendline_breakout_trading(ohlc_df, symbol)
+                    
                     
                 if buy_yn:
                     signal_reasons.append(trading_logic)

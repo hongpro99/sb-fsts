@@ -1,2 +1,2 @@
 export ENV=local
-uvicorn app.main:app --host 0.0.0.0 --port 7001
+uvicorn app.main:app --host 0.0.0.0 --port 7003

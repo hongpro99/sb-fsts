@@ -142,7 +142,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
                 print(f"✅ {symbol} {reason} 조건 충족 -> 매도 실행 ")
                 trading_bot._trade_place_order(
                     symbol=symbol,
-                    symbol_name=symbol,
+                    symbol_name=symbol_name,
                     target_trade_value_krw=None,
                     order_type="sell",
                     max_allocation=1,

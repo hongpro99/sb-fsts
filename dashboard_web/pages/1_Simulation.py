@@ -732,6 +732,8 @@ def rename_tradingLogic(trade_history):
             entry['trading_logic'] =  '지지선'
         elif entry.get('trading_logic') == 'anti_retail_ema_entry':
             entry['trading_logic'] =  '반개미'                                                                                                                                                                            
+        elif entry.get('trading_logic') == 'trendline_breakout_trading':
+            entry['trading_logic'] =  '고점 돌파'            
             
 def login_page():
     """
@@ -969,10 +971,24 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
         # st.subheader("📋 시뮬레이션 결과 테이블")
         # st.dataframe(results_df, use_container_width=True)
 
-        # 🔔 매수/매도 신호 발생 테이블
         signal_logs = []
         for row in results:
-            reasons = ", ".join(row.get("signal_reasons", []))
+            raw_reasons = row.get("signal_reasons", [])
+            
+            # 문자열이면 리스트로 변환
+            if isinstance(raw_reasons, str):
+                reasons_list = [raw_reasons]
+            # 리스트인데 내부에 리스트가 있으면 flatten
+            elif isinstance(raw_reasons, list):
+                if raw_reasons and isinstance(raw_reasons[0], list):
+                    reasons_list = [item for sublist in raw_reasons for item in sublist]
+                else:
+                    reasons_list = raw_reasons
+            else:
+                reasons_list = []
+
+            reasons = ", ".join(map(str, reasons_list))
+
             if row.get("buy_signal"):
                 signal_logs.append({
                     "sim_date": row["sim_date"],
@@ -1027,9 +1043,20 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
 
             # ✅ 사유 컬럼 만들기 (존재할 때만 처리)
             if "signal_reasons" in df_trades.columns:
-                df_trades["reason"] = df_trades["signal_reasons"].apply(
-                    lambda x: ", ".join(x) if isinstance(x, list) else ""
-                )
+                def format_reasons(x):
+                    if isinstance(x, str):
+                        return x
+                    elif isinstance(x, list):
+                        if x and isinstance(x[0], list):
+                            # flatten 후 문자열 join
+                            flat = [item for sublist in x for item in sublist]
+                            return ", ".join(map(str, flat))
+                        else:
+                            return ", ".join(map(str, x))
+                    else:
+                        return ""
+
+                df_trades["reason"] = df_trades["signal_reasons"].apply(format_reasons)
             else:
                 df_trades["reason"] = "-"
 
@@ -1051,10 +1078,10 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
             st.subheader("📅 실제 거래 발생 요약 (날짜별)")
             st.dataframe(df_trades[columns_to_show], use_container_width=True)
 
-        # ✅ 매도 로직별 실현 손익 요약
         if not df_trades.empty and "reason" in df_trades.columns and "realized_pnl" in df_trades.columns:
+            # 문자열 기준 첫 번째 이유 추출
             df_trades["sell_logic_name"] = df_trades["reason"].apply(
-                lambda x: x[0] if isinstance(x, list) and x else (x if isinstance(x, str) else "기타")
+                lambda x: x.split(",")[0].strip() if isinstance(x, str) and x else "기타"
             )
 
             df_sell_summary = df_trades[df_trades["sell_count"] > 0].copy()
@@ -1063,9 +1090,8 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
                 거래수=("sell_count", "sum"),
                 총실현손익=("realized_pnl", "sum"),
                 평균손익=("realized_pnl", "mean")
-            ).reset_index()
+            ).fillna(0).reset_index()
 
-            # 숫자 포맷
             logic_summary["총실현손익"] = logic_summary["총실현손익"].apply(lambda x: f"{x:,.0f} KRW")
             logic_summary["평균손익"] = logic_summary["평균손익"].apply(lambda x: f"{x:,.0f} KRW")
 
@@ -1595,8 +1621,8 @@ def main():
                     st.success(f"시뮬레이션 요청 성공! simulation id : {simulation_id}")
                 else:
                     st.warning("⚠️ 시뮬레이션 요청에 실패했습니다.")
-                # get_simulation_result_url = f"{backend_base_url}/stock/simulate/bulk/result"
-                # result_presigned_url = None
+                get_simulation_result_url = f"{backend_base_url}/stock/simulate/bulk/result"
+                result_presigned_url = None
 
                 # # 프로그레스 바 초기화
                 # progress_bar = st.progress(0)
@@ -1710,7 +1736,9 @@ def main():
                 simulation_settings = {
                     "initial_capital": initial_capital
                 }
-
+                
+                # st.write("📦 전체 JSON 구조", json_data)  # Streamlit
+                
                 st.subheader("📊 상세 보기")
                 draw_bulk_simulation_result(simulation_settings, results, failed_stocks)
             
