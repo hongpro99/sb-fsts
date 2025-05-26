@@ -1015,12 +1015,34 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
             st.metric("손절 여부", simulation_settings["use_stop_loss"] if simulation_settings.get("use_stop_loss") else "없음")
             st.metric("손절 비율", simulation_settings["stop_loss_ratio"] if simulation_settings.get("use_stop_loss") else "없음")
 
+        # 한글 로직 이름 맵핑
+        file_path = "./dashboard_web/trading_logic.json"
+        with open(file_path, "r", encoding="utf-8") as f:
+            trading_logic = json.load(f)
+
+        buy_trading_logic = simulation_settings["buy_trading_logic"]
+        sell_trading_logic = simulation_settings["sell_trading_logic"]
+
+        # 코드 기준으로 필요한 항목만 필터링
+        filtered_buy_logic = {
+            k: v for k, v in trading_logic["available_buy_logic"].items() if v in buy_trading_logic
+        }
+        filtered_sell_logic = {
+            k: v for k, v in trading_logic["available_sell_logic"].items() if v in sell_trading_logic
+        }
+
+        # 최종 결과
+        trading_logic_dict = {
+            "buy_trading_logic": filtered_buy_logic,
+            "sell_trading_logic": filtered_sell_logic
+        }
+
         st.write("###### 선택한 종목")
         st.json(simulation_settings["selected_symbols"], expanded=False)
         st.write("###### 매수 로직")
-        st.json(simulation_settings["buy_trading_logic"], expanded=False)
+        st.json(trading_logic_dict["buy_trading_logic"], expanded=False)
         st.write("###### 매도 로직")
-        st.json(simulation_settings["sell_trading_logic"], expanded=False)
+        st.json(trading_logic_dict["sell_trading_logic"], expanded=False)
         st.markdown("---")
 
         if signal_logs:
