@@ -1587,8 +1587,8 @@ def main():
                 "selected_stocks": selected_stocks, #이름만
                 "selected_symbols": selected_symbols, #이름+코드(key,value)
                 "interval": interval,
-                "selected_buyTrading_logic": selected_buyTrading_logic,
-                "selected_sellTrading_logic": selected_sellTrading_logic,
+                "buy_trading_logic": selected_buyTrading_logic,
+                "sell_trading_logic": selected_sellTrading_logic,
                 "buy_condition_yn": buy_condition_yn,
                 "buy_percentage": buy_percentage,
                 "initial_capital": initial_capital,
@@ -1621,8 +1621,8 @@ def main():
                     "selected_stocks": simulation_settings['selected_stocks'],
                     "selected_symbols": simulation_settings['selected_symbols'],
                     "interval": simulation_settings['interval'],
-                    "buy_trading_logic": simulation_settings['selected_buyTrading_logic'],
-                    "sell_trading_logic": simulation_settings['selected_sellTrading_logic'],
+                    "buy_trading_logic": simulation_settings['buy_trading_logic'],
+                    "sell_trading_logic": simulation_settings['sell_trading_logic'],
                     "buy_condition_yn": simulation_settings['buy_condition_yn'],
                     "buy_percentage": simulation_settings['buy_percentage'],
                     "initial_capital": simulation_settings['initial_capital'],
