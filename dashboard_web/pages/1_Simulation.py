@@ -21,16 +21,11 @@ import time
 #sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from app.utils.auto_trading_bot import AutoTradingBot
-from app.utils.crud_sql import SQLExecutor
-from app.utils.database import get_db, get_db_session
-from app.utils.trading_logic import TradingLogic
 from app.utils.dynamodb.model.stock_symbol_model import StockSymbol, StockSymbol2
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
 from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
 from app.utils.dynamodb.model.user_info_model import UserInfo
 from app.utils.dynamodb.model.auto_trading_balance_model import AutoTradingBalance
-from app.utils.technical_indicator import TechnicalIndicator
 from app.utils.utils import setup_env
 
 
@@ -38,9 +33,6 @@ from app.utils.utils import setup_env
 setup_env()
 
 backend_base_url = os.getenv('BACKEND_BASE_URL')
-
-#보조지표 클래스 선언
-logic = TradingLogic()
 
 def draw_lightweight_chart(data_df, selected_indicators):
 
@@ -765,10 +757,6 @@ def setup_simulation_tab():
     """
     
     id = 'id1'
-
-    # AutoTradingBot 및 SQLExecutor 객체 생성
-    sql_executor = SQLExecutor()
-    auto_trading_stock = AutoTradingBot(id=id, virtual=False)
     
     current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
     
@@ -1003,6 +991,38 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
                     "reason": reasons
                 })
 
+        # ✅ 시뮬레이션 params
+        st.markdown("---")
+        st.subheader("📊 시뮬레이션 설정")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("시작 날짜", simulation_settings["start_date"][:10])
+            st.metric("종료 날짜", simulation_settings["end_date"][:10])
+            st.metric("일자 별", simulation_settings.get("interval") if simulation_settings.get("interval") else "없음")
+            st.metric("매수 제약 조건", simulation_settings["buy_condition_yn"] if simulation_settings.get("buy_condition_yn") else "없음")
+        with col2:
+            st.metric("초기 자본", f"{int(simulation_settings['initial_capital']):,}" if simulation_settings.get("initial_capital") else "없음")
+            st.metric("자본 비율", simulation_settings["target_trade_value_ratio"] if simulation_settings.get("target_trade_value_ratio") else "없음")
+            st.metric("목표 거래 금액", simulation_settings.get("target_trade_value_krw") if simulation_settings.get("target_trade_value_krw") else "없음")
+            st.metric("매수 제약 조건 비율", simulation_settings["buy_percentage"] if simulation_settings.get("buy_percentage") else "없음")
+        with col3:
+            st.metric("rsi_period", simulation_settings["rsi_period"] if simulation_settings.get("rsi_period") else "없음")
+            st.metric("rsi_buy_threshold", simulation_settings["rsi_buy_threshold"] if simulation_settings.get("rsi_buy_threshold") else "없음")
+            st.metric("rsi_sell_threshold", simulation_settings["rsi_sell_threshold"] if simulation_settings.get("rsi_sell_threshold") else "없음")
+        with col4:
+            st.metric("익절 여부", simulation_settings["use_take_profit"] if simulation_settings.get("use_take_profit") else "없음")
+            st.metric("익절 비율", simulation_settings["take_profit_ratio"] if simulation_settings.get("use_take_profit") else "없음")
+            st.metric("손절 여부", simulation_settings["use_stop_loss"] if simulation_settings.get("use_stop_loss") else "없음")
+            st.metric("손절 비율", simulation_settings["stop_loss_ratio"] if simulation_settings.get("use_stop_loss") else "없음")
+
+        st.write("###### 선택한 종목")
+        st.json(simulation_settings["selected_symbols"], expanded=False)
+        st.write("###### 매수 로직")
+        st.json(simulation_settings["buy_trading_logic"], expanded=False)
+        st.write("###### 매도 로직")
+        st.json(simulation_settings["sell_trading_logic"], expanded=False)
+        st.markdown("---")
+
         if signal_logs:
             df_signals = pd.DataFrame(signal_logs)
             df_signals["sim_date"] = pd.to_datetime(df_signals["sim_date"])
@@ -1176,9 +1196,6 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
 
 def main():
     
-    # for DB
-    sql_executor = SQLExecutor()
-
     st.set_page_config(layout="wide")
     col1, col2, col3 = st.columns([6, 1, 1])
 
@@ -1257,7 +1274,6 @@ def main():
         sidebar_settings = setup_simulation_tab()
         
         if st.button("개별 종목 시뮬레이션 실행", key = 'simulation_button'):
-            auto_trading_stock = AutoTradingBot(id=sidebar_settings["id"], virtual=False)
             
             with st.container():
                 st.write(f"📊 {sidebar_settings['selected_stock']} 시뮬레이션 실행 중...")
@@ -1377,7 +1393,6 @@ def main():
     with tabs[2]:
         
         id = "id1"  # 사용자 이름 (고정값)
-        auto_trading_stock = AutoTradingBot(id=id, virtual=False)
         
         current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
 
@@ -1601,39 +1616,39 @@ def main():
                 get_simulation_result_url = f"{backend_base_url}/stock/simulate/bulk/result"
                 result_presigned_url = None
 
-                # # 프로그레스 바 초기화
-                # progress_bar = st.progress(0)
-                # progress_text = st.empty()  # 숫자 출력을 위한 공간
+                # 프로그레스 바 초기화
+                progress_bar = st.progress(0)
+                progress_text = st.empty()  # 숫자 출력을 위한 공간
                 
-                # # polling 으로 현재 상태 확인
-                # while True:
-                #     params={"simulation_id": simulation_id}
-                #     response = requests.get(get_simulation_result_url, params=params).json()
-                #     print(response)
+                # polling 으로 현재 상태 확인
+                while True:
+                    params={"simulation_id": simulation_id}
+                    response = requests.get(get_simulation_result_url, params=params).json()
+                    print(response)
 
-                #     total_task_cnt = response["total_task_cnt"]
-                #     completed_task_cnt = response["completed_task_cnt"]
+                    total_task_cnt = response["total_task_cnt"]
+                    completed_task_cnt = response["completed_task_cnt"]
 
-                #     if total_task_cnt == 0:
-                #         total_task_cnt = 10000 # 임시
+                    if total_task_cnt == 0:
+                        total_task_cnt = 10000 # 임시
 
-                #     progress_bar.progress(completed_task_cnt / total_task_cnt)
-                #     progress_text.text(f"{completed_task_cnt} / {total_task_cnt} 완료")
+                    progress_bar.progress(completed_task_cnt / total_task_cnt)
+                    progress_text.text(f"{completed_task_cnt} / {total_task_cnt} 완료")
 
-                #     if response["status"] == "completed":
-                #         result_presigned_url = response["result_presigned_url"]
-                #         break
+                    if response["status"] == "completed":
+                        result_presigned_url = response["result_presigned_url"]
+                        break
 
-                #     time.sleep(5)
+                    time.sleep(5)
 
-                # st.success("모든 작업 완료!")
+                st.success("모든 작업 완료!")
                 
-                # json_data = read_json_from_presigned_url(result_presigned_url)
+                json_data = read_json_from_presigned_url(result_presigned_url)
 
-                # results = json_data['results']
-                # failed_stocks = json_data['failed_stocks']
+                results = json_data['results']
+                failed_stocks = json_data['failed_stocks']
 
-                # draw_bulk_simulation_result(simulation_settings, results, failed_stocks)
+                draw_bulk_simulation_result(simulation_settings, results, failed_stocks)
     
     with tabs[3]:
         st.header("🏠 Simulation Result")
@@ -1645,7 +1660,6 @@ def main():
             "total_task_cnt": [],
             "trigger_type": [],
             "status": [],
-            "initial_capital": [],
             "description": []
         }
 
@@ -1663,7 +1677,6 @@ def main():
             data["total_task_cnt"].append(row.total_task_cnt)
             data["trigger_type"].append(row.trigger_type)
             data["status"].append(row.status)
-            data["initial_capital"].append(row.initial_capital)
             data["description"].append(row.description)
 
         df = pd.DataFrame(data)
@@ -1693,8 +1706,7 @@ def main():
 
         if selected_rows is not None:
             selected_grid_row = grid_response["selected_rows"].iloc[0]
-            simulation_id = selected_grid_row["simulation_id"]    
-            initial_capital = selected_grid_row["initial_capital"] 
+            simulation_id = selected_grid_row["simulation_id"]
 
             get_simulation_result_url = f"{backend_base_url}/stock/simulate/bulk/result"
             result_presigned_url = None
@@ -1703,20 +1715,15 @@ def main():
             response = requests.get(get_simulation_result_url, params=params).json()
 
             if response["status"] == "completed":
+                params_presigned_url = response["params_presigned_url"]
                 result_presigned_url = response["result_presigned_url"]
 
-                json_data = read_json_from_presigned_url(result_presigned_url)
+                simulation_settings = read_json_from_presigned_url(params_presigned_url)
+                result_json_data = read_json_from_presigned_url(result_presigned_url)
 
-                results = json_data['results']
-                failed_stocks = json_data['failed_stocks']
-
-                simulation_settings = {
-                    "initial_capital": initial_capital
-                }
-                
-                # st.write("📦 전체 JSON 구조", json_data)  # Streamlit
-                
-                st.subheader("📊 상세 보기")
+                results = result_json_data['results']
+                failed_stocks = result_json_data['failed_stocks']
+                                
                 draw_bulk_simulation_result(simulation_settings, results, failed_stocks)
             
     with tabs[4]:

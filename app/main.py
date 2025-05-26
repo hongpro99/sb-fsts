@@ -136,11 +136,23 @@ async def get_simulation_bulk(simulation_id: str):
     total_task_cnt = item.total_task_cnt
     completed_task_cnt = item.completed_task_cnt
 
+    params_presigned_url = ""
+    result_presigned_url = ""
+
     if status == "completed":
         
         s3_client = boto3.client('s3', region_name='ap-northeast-2', endpoint_url='https://s3.ap-northeast-2.amazonaws.com', config=boto3.session.Config(signature_version='s3v4'))
         bucket_name="sb-fsts"
+
+        params_save_path = f"simulation-results/{simulation_id}/simulation_data.json"
         result_save_path = f"simulation-results/{simulation_id}/simulation_result.json"
+
+        params_presigned_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': bucket_name, 'Key': params_save_path},
+            ExpiresIn=3600
+        )
+
         result_presigned_url = s3_client.generate_presigned_url(
             'get_object',
             Params={'Bucket': bucket_name, 'Key': result_save_path},
@@ -151,6 +163,7 @@ async def get_simulation_bulk(simulation_id: str):
         "status": status,
         "total_task_cnt": total_task_cnt,
         "completed_task_cnt": completed_task_cnt,
+        "params_presigned_url": params_presigned_url,
         "result_presigned_url": result_presigned_url
     }
 
