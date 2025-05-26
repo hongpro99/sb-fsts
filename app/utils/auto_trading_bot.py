@@ -1009,47 +1009,6 @@ class AutoTradingBot:
             "total_buy_cost": total_buy_cost
         }
     
-
-    def save_trading_history_to_db_with_executor(self, trading_history, symbol):
-        """
-        trading_history 데이터를 DB에 저장하는 함수 (sql_executor 사용)
-        
-        Parameters:
-        - trading_history: dict, 저장할 거래 데이터
-        - symbol: str, 종목 코드
-        - sql_executor: SQLExecutor 객체
-        """
-
-        dynamodb_executor = DynamoDBExecutor()
-        # 한국 시간대
-        kst = timezone("Asia/Seoul")
-        # 현재 시간을 KST로 변환
-        current_time = datetime.now(kst)
-        created_at = int(current_time.timestamp() * 1000)  # ✅ 밀리세컨드 단위로 SK 생성
-
-        data_model = SimulationHistory(
-            symbol=symbol,
-            created_at=created_at,
-            updated_at=None,
-            average_price=trading_history['average_price'],
-            realized_pnl=trading_history['realized_pnl'],
-            unrealized_pnl=trading_history['unrealized_pnl'],
-            realized_roi=trading_history['realized_roi'],
-            unrealized_roi=trading_history['unrealized_roi'],
-            total_cost=trading_history['total_cost'],
-            total_quantity=trading_history['total_quantity'],
-            buy_count=trading_history['buy_count'],
-            sell_count=trading_history['sell_count'],
-            buy_dates=trading_history['buy_dates'],
-            sell_dates=trading_history['sell_dates'],
-            history=json.dumps(trading_history["history"])
-        )
-
-        result = dynamodb_executor.execute_save(data_model)
-        print(f"Trading history for {symbol} saved successfully: {result}")
-        return result
-    
-
     # 실시간 매매 함수
     def trade(self, trading_bot_name, buy_trading_logic, sell_trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw, interval='day', max_allocation = 0.01,  take_profit_threshold: float = 5.0,   # 퍼센트 단위
     stop_loss_threshold: float = 1.0, use_take_profit: bool = True, use_stop_loss: bool = True):

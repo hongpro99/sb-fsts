@@ -1,5 +1,5 @@
 from pynamodb.models import Model
-from pynamodb.attributes import UnicodeAttribute, NumberAttribute
+from pynamodb.attributes import UnicodeAttribute, NumberAttribute, MapAttribute
 import time
 import uuid
 
@@ -22,3 +22,4 @@ class SimulationHistory(Model):
     total_task_cnt = NumberAttribute(null=True)
     completed_task_cnt = NumberAttribute(null=True)
     initial_capital = NumberAttribute(null=True)
+    simulation_params = UnicodeAttribute(null=True)
