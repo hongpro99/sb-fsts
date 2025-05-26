@@ -933,6 +933,14 @@ def read_json_from_presigned_url(presigned_url):
     
     return data
 
+def format_date_ymd(value):
+    if isinstance(value, (datetime, date)):
+        return value.strftime("%Y-%m-%d")
+    elif isinstance(value, str):
+        return value[:10]  # 'YYYY-MM-DD' 형식만 자름
+    else:
+        return str(value)  # 혹시 모를 예외 처리
+
 def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
 
     signal_logs = []
@@ -996,8 +1004,8 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
         st.subheader("📊 시뮬레이션 설정")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("시작 날짜", simulation_settings["start_date"][:10])
-            st.metric("종료 날짜", simulation_settings["end_date"][:10])
+            st.metric("시작 날짜", format_date_ymd(simulation_settings["start_date"]))
+            st.metric("종료 날짜", format_date_ymd(simulation_settings["end_date"]))
             st.metric("일자 별", simulation_settings.get("interval") if simulation_settings.get("interval") else "없음")
             st.metric("매수 제약 조건", simulation_settings["buy_condition_yn"] if simulation_settings.get("buy_condition_yn") else "없음")
         with col2:
