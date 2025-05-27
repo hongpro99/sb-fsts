@@ -44,13 +44,16 @@ logic = TradingLogic()
 
 def draw_lightweight_chart(data_df, selected_indicators):
 
+
     # 차트 color
     COLOR_BULL = 'rgba(236, 57, 72, 1)' # #26a69a
     COLOR_BEAR = 'rgba(74, 86, 160, 1)'  # #ef5350
 
     # Some data wrangling to match required format
     data_df = data_df.reset_index()
-    data_df.columns = [col.lower() for col in data_df.columns]
+    data_df.columns = [col.lower() for col in data_df.columns] #모두 소문자로 수정
+    
+    data_df['time'] = pd.to_datetime(data_df['time']).dt.strftime('%Y-%m-%d')
 
     buy_signal_df = data_df[data_df['buy_signal'].notna()]
     sell_signal_df = data_df[data_df['sell_signal'].notna()]
@@ -488,7 +491,45 @@ def draw_lightweight_chart(data_df, selected_indicators):
                 "priceLineVisible": False, # 가격 라인 숨기기
             },
         })
-                            
+        
+        # 📌 추세선 파라미터 입력
+    lookback_prev = 7
+    lookback_next = 7
+
+    # 1. 고점/저점 수평선 추출
+    high_lines, low_lines = find_horizontal_lines(data_df, lookback_prev, lookback_next)
+
+    # 2. 중복 제거
+    # high_lines = remove_similar_levels(high_lines, threshold=0.01)
+    # low_lines = remove_similar_levels(low_lines, threshold=0.01)
+
+    # # 3. 최근 기준으로 필터링
+    # recent_dates = set(data_df['time'][-60:])
+    # high_lines = [line for line in high_lines if line['time'] in recent_dates]
+    # low_lines = [line for line in low_lines if line['time'] in recent_dates]
+
+    # # 4. 상위 N개 선만 남김
+    # high_lines = sorted(high_lines, key=lambda x: -x['value'])[:5]
+    # low_lines = sorted(low_lines, key=lambda x: x['value'])[:5]
+
+    # 5. 추세선 생성
+    high_trendline = create_high_trendline(high_lines)
+    low_trendline = create_low_trendline(low_lines)
+
+    # 6. 시리즈에 추가
+    if "horizontal_high" in selected_indicators:
+        seriesCandlestickChart.extend(create_horizontal_line_segments(high_lines, candles))
+
+    if "horizontal_low" in selected_indicators:
+        seriesCandlestickChart.extend(create_horizontal_line_segments(low_lines, candles))
+            
+                # 조건에 따라 시리즈에 추가
+    if "high_trendline" in selected_indicators and high_trendline:
+        seriesCandlestickChart.append(high_trendline)
+
+    if "low_trendline" in selected_indicators and low_trendline:
+        seriesCandlestickChart.append(low_trendline)
+                                    
     seriesVolumeChart = [
         {
             "type": 'Histogram',
@@ -656,6 +697,110 @@ def draw_lightweight_chart(data_df, selected_indicators):
             "series": seriesMfiChart
         },             
     ], 'multipane')
+
+def create_high_trendline(high_levels):
+    if len(high_levels) < 2:
+        return None
+    sorted_levels = sorted(high_levels, key=lambda x: x['time'])
+    if len(sorted_levels) < 2:
+        return None
+    return {
+        "type": "Line",
+        "data": [{"time": l['time'], "value": l['value']} for l in sorted_levels],
+        "options": {
+            "color": "rgba(0, 0, 0, 0.8)",  # 검은색
+            "lineWidth": 2,
+            "lineStyle": 2,
+            "priceLineVisible": False,
+            "lastValueVisible": False,
+        }
+    }
+
+def create_low_trendline(low_levels):
+    if len(low_levels) < 2:
+        return None
+    sorted_levels = sorted(low_levels, key=lambda x: x['time'])
+    if len(sorted_levels) < 2:
+        return None
+    return {
+        "type": "Line",
+        "data": [{"time": l['time'], "value": l['value']} for l in sorted_levels],
+        "options": {
+            "color": "rgba(0, 0, 0, 0.8)",  # 검은색
+            "lineWidth": 2,
+            "lineStyle": 2,
+            "priceLineVisible": False,
+            "lastValueVisible": False,
+        }
+    }
+        
+def find_horizontal_lines(df, lookback_prev=5, lookback_next=5):
+    """
+    전봉/후봉 기준으로 중심봉이 고점/저점인지 판별하여 수평선 후보 반환
+    """
+    highs = []
+    lows = []
+
+    for i in range(lookback_prev, len(df) - lookback_next):
+        window = df.iloc[i - lookback_prev : i + lookback_next + 1]
+        center = df.iloc[i]
+
+        if center['high'] == window['high'].max():
+            highs.append({
+                "time": center['time'],
+                "value": center['high'],
+                "color": "rgba(255, 0, 0, 0.6)",
+                "lineWidth": 1,
+                "priceLineVisible": False,
+                "lastValueVisible": False
+            })
+
+        if center['low'] == window['low'].min():
+            lows.append({
+                "time": center['time'],
+                "value": center['low'],
+                "color": "rgba(0, 0, 255, 0.6)",
+                "lineWidth": 1,
+                "priceLineVisible": False,
+                "lastValueVisible": False
+            })
+
+    return highs, lows
+
+
+def create_horizontal_line_segments(lines, candles):
+    if not candles:
+        return []
+
+    times = [c['time'] for c in candles]
+    first_time = times[0]
+    last_time = times[-1]
+
+    segments = []
+    for line in lines:
+        segment = {
+            "type": "Line",
+            "data": [
+                {"time": first_time, "value": line["value"]},
+                {"time": last_time, "value": line["value"]}
+            ],
+            "options": {
+                "color": line["color"],
+                "lineWidth": line["lineWidth"],
+                "priceLineVisible": line["priceLineVisible"],
+                "lastValueVisible": line["lastValueVisible"],
+            }
+        }
+        segments.append(segment)
+    return segments
+
+def remove_similar_levels(levels, threshold=0.01):
+    filtered = []
+    for level in levels:
+        if all(abs(level['value'] - f['value']) / f['value'] > threshold for f in filtered):
+            filtered.append(level)
+    return filtered
+
 
 def rename_tradingLogic(trade_history):
     for entry in trade_history:
@@ -897,6 +1042,14 @@ def setup_simulation_tab():
         selected_indicators.append("sma_120")                 
     if st.checkbox("bollinger band", value=False):
         selected_indicators.append("bollinger")
+    if st.checkbox("horizontal_high", value=False):
+        selected_indicators.append("horizontal_high")
+    if st.checkbox("horizontal_low", value=False):
+        selected_indicators.append("horizontal_low")
+    if st.checkbox("high_trendline", value=False):
+        selected_indicators.append("high_trendline")
+    if st.checkbox("low_trendline", value=False):
+        selected_indicators.append("low_trendline")         
         
     # ✅ 설정 값을 딕셔너리 형태로 반환
     return {
@@ -1326,6 +1479,7 @@ def main():
             )
             
             selected_indicators = sidebar_settings['selected_indicators'] # 차트 지표 선택 리스트
+            
             # TradingView 차트 그리기
             draw_lightweight_chart(data_df, selected_indicators)
             

@@ -24,4 +24,4 @@ beautifulsoup4
 plotly
 boto3
 python-dotenv
-scikit-learn
+

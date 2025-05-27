@@ -348,7 +348,7 @@ class AutoTradingBot:
             timestamp_iso = timestamp.isoformat()
             timestamp_str = timestamp.date().isoformat()
             
-            print(f"timestamp: {timestamp}, EMA_10 : {df['EMA_10']}")
+            print(f"timestamp: {timestamp}")
             trade_entry = {
                 'symbol': symbol,
                 'Time': timestamp,

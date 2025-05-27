@@ -2,8 +2,6 @@ from app.utils.technical_indicator import TechnicalIndicator
 import pandas as pd
 import io
 import numpy as np
-from sklearn.linear_model import LinearRegression
-
 
 # 보조지표 클래스 선언
 indicator = TechnicalIndicator()
@@ -1106,28 +1104,28 @@ class TradingLogic:
 
         return buy_signal, None
 
-
     def downtrend_sell_trading(self, df):
         """
-        종가가 5일선 밑으로갈때
+        윗꼬리 긴 음봉일 때 매도 신호 발생
         """
         if len(df) < 3:
             return None, False  # 데이터 부족
 
         last = df.iloc[-1]
-        prev = df.iloc[-2]
-
-        # 조건 1: 5일 EMA 데드크로스
-        dead_cross = prev['Close'] >= prev['EMA_5'] and last['Close'] < last['EMA_5']
         
-                # 조건 3: EMA 기울기 음수
-        ema5_slope = last['EMA_5'] - prev['EMA_5']
-        ema10_slope = last['EMA_10'] - prev['EMA_10']
+        open_price = last['Open']
+        close_price = last['Close']
+        high = last['High']
+        low = last['Low']
 
-        slope_up = ema10_slope <= 0 and ema10_slope <=0
-
-        sell_signal = dead_cross and slope_up
+        # 조건 2: 윗꼬리 비율이 50% 이상
+        upper_shadow = high - max(open_price, close_price)
+        body = abs(close_price - open_price)                # 몸통 길이
+        total_range = high - low                # 전체 봉의 길이
         
+        # 최종 조건
+        sell_signal = upper_shadow >= body
+
         return None, sell_signal
     
     def top_reversal_sell_trading(self, df):
@@ -1311,6 +1309,7 @@ class TradingLogic:
         
         #조건 6
         prev_high_up = last['Close'] >= prev['High']
+        
         
         # 최종 조건
         buy_signal = cross_up and slope_up and not_long_upper_shadow and slope_ma_up and not is_bearish and volume_up and prev_high_up
@@ -1563,15 +1562,16 @@ class TradingLogic:
             return True, reason
         return False, None
 
-    def trendline_breakout_trading(self, df, symbol, lookback=30, span=2, min_points=2):
+    def trendline_breakout_trading(self, df, symbol, lookback=30, span=3, min_points=2):
         """
-        최근 스윙 고점들을 이은 추세선을 종가가 돌파했을 때 매수 신호 발생
+        최근 고점들을 이은 추세선을 np.polyfit()으로 계산하여 돌파 확인
         """
 
         if df.shape[0] < lookback:
             print(f"❌ 데이터 부족 ({symbol}) → 최소 {lookback}개 필요")
             return False, None
 
+        last = df.iloc[-1]
         df = df.copy()
 
         # ✅ 스윙 고점 찾기
@@ -1583,36 +1583,23 @@ class TradingLogic:
             print(f"❌ 스윙 고점 수 부족 ({len(highs_df)}개 < {min_points}개)")
             return False, None
 
-        # ✅ 고점들로 선형 회귀선 학습
-        X = np.arange(len(highs_df)).reshape(-1, 1)
-        y = highs_df['High'].values.reshape(-1, 1)
-        model = LinearRegression().fit(X, y)
+        # ✅ 선형 회귀선 계산 (NumPy 버전)
+        x = np.arange(len(highs_df))
+        y = highs_df['High'].values
+        a, b = np.polyfit(x, y, deg=1)
 
-        # 오늘이 회귀선에서 몇 번째 시점인지 계산
-        last_index = df.index[-1]
-        window_start_index = highs_df.index[0]
-        day_offset = (last_index - window_start_index).days
+        today_x = len(x)  # 오늘이 다음 인덱스
+        expected_high = a * today_x + b
 
-        # 추세선이 오늘 예상하는 고점값
-        expected_resistance = model.predict([[day_offset]])[0][0]
         close_today = df.iloc[-1]['Close']
-
-        # ✅ 돌파 여부 판단
-        print(f"close_today: {close_today}")
-        print(f"expected_resistance: {expected_resistance}")
+        print(f"expected_high : {expected_high}")
         
-        buy_signal = close_today > expected_resistance
-        trade_date = last_index.date()
+        buy_signal = close_today > expected_high
+        trade_date = df.index[-1].date()
 
-        # 매매 사유 작성
         if buy_signal:
-            reason = (
-                f"📈 추세선 돌파 매수: 종가 {close_today:.2f} > 예측 저항선 {expected_resistance:.2f} "
-                f"(최근 {len(highs_df)}개 고점 기준)"
-            )
+            reason = f"📈 추세선 돌파 매수: 종가 {close_today:.2f} > 저항선 {expected_high:.2f}"
         else:
-            reason = (
-                f"❌ 추세선 돌파 실패: 종가 {close_today:.2f} ≤ 저항선 {expected_resistance:.2f}"
-            )
+            reason = f"❌ 추세선 돌파 실패: 종가 {close_today:.2f} ≤ {expected_high:.2f}"
 
         return buy_signal, None

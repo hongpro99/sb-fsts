@@ -39,15 +39,15 @@ python ecs/register_task_definition.py $ECR_IMAGE_TAG  # 태스크 정의에 이
 #     --cluster $CLUSTER_NAME \
 #     --force-new-deployment
 
-# 🕐 ECS 준비 시간 대기
-echo "⏳ 서버 재시작 전 5초 대기..."
-sleep 5
+# # 🕐 ECS 준비 시간 대기
+# echo "⏳ 서버 재시작 전 5초 대기..."
+# sleep 5
 
-# 🚀 서버 재시작
-echo "🚀 uvicorn 서버 실행..."
+# # 🚀 서버 재시작
+# echo "🚀 uvicorn 서버 실행..."
 
-# 🌍 환경 설정
-export ENV=local
-uvicorn app.main:app --host 0.0.0.0 --port 7002
+# # 🌍 환경 설정
+# export ENV=local
+# uvicorn app.main:app --host 0.0.0.0 --port 7002
 
 
