@@ -869,7 +869,11 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'anti_retail_ema_entry':
             entry['trading_logic'] =  '반개미'                                                                                                                                                                            
         elif entry.get('trading_logic') == 'trendline_breakout_trading':
-            entry['trading_logic'] =  '고점 돌파'            
+            entry['trading_logic'] =  '고점 돌파'
+        elif entry.get('trading_logic') == 'should_buy':
+            entry['trading_logic'] =  'should_buy'
+        elif entry.get('trading_logic') == 'horizontal_low_sell':
+            entry['trading_logic'] =  'horizontal_low_sell'                         
             
 def login_page():
     """
@@ -1346,6 +1350,7 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
             total_costs = results_df["total_costs"].sum()
             total_buy_logic_count = results_df['buy_logic_count'].sum()
             roi_per_total_buy_cost = ((total_realized_pnl + total_unrealized_pnl) / results_df['total_buy_cost'].sum()) * 100
+            total_take_profit_per_total_sell_count = (total_take_profit / total_sell_count) * 100
             st.markdown("---")
             st.subheader("📊 추가 세부 요약 통계")
 
@@ -1363,6 +1368,7 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
                 st.metric("💥 손절로 인한 손익", f"{sl_pnl:,.0f} KRW")
                 st.metric("🔄 로직 매도로 인한 손익", f"{logic_sell_pnl:,.0f} KRW")
                 st.metric("🔄 총 매수 금액 대비 수익률", f"{roi_per_total_buy_cost:.2f}%")
+                st.metric("💸 매도 횟수 대비 익절률", f"{total_take_profit_per_total_sell_count:.2f}%")
             col3, col4 = st.columns(2)
             with col3:
                 st.metric("🧾 총 매수 수수료", f"{total_fee_buy:,.0f} KRW")

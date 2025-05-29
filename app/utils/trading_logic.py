@@ -1543,63 +1543,148 @@ class TradingLogic:
 
         return None, sell_signal
     
-    def anti_retail_ema_entry(self, df):
-        if len(df) < 3:
+    def anti_retail_ema_entry(self, df, support):
+        """
+        [로직] 지지선 이탈 후 재돌파 + 양봉
+        - row: 현재 캔들 (Series)
+        - prev_row: 전일 캔들 (Series)
+        - support: 과거 확정된 지지선 값
+        """
+        
+        if len(df) < 3 :
             return False, None
+        
+        if support is None:
+            return False, None
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        prev2 = df.iloc[-3]
+        
+        cond1 = prev2['Close'] > support
+        cond2 = prev['Close'] <= support
+        cond3 = last['Close'] > support
+
+        buy_signal = cond1 and cond2 and cond3
+        reason = "📈 지지선 이탈 후 재돌파 + 양봉 반등" if buy_signal else None
+        return buy_signal, None
+
+    def trendline_breakout_trading(self, df, resistance):
+        """
+        수평 저점 반등 조건:
+        - 이전 종가 < 수평 저점
+        - 현재 종가 > 수평 저점
+        """
+        # if len(df) < 3 or 'horizontal_high' not in df.columns:
+        #     return False, None
+
+        # support_row = df[df['horizontal_high'].notna()].iloc[-1:]
+        # if support_row.empty:
+        #     return False, None
+        
+        if len(df) < 3 :
+            return False, None
+        
+        if resistance is None:
+            return False, None
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        close_price = float(last['Close'])
+        volume = float(last['Volume'])
+        
+        # resistance = support_row['horizontal_high'].values[0]
+
+        # 조건 1: 거래대금 계산(30억 이상)
+        trade_value = close_price * volume
+
+        # 조건 2: EMA_5이 EMA_20 상향 돌파
+        cross_up = (
+            prev['EMA_10'] < prev['EMA_20'] and
+            last['EMA_10'] > last['EMA_20'] and
+            last['EMA_5'] > last['EMA_10'] > last['EMA_20']
+        )
+
+        # 조건 3: EMA 기울기 양수
+        ema10_slope = last['EMA_10'] - prev['EMA_10']
+        ema20_slope = last['EMA_20'] - prev['EMA_20']
+        ema50_slope = last['EMA_50'] - prev['EMA_50']
+        ema60_slope = last['EMA_60'] - prev['EMA_60']
+        
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
+        
+            # ✅ 조건 3-1: EMA_50, EMA_60 기울기 평균도 양수여야 함
+        slope_ma_up = (
+            last['EMA_50_Slope_MA'] > 0
+            and last['EMA_60_Slope_MA'] > 0
+        )
+
+        cond = last['Close'] > last['EMA_5']
+        cond2 = prev['Close'] < resistance < last['Close']
+
+        buy_signal = cond and cond2 and slope_up and slope_ma_up
+        return buy_signal, None
+    
+    def should_buy(self, df, support):
+        """
+        [로직] 지지선 이탈 후 재돌파 + 양봉
+        - row: 현재 캔들 (Series)
+        - prev_row: 전일 캔들 (Series)
+        - support: 과거 확정된 지지선 값
+        """
+        
+        if len(df) < 3 :
+            return False, None
+        
+        if support is None:
+            return False, None
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        
+                # 조건 3: EMA 기울기 양수
+        ema10_slope = last['EMA_10'] - prev['EMA_10']
+        ema20_slope = last['EMA_20'] - prev['EMA_20']
+        ema50_slope = last['EMA_50'] - prev['EMA_50']
+        ema60_slope = last['EMA_60'] - prev['EMA_60']
+        
+        slope_up = ema50_slope >= 0 and ema60_slope >= 0
+        
+            # ✅ 조건 3-1: EMA_50, EMA_60 기울기 평균도 양수여야 함
+        slope_ma_up = (
+            last['EMA_50_Slope_MA'] > 0
+            and last['EMA_60_Slope_MA'] > 0
+        )
+        
+        cond1 = prev['Close'] < support
+
+        support_zone_lower = support * 0.99
+        cond2 = support_zone_lower <= last['Close']
+        cond3 = (last['EMA_5'] - prev['EMA_5']) > 0
+        
+        buy_signal = cond1 and cond2 and cond3 and slope_up
+        
+        reason = "📈 지지선 이탈 후 재돌파 + 양봉 반등" if buy_signal else None
+        return buy_signal, None
+    
+    def horizontal_low_sell(self, df):
+        """
+        조건: 이전 종가 >= 수평 고점, 현재 종가 < 수평 고점 → 저항 실패
+        """
+        if len(df) < 3 or 'horizontal_low' not in df.columns:
+            return None, False
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
 
-        buy_signal = (
-            last['rsi'] < 30 and
-            #last['mfi'] < 20 and
-            last['Close'] > last['EMA_60'] * 0.98 and last['Close'] < last['EMA_60'] * 1.02 and
-            last['Volume'] < prev['Volume']
-        )
+        resistance_row = df[df['horizontal_low'].notna()].iloc[-1:]
+        if resistance_row.empty:
+            return None, False
 
-        if buy_signal:
-            reason = "공포 매도 구간에서 반대로 매수 (RSI<30, MFI<20, 이동평균선 지지)"
-            return True, reason
-        return False, None
+        support = resistance_row['horizontal_low'].values[0]
 
-    def trendline_breakout_trading(self, df, symbol, lookback=30, span=3, min_points=2):
-        """
-        최근 고점들을 이은 추세선을 np.polyfit()으로 계산하여 돌파 확인
-        """
+        sell_signal = prev['Close'] >= support > last['Close']
 
-        if df.shape[0] < lookback:
-            print(f"❌ 데이터 부족 ({symbol}) → 최소 {lookback}개 필요")
-            return False, None
+        return None, sell_signal
 
-        last = df.iloc[-1]
-        df = df.copy()
-
-        # ✅ 스윙 고점 찾기
-        highs = df['High']
-        swing_highs = (highs.shift(span) < highs) & (highs.shift(-span) < highs)
-        highs_df = df[swing_highs].iloc[-lookback:]
-
-        if len(highs_df) < min_points:
-            print(f"❌ 스윙 고점 수 부족 ({len(highs_df)}개 < {min_points}개)")
-            return False, None
-
-        # ✅ 선형 회귀선 계산 (NumPy 버전)
-        x = np.arange(len(highs_df))
-        y = highs_df['High'].values
-        a, b = np.polyfit(x, y, deg=1)
-
-        today_x = len(x)  # 오늘이 다음 인덱스
-        expected_high = a * today_x + b
-
-        close_today = df.iloc[-1]['Close']
-        print(f"expected_high : {expected_high}")
-        
-        buy_signal = close_today > expected_high
-        trade_date = df.index[-1].date()
-
-        if buy_signal:
-            reason = f"📈 추세선 돌파 매수: 종가 {close_today:.2f} > 저항선 {expected_high:.2f}"
-        else:
-            reason = f"❌ 추세선 돌파 실패: 종가 {close_today:.2f} ≤ {expected_high:.2f}"
-
-        return buy_signal, None
+    

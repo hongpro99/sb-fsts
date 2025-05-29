@@ -211,3 +211,23 @@ class TechnicalIndicator:
         
         return df
     
+    def cal_horizontal_levels_df(self, df, lookback_prev=10, lookback_next=10):
+        """
+        df에 고점/저점 수평선 컬럼을 추가
+        - 'horizontal_high': 해당 행이 고점 수평선이면 값
+        - 'horizontal_low': 해당 행이 저점 수평선이면 값
+        """
+        df = df.copy()
+        df['horizontal_high'] = None
+        df['horizontal_low'] = None
+
+        for i in range(lookback_prev, len(df) - lookback_next):
+            window = df.iloc[i - lookback_prev : i + lookback_next + 1]
+            center = df.iloc[i]
+
+            if center['High'] == window['High'].max():
+                df.at[df.index[i], 'horizontal_high'] = center['High']
+            if center['Low'] == window['Low'].min():
+                df.at[df.index[i], 'horizontal_low'] = center['Low']
+
+        return df

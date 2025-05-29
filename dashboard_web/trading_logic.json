@@ -13,7 +13,8 @@
         "상승추세형3": "ema_breakout_trading3",
         "눌림": "ema_crossover_trading",
         "반개미": "anti_retail_ema_entry",
-        "고점 돌파": "trendline_breakout_trading"
+        "고점 돌파": "trendline_breakout_trading",
+        "should_buy": "should_buy"
         
     },
     "available_sell_logic": {
@@ -27,6 +28,7 @@
         "rsi2": "rsi_trading2",
         "추세 손절": "should_sell",
         "볼린저밴드 이탈": "break_prev_low",
-        "지지선": "sell_on_support_break"        
+        "지지선": "sell_on_support_break",
+        "horizontal_low_sell": "horizontal_low_sell"        
     }
 }
