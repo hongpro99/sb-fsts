@@ -327,6 +327,7 @@ class AutoTradingBot:
         df = indicator.cal_mfi_df(df)
         df = indicator.cal_bollinger_band(df)
         df = indicator.cal_horizontal_levels_df(df)
+        df = indicator.add_extended_high_trendline(df, window=5, lookback_next=5)
         
                 # 🔧 EMA 기울기 추가 및 이동평균 계산
         df['EMA_50_Slope'] = df['EMA_50'] - df['EMA_50'].shift(1)
@@ -345,6 +346,9 @@ class AutoTradingBot:
             current_df = df.iloc[:i+1]  # 매수/매도 로직에 넘길 슬라이스
             support = self.get_latest_confirmed_support(df, current_idx=i)
             resistance = self.get_latest_confirmed_resistance(df, current_idx=i)
+            high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=i)
+            
+            
             
             close_price = float(row["Close"])
             volume = float(row["Volume"])
@@ -359,12 +363,6 @@ class AutoTradingBot:
                 'price': close_price,
                 'volume': volume,
                 'rsi': self._convert_float(row['rsi']),
-                'mfi': self._convert_float(row['mfi']),
-                'macd': self._convert_float(row['macd']),
-                'macd_signal': self._convert_float(row['macd_signal']),
-                'macd_histogram': self._convert_float(row['macd_histogram']),
-                'stochastic_k': self._convert_float(row['stochastic_k']),
-                'stochastic_d': self._convert_float(row['stochastic_d']),
                 'EMA_5': self._convert_float(row['EMA_5']),
                 'EMA_10': self._convert_float(row['EMA_10']),
                 'EMA_20': self._convert_float(row['EMA_20']),
@@ -379,7 +377,9 @@ class AutoTradingBot:
                 'EMA_50_Slope_MA': self._convert_float(row['EMA_50_Slope_MA']),
                 'EMA_60_Slope_MA': self._convert_float(row['EMA_60_Slope_MA']),
                 'horizontal_high': self._convert_float(row['horizontal_high']),
-                'horizontal_low' : self._convert_float(row['horizontal_low'])
+                'horizontal_low' : self._convert_float(row['horizontal_low']),
+                'extended_high_trendline': self._convert_float(row['extended_high_trendline']),
+                'High_price': self._convert_float(row['High'])
                 
             }
             logic.trade_reasons.append(trade_entry)
@@ -398,7 +398,8 @@ class AutoTradingBot:
                     ohlc_df=current_df,
                     trade_type='BUY',
                     support = support,
-                    resistance = resistance
+                    resistance = resistance,
+                    high_trendline = high_trendline 
                 )
             
             # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
@@ -491,7 +492,8 @@ class AutoTradingBot:
                     ohlc_df=current_df,
                     trade_type='SELL',
                     support = support,
-                    resistance = resistance
+                    resistance = resistance,
+                    high_trendline = high_trendline 
                 )
 
                 sell_yn = len(sell_logic_reasons) > 0
@@ -802,6 +804,8 @@ class AutoTradingBot:
         # ✅ 현재 시점까지 확정된 지지선만 사용
         support = self.get_latest_confirmed_support(df, current_idx=current_idx)
         resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx)
+        high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=current_idx, window=5)
+        
         # 시뮬레이션 시작 전 초기화
         previous_closes = []
         # ✅ 아무 데이터도 없으면 조용히 빠져나가기
@@ -919,7 +923,8 @@ class AutoTradingBot:
                 ohlc_df=df,
                 trade_type='SELL',
                 support = support,
-                resistance = resistance
+                resistance = resistance,
+                high_trendline = high_trendline
             )
 
             sell_signal = len(sell_logic_reasons) > 0
@@ -963,7 +968,8 @@ class AutoTradingBot:
             ohlc_df=df,
             trade_type='BUY',
             support = support,
-            resistance = resistance
+            resistance = resistance,
+            high_trendline = high_trendline
         )
 
         buy_signal = len(buy_logic_reasons) > 0
@@ -1118,7 +1124,8 @@ class AutoTradingBot:
             ohlc_df=df,
             trade_type='BUY',
             support = support,
-            resistance = resistance
+            resistance = resistance,
+            high_trendline = high_trendline 
         )
 
         buy_signal = len(buy_logic_reasons) > 0
@@ -1161,7 +1168,8 @@ class AutoTradingBot:
             ohlc_df=df,
             trade_type='SELL',
             support = support,
-            resistance = resistance
+            resistance = resistance,
+            high_trendline = high_trendline 
         )
 
         sell_signal = len(sell_logic_reasons) > 0
@@ -1214,7 +1222,7 @@ class AutoTradingBot:
         return None
 
 
-    def _get_trading_logic_reasons(self, logic, trading_logics, symbol, candle, ohlc_df, support, resistance, trade_type = 'BUY', rsi_buy_threshold = 30, rsi_sell_threshold = 70):
+    def _get_trading_logic_reasons(self, logic, trading_logics, symbol, candle, ohlc_df, support, resistance, high_trendline, trade_type = 'BUY', rsi_buy_threshold = 30, rsi_sell_threshold = 70):
 
         signal_reasons = []
 
@@ -1267,7 +1275,10 @@ class AutoTradingBot:
                     buy_yn, _ = logic.trendline_breakout_trading(ohlc_df, resistance)
                     
                 elif trading_logic == 'should_buy':
-                    buy_yn, _ = logic.should_buy(ohlc_df, support)                    
+                    buy_yn, _ = logic.should_buy(ohlc_df, high_trendline, resistance)
+                    
+                elif trading_logic == 'should_buy_break_high_trend':
+                    buy_yn, _ = logic.should_buy_break_high_trend(ohlc_df, high_trendline)                    
                     
                     
                 if buy_yn:
@@ -1797,7 +1808,7 @@ class AutoTradingBot:
             print(f"❌ 계산 오류: {e}")
             return 0
         
-    def get_latest_confirmed_support(self, df, current_idx, lookback_next=10):
+    def get_latest_confirmed_support(self, df, current_idx, lookback_next=5):
         """
         현재 시점(i)에서 확정된 지지선만 가져오기
         - i보다 최소 lookback_next 만큼 이전에 확정된 것만 허용
@@ -1812,7 +1823,7 @@ class AutoTradingBot:
 
         return valid.iloc[-1]['horizontal_low']
 
-    def get_latest_confirmed_resistance(self, df, current_idx, lookback_next=10):
+    def get_latest_confirmed_resistance(self, df, current_idx, lookback_next=5):
         """
         현재 시점(i)에서 확정된 저항선(horizontal_high)만 가져오기
         - i보다 최소 lookback_next 만큼 이전에 확정된 고점만 허용

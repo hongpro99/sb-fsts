@@ -211,7 +211,7 @@ class TechnicalIndicator:
         
         return df
     
-    def cal_horizontal_levels_df(self, df, lookback_prev=10, lookback_next=10):
+    def cal_horizontal_levels_df(self, df, lookback_prev=5, lookback_next=5):
         """
         df에 고점/저점 수평선 컬럼을 추가
         - 'horizontal_high': 해당 행이 고점 수평선이면 값
@@ -225,9 +225,80 @@ class TechnicalIndicator:
             window = df.iloc[i - lookback_prev : i + lookback_next + 1]
             center = df.iloc[i]
 
-            if center['High'] == window['High'].max():
-                df.at[df.index[i], 'horizontal_high'] = center['High']
-            if center['Low'] == window['Low'].min():
-                df.at[df.index[i], 'horizontal_low'] = center['Low']
+        if center['High'] == window['High'].max():
+            df.at[df.index[i], 'horizontal_high'] = center['High']
+        if center['Low'] == window['Low'].min():
+            df.at[df.index[i], 'horizontal_low'] = center['Low']
 
+        return df
+    
+    def extend_trendline_from_points(self, x_vals, y_vals, target_x):
+        try:
+            # 💡 명시적 float 변환으로 numpy가 에러 없이 처리할 수 있게 함
+            x_vals = np.array(x_vals, dtype=float)
+            y_vals = np.array(y_vals, dtype=float)
+            target_x = float(target_x)
+    
+
+            slope, intercept = np.polyfit(x_vals, y_vals, 1)
+            print(f"slope: {slope}")
+            if slope >= 0:
+                return None  # ❌ 하락 추세선만 허용
+            return slope * target_x + intercept
+        except Exception as e:
+            print(f"[❌ 추세선 계산 에러] {e}")
+            return None
+
+
+    def get_latest_trendline_from_highs(self, df, current_idx, window=2, lookback_next=5):
+        """
+        최근 확정된 horizontal_high 기반 고점 추세선을 window개로 만들고 current_idx까지 연장
+        여러 개의 확정된 고점을 기반으로 기울어진 선을 계산
+        """
+        max_idx = current_idx - lookback_next
+        if max_idx <= 0:
+            return None
+
+        confirmed_highs = df.iloc[:max_idx][df['horizontal_high'].notna()]
+        if confirmed_highs.empty:
+            return None
+
+        highs_window = confirmed_highs.iloc[-window:] if len(confirmed_highs) >= window else confirmed_highs
+        if len(highs_window) < 2:
+            return None
+
+        x_vals = [df.index.get_loc(idx) for idx in highs_window.index]
+        y_vals = highs_window['horizontal_high'].values
+        target_x = current_idx
+
+        print("📊 Trendline Debug Info")
+        print("🟨 고점 날짜 인덱스:", highs_window.index.tolist())
+        print("🟧 x_vals:", x_vals)
+        print("🟥 y_vals:", y_vals)
+        # try:
+        #     slope, intercept = np.polyfit(x_vals, y_vals, 1)
+        #     if slope >= 0:
+        #         return None  # ❌ 하락 추세선만 허용
+        #     return slope * target_x + intercept
+        # except Exception as e:
+        #     print(f"[❌ 추세선 계산 에러] {e}")
+        #     return None
+        
+        return self.extend_trendline_from_points(x_vals, y_vals, target_x)
+    
+    def add_extended_high_trendline(self, df, window=2, lookback_next=5):
+        """
+        df에 각 시점의 고점 추세선을 연장한 값을 계산하여 컬럼으로 추가
+        """
+        df = df.copy()
+        extended_trendline = []
+
+        for i in range(len(df)):
+            if i < window + lookback_next:
+                extended_trendline.append(None)
+            else:
+                trend_val = self.get_latest_trendline_from_highs(df, current_idx=i, window=window, lookback_next=lookback_next)
+                extended_trendline.append(trend_val)
+
+        df['extended_high_trendline'] = extended_trendline
         return df

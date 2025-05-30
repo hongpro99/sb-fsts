@@ -874,7 +874,9 @@ def rename_tradingLogic(trade_history):
             entry['trading_logic'] =  'should_buy'
         elif entry.get('trading_logic') == 'horizontal_low_sell':
             entry['trading_logic'] =  'horizontal_low_sell'                         
-            
+        elif entry.get('trading_logic') == 'should_buy_break_high_trend':
+            entry['trading_logic'] =  'should_buy_break_high_trend'
+                        
 def login_page():
     """
     로그인 페이지: 사용자 로그인 및 세션 상태 관리

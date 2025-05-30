@@ -3,6 +3,7 @@ import pandas as pd
 import io
 import numpy as np
 
+
 # 보조지표 클래스 선언
 indicator = TechnicalIndicator()
 class TradingLogic:
@@ -1625,48 +1626,40 @@ class TradingLogic:
         buy_signal = cond and cond2 and slope_up and slope_ma_up
         return buy_signal, None
     
-    def should_buy(self, df, support):
+    def should_buy(self, df, high_trendline, last_resistance):
         """
-        [로직] 지지선 이탈 후 재돌파 + 양봉
-        - row: 현재 캔들 (Series)
-        - prev_row: 전일 캔들 (Series)
-        - support: 과거 확정된 지지선 값
+        - 하락 고점 추세선을 상향 돌파 + 최근 수평 고점도 돌파
         """
-        
-        if len(df) < 3 :
+        if len(df) < 10 or 'horizontal_high' not in df.columns:
             return False, None
-        
-        if support is None:
-            return False, None
-        
+
+        #current_idx = len(df) - 1
         last = df.iloc[-1]
         prev = df.iloc[-2]
-        
-                # 조건 3: EMA 기울기 양수
-        ema10_slope = last['EMA_10'] - prev['EMA_10']
-        ema20_slope = last['EMA_20'] - prev['EMA_20']
-        ema50_slope = last['EMA_50'] - prev['EMA_50']
-        ema60_slope = last['EMA_60'] - prev['EMA_60']
-        
-        slope_up = ema50_slope >= 0 and ema60_slope >= 0
-        
-            # ✅ 조건 3-1: EMA_50, EMA_60 기울기 평균도 양수여야 함
-        slope_ma_up = (
-            last['EMA_50_Slope_MA'] > 0
-            and last['EMA_60_Slope_MA'] > 0
-        )
-        
-        cond1 = prev['Close'] < support
 
-        support_zone_lower = support * 0.99
-        cond2 = support_zone_lower <= last['Close']
-        cond3 = (last['EMA_5'] - prev['EMA_5']) > 0
+        # 고점 추세선 연장값
         
-        buy_signal = cond1 and cond2 and cond3 and slope_up
+        if high_trendline is None:
+            return False, None
+
+        # # 가장 최근의 수평 고점
+        # confirmed_highs = df.iloc[:current_idx - 5][df['horizontal_high'].notna()]
+        # if confirmed_highs.empty:
+        #     return False, None
+        # last_resistance = confirmed_highs['horizontal_high'].iloc[-1]
+        print(f"high_trendline: {high_trendline}")
+
+        # 조건
+        cond1 = prev['Close'] < high_trendline  # 하락추세선 아래 → 상향 돌파
+        cond2 = last['Close'] > high_trendline
+        cond3 = last['Close'] > last_resistance  # 수평 고점도 돌파
+        cond4 = last['Close'] > last['Open']     # 양봉
+
+        buy_signal = all([cond1, cond2, cond4])
         
-        reason = "📈 지지선 이탈 후 재돌파 + 양봉 반등" if buy_signal else None
         return buy_signal, None
-    
+
+        return False, None
     def horizontal_low_sell(self, df):
         """
         조건: 이전 종가 >= 수평 고점, 현재 종가 < 수평 고점 → 저항 실패
@@ -1686,5 +1679,66 @@ class TradingLogic:
         sell_signal = prev['Close'] >= support > last['Close']
 
         return None, sell_signal
+    
+    def fit_trendline(self, x, y):
+        """
+        x: numpy array of index (0,1,...)
+        y: numpy array of prices (High or Low)
+        return: 선형회귀로 fitted 직선의 마지막 값 (추세선 기준 가격)
+        """
+        x = x.reshape(-1, 1)
+        model = LinearRegression().fit(x, y)
+        next_x = np.array([[len(x)]])  # 예측할 다음 포인트
+        predicted_price = model.predict(next_x)[0]
+        return predicted_price
+    
+    def should_buy_break_high_trend(self, df, high_trendline):
+        """
+        고점 추세선 돌파 여부 판단
+        """
+        if high_trendline is None or len(df) < 2:
+            return False, None
+
+        prev_close = df['Close'].iloc[-2]
+        last_close = df['Close'].iloc[-1]
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        
+        
+        volume_up = last['Volume'] > prev['Volume']
+        
+        # 하락 추세선 돌파
+        cond1 = prev_close <= high_trendline and last_close > high_trendline
+        
+        # ✅ 조건 3-1: EMA_50, EMA_60 기울기 평균도 음수여야 함
+        slope_ma_up = (
+            last['EMA_50_Slope_MA'] <= 0
+            and last['EMA_60_Slope_MA'] <= 0
+        )
+        
+        buy_signal = cond1 and slope_ma_up and volume_up
+
+        return buy_signal, None
+
+
+    def should_sell_break_low_trend(self, df, window=5):
+        """
+        최근 저점들로 만든 추세선 이탈 시 매도
+        """
+        if len(df) < window + 1:
+            return False, None
+
+        lows = df['Low'].iloc[-window - 1:-1].values
+        x = np.arange(len(lows))
+        trendline_price = self.fit_trendline(x, lows)
+
+        close_price = df['Close'].iloc[-1]
+        prev_close = df['Close'].iloc[-2]
+
+        # 이전엔 추세선 위, 지금은 이탈
+        if prev_close >= trendline_price and close_price < trendline_price:
+            return True, f"📉 저점 추세선 이탈 매도 (기준가: {trendline_price:.2f})"
+
+        return False, None
 
     
