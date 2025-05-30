@@ -5,8 +5,9 @@ import requests
 import math
 import json
 import os
+import boto3
 
-from pykis import PyKis, KisChart, KisStock, KisQuote
+from pykis import PyKis, KisChart, KisStock, KisQuote, KisAccessToken
 from datetime import datetime, date, time, timedelta
 import mplfinance as mpf
 from pytz import timezone
@@ -87,16 +88,44 @@ class AutoTradingBot:
             )
         # 실전투자용 PyKis 객체 생성
         else:
+            self._get_token()  # 토큰을 S3에서 가져오거나 생성
             self.kis = PyKis(
                 id=self.kis_id,             # 한국투자증권 HTS ID
                 appkey=self.app_key,    # 발급받은 App Key
                 secretkey=self.secret_key, # 발급받은 App Secret
                 account=self.account, # 계좌번호 (예: "12345678-01")
+                token=KisAccessToken.load("token.json"),  # 토큰 파일에서 로드
                 keep_token=True           # 토큰 자동 갱신 여부
             )
+            self._save_token()  # 토큰을 S3에 저장
 
         print(f"{'모의투자' if self.virtual else '실전투자'} API 객체가 성공적으로 생성되었습니다.")
-        
+
+    def _get_token(self):     
+        s3_client = boto3.client('s3', region_name='ap-northeast-2', endpoint_url='https://s3.ap-northeast-2.amazonaws.com', config=boto3.session.Config(signature_version='s3v4'))
+        bucket_name="sb-fsts"
+
+        token_save_path = f"credentials/pykis/token.json"
+
+        response = s3_client.get_object(Bucket=bucket_name, Key=token_save_path)
+
+        # 본문 읽기 및 JSON 파싱
+        content = response['Body'].read().decode('utf-8')
+        data = json.loads(content)
+        with open("token.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    
+    def _save_token(self):
+        s3_client = boto3.client('s3', region_name='ap-northeast-2', endpoint_url='https://s3.ap-northeast-2.amazonaws.com', config=boto3.session.Config(signature_version='s3v4'))
+        bucket_name="sb-fsts"
+
+        token_save_path = f"credentials/pykis/token.json"
+
+        s3_client.upload_file(
+            Filename="token.json",
+            Bucket=bucket_name,
+            Key=token_save_path
+        )
 
     # 봉 데이터를 가져오는 함수
     def _get_ohlc(self, symbol, start_date, end_date, interval='day', mode="default"):
