@@ -119,7 +119,9 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
 
     for holding in balance.stocks:
         symbol = holding.symbol
-
+        original_symbol_name = holding.symbol_name
+        symbol_name = f"[{i}]{original_symbol_name}"  # 종목명에 번호 붙이기
+        
         # ✅ 매입금액 0인 경우 방어 처리
         if holding.purchase_amount == 0:
             print(f"🚫 {symbol} - 매입금액 0원: 손익률 계산 생략")
@@ -228,3 +230,5 @@ def scheduled_single_buy_task():
         )
     except Exception as e:
         print(f"❌ 매수 실패: {e}")
+        
+        

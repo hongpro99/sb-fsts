@@ -356,7 +356,7 @@ class AutoTradingBot:
         df = indicator.cal_mfi_df(df)
         df = indicator.cal_bollinger_band(df)
         df = indicator.cal_horizontal_levels_df(df)
-        df = indicator.add_extended_high_trendline(df, window=5, lookback_next=5)
+        df = indicator.add_extended_high_trendline(df)
         
                 # 🔧 EMA 기울기 추가 및 이동평균 계산
         df['EMA_50_Slope'] = df['EMA_50'] - df['EMA_50'].shift(1)
@@ -365,6 +365,7 @@ class AutoTradingBot:
         df['EMA_50_Slope_MA'] = df['EMA_50_Slope'].rolling(window=3).mean()
         df['EMA_60_Slope_MA'] = df['EMA_60_Slope'].rolling(window=3).mean()
         
+        print(f"단일 시뮬레이션 시작!!")
         
         for i in range(len(df)):
             timestamp = df.index[i]
@@ -377,15 +378,13 @@ class AutoTradingBot:
             resistance = self.get_latest_confirmed_resistance(df, current_idx=i)
             high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=i)
             
-            
-            
             close_price = float(row["Close"])
             volume = float(row["Volume"])
             timestamp_iso = timestamp.isoformat()
             timestamp_str = timestamp.date().isoformat()
             
-            
             print(f"timestamp: {timestamp}")
+            
             trade_entry = {
                 'symbol': symbol,
                 'Time': timestamp,
@@ -833,7 +832,7 @@ class AutoTradingBot:
         # ✅ 현재 시점까지 확정된 지지선만 사용
         support = self.get_latest_confirmed_support(df, current_idx=current_idx)
         resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx)
-        high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=current_idx, window=5)
+        high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=current_idx)
         
         # 시뮬레이션 시작 전 초기화
         previous_closes = []
@@ -1109,6 +1108,7 @@ class AutoTradingBot:
         df = indicator.cal_sma_df(df, 20)
         df = indicator.cal_sma_df(df, 40)
         df = indicator.cal_bollinger_band(df)
+        
         df = indicator.cal_horizontal_levels_df(df)
         
                 # 🔍 현재 row 위치
@@ -1117,6 +1117,7 @@ class AutoTradingBot:
         # ✅ 현재 시점까지 확정된 지지선만 사용
         support = self.get_latest_confirmed_support(df, current_idx=current_idx)
         resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx)
+        high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=current_idx)
         
         # 볼린저 밴드 계산용 종가 리스트
         close_prices = df['Close'].tolist()
@@ -1307,7 +1308,7 @@ class AutoTradingBot:
                     buy_yn, _ = logic.should_buy(ohlc_df, high_trendline, resistance)
                     
                 elif trading_logic == 'should_buy_break_high_trend':
-                    buy_yn, _ = logic.should_buy_break_high_trend(ohlc_df, high_trendline)                    
+                    buy_yn, _ = logic.should_buy_break_high_trend(ohlc_df, high_trendline, resistance)                    
                     
                     
                 if buy_yn:
@@ -1822,6 +1823,11 @@ class AutoTradingBot:
             int: 계산된 거래대금 (원 단위)
         """
         api_response = self.get_investor_trend_estimate(symbol)
+        
+        if api_response is None:
+            print(f"❌ API 응답이 None입니다: symbol={symbol}")
+            return 0
+        
         try:
             output2 = api_response.get("output2", [])
             for item in output2:
@@ -1837,7 +1843,7 @@ class AutoTradingBot:
             print(f"❌ 계산 오류: {e}")
             return 0
         
-    def get_latest_confirmed_support(self, df, current_idx, lookback_next=5):
+    def get_latest_confirmed_support(self, df, current_idx, lookback_next=7):
         """
         현재 시점(i)에서 확정된 지지선만 가져오기
         - i보다 최소 lookback_next 만큼 이전에 확정된 것만 허용
@@ -1852,7 +1858,7 @@ class AutoTradingBot:
 
         return valid.iloc[-1]['horizontal_low']
 
-    def get_latest_confirmed_resistance(self, df, current_idx, lookback_next=5):
+    def get_latest_confirmed_resistance(self, df, current_idx, lookback_next=7):
         """
         현재 시점(i)에서 확정된 저항선(horizontal_high)만 가져오기
         - i보다 최소 lookback_next 만큼 이전에 확정된 고점만 허용

@@ -1652,10 +1652,10 @@ class TradingLogic:
         # 조건
         cond1 = prev['Close'] < high_trendline  # 하락추세선 아래 → 상향 돌파
         cond2 = last['Close'] > high_trendline
-        cond3 = last['Close'] > last_resistance  # 수평 고점도 돌파
+        cond3 = last['Close'] >= last_resistance  # 수평 고점도 돌파
         cond4 = last['Close'] > last['Open']     # 양봉
 
-        buy_signal = all([cond1, cond2, cond4])
+        buy_signal = all([cond1, cond2, cond3, cond4])
         
         return buy_signal, None
 
@@ -1680,44 +1680,37 @@ class TradingLogic:
 
         return None, sell_signal
     
-    def fit_trendline(self, x, y):
+    def should_buy_break_high_trend(self, df, high_trendline, last_resistance):
         """
-        x: numpy array of index (0,1,...)
-        y: numpy array of prices (High or Low)
-        return: 선형회귀로 fitted 직선의 마지막 값 (추세선 기준 가격)
+        - 하락 고점 추세선을 상향 돌파 + 최근 수평 고점도 돌파
         """
-        x = x.reshape(-1, 1)
-        model = LinearRegression().fit(x, y)
-        next_x = np.array([[len(x)]])  # 예측할 다음 포인트
-        predicted_price = model.predict(next_x)[0]
-        return predicted_price
-    
-    def should_buy_break_high_trend(self, df, high_trendline):
-        """
-        고점 추세선 돌파 여부 판단
-        """
-        if high_trendline is None or len(df) < 2:
+        if len(df) < 10 or 'horizontal_high' not in df.columns:
             return False, None
 
-        prev_close = df['Close'].iloc[-2]
-        last_close = df['Close'].iloc[-1]
+        #current_idx = len(df) - 1
         last = df.iloc[-1]
         prev = df.iloc[-2]
-        
-        
-        volume_up = last['Volume'] > prev['Volume']
-        
-        # 하락 추세선 돌파
-        cond1 = prev_close <= high_trendline and last_close > high_trendline
-        
-        # ✅ 조건 3-1: EMA_50, EMA_60 기울기 평균도 음수여야 함
-        slope_ma_up = (
-            last['EMA_50_Slope_MA'] <= 0
-            and last['EMA_60_Slope_MA'] <= 0
-        )
-        
-        buy_signal = cond1 and slope_ma_up and volume_up
 
+        # 고점 추세선 연장값
+        
+        if high_trendline is None:
+            return False, None
+
+        # # 가장 최근의 수평 고점
+        # confirmed_highs = df.iloc[:current_idx - 5][df['horizontal_high'].notna()]
+        # if confirmed_highs.empty:
+        #     return False, None
+        # last_resistance = confirmed_highs['horizontal_high'].iloc[-1]
+        print(f"high_trendline: {high_trendline}")
+
+        # 조건
+        cond1 = prev['Close'] < high_trendline  # 하락추세선 아래 → 상향 돌파
+        cond2 = last['Close'] > high_trendline
+        cond3 = last['Close'] >= last_resistance  # 수평 고점도 돌파
+        cond4 = last['Close'] > last['Open']     # 양봉
+
+        buy_signal = all([cond1, cond2, cond4])
+        
         return buy_signal, None
 
 
