@@ -21,6 +21,7 @@ import time
 #sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
+from app.utils.dynamodb.model.auto_trading_model import AutoTrading
 from app.utils.dynamodb.model.stock_symbol_model import StockSymbol, StockSymbol2
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
 from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
@@ -1407,7 +1408,7 @@ def main():
     #         st.rerun()  # 로그아웃 후 페이지 새로고침
     
     # 탭 생성
-    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "📊 Simulation Result", "📈Auto Trading Bot Balance", "🏆Ranking"])
+    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "📊 Simulation Result", "📈Auto Trading Bot Balance", "🏆Ranking", "Setting"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
@@ -2051,6 +2052,42 @@ def main():
         )
 
         st.plotly_chart(fig, use_container_width=True)
+    
+
+    with tabs[6]:
+        
+        st.header("Setting")
+        # 선택할 옵션 리스트
+        auto_trading_bots = list(UserInfo.scan())
+        print(f"AutoTrading BOTS: {auto_trading_bots}")
+        # 봇 이름 추출 및 중복 제거
+        bot_names = sorted({item.trading_bot_name for item in auto_trading_bots if item.trading_bot_name is not None})
+        # buy_trading_logics = {item.buy_trading_logic for item in auto_trading_bots if item.buy_trading_logic is not None}
+        selected_bot_name = st.selectbox("봇을 선택하세요.", bot_names)
+
+        # 선택된 봇에 해당하는 거래 내역 가져오기
+        if selected_bot_name:
+            st.write(f"선택한 봇: {selected_bot_name}")
+            selected_bot = [item for item in auto_trading_bots if item.trading_bot_name == selected_bot_name][0]
+            print(f"Selected Bot: {selected_bot.id}")
+            trading_bot = list(UserInfo.query(selected_bot.id))[0]
+            
+            # 출력 예시
+            st.write({
+                "날짜": trading_bot.stop_loss_threshold,
+                "매수로직": trading_bot.buy_trading_logic,
+            })
+
+        # selected_buy_trading_logics = st.selectbox("매수 로직 리스트", buy_trading_logics)
+
+        # data_model = SimulationHistory(
+        #     simulation_id=simulation_id,
+        #     updated_at=updated_at,
+        #     updated_at_dt=updated_at_dt,
+        #     status=status
+        # )
+
+        # result = dynamodb_executor.execute_update(data_model, pk_name)
 
 
 if __name__ == "__main__":
