@@ -163,10 +163,10 @@ class AutoTradingBot:
         df = indicator.cal_sma_df(df, 200)        
 
         #ema
-        df = indicator.cal_ema_df(df, 10)
-        df = indicator.cal_ema_df(df, 20)
-        df = indicator.cal_ema_df(df, 50)
-        df = indicator.cal_ema_df(df, 60)
+        df = indicator.cal_ema_df(df, 13)
+        df = indicator.cal_ema_df(df, 21)
+        df = indicator.cal_ema_df(df, 55)
+        df = indicator.cal_ema_df(df, 89)
         df = indicator.cal_ema_df(df, 5)
 
         df = indicator.cal_rsi_df(df)
@@ -212,7 +212,7 @@ class AutoTradingBot:
         return df
 
 
-    def calculate_pnl(self, trading_history, current_price):
+    def calculate_pnl(self, trading_history, current_price, trade_amount):
         """Parameters:
         - trading_history: dict, 거래 내역 및 계산 결과 저장
         - current_price: float, 현재 가격
@@ -274,8 +274,8 @@ class AutoTradingBot:
 
         # 미실현 손익 계산
         unrealized_pnl = (current_price - average_price) * total_quantity if total_quantity > 0 else 0
-        realized_roi = (total_realized_pnl/investment_cost)*100 if investment_cost > 0 else 0
-        unrealized_roi = ((total_realized_pnl + unrealized_pnl)/investment_cost)*100 if investment_cost > 0 else 0
+        realized_roi = (total_realized_pnl/trade_amount)*100 if trade_amount > 0 else 0
+        unrealized_roi = ((total_realized_pnl + unrealized_pnl)/trade_amount)*100 if trade_amount > 0 else 0
 
         # 결과 저장
         trading_history.update({
@@ -291,7 +291,7 @@ class AutoTradingBot:
             'buy_dates': buy_dates,  # 매수 날짜 목록
             'sell_dates': sell_dates,  # 매도 날짜 목록
         })
-        
+        print(f"매수금액: {trade_amount}")
         print(f"투자비용: {investment_cost}")
         return trading_history
     
@@ -332,6 +332,9 @@ class AutoTradingBot:
         recent_buy_prices = {'price': 0, 'timestamp': None}
 
         signal_reasons = []
+        
+        lookback_prev = 5
+        lookback_next = 5
 
         for candle in ohlc_data:
             timestamps.append(candle.time)
@@ -346,7 +349,7 @@ class AutoTradingBot:
 
         # 지표 계산
         df = pd.DataFrame(ohlc, columns=["Time", "Open", "High", "Low", "Close", "Volume"], index=pd.DatetimeIndex(timestamps))
-        for p in [5, 10, 20, 50, 60]:
+        for p in [5, 13, 21, 55, 89]:
             df = indicator.cal_ema_df(df, p)
         for p in [5, 20, 40, 120, 200]:
             df = indicator.cal_sma_df(df, p)
@@ -355,15 +358,17 @@ class AutoTradingBot:
         df = indicator.cal_stochastic_df(df)
         df = indicator.cal_mfi_df(df)
         df = indicator.cal_bollinger_band(df)
-        df = indicator.cal_horizontal_levels_df(df)
-        df = indicator.add_extended_high_trendline(df)
+        df = indicator.cal_horizontal_levels_df(df, lookback_prev, lookback_next)
+        df = indicator.add_extended_high_trendline(df, lookback_next=lookback_next)
         
                 # 🔧 EMA 기울기 추가 및 이동평균 계산
-        df['EMA_50_Slope'] = df['EMA_50'] - df['EMA_50'].shift(1)
-        df['EMA_60_Slope'] = df['EMA_60'] - df['EMA_60'].shift(1)
+        #df['EMA_55_Slope'] = df['EMA_55'] - df['EMA_55'].shift(1)
+        #df['EMA_89_Slope'] = df['EMA_89'] - df['EMA_89'].shift(1)
+        df['EMA_55_Slope'] = (df['EMA_55'] - df['EMA_55'].shift(1)) / df['EMA_55'].shift(1) * 100
+        df['EMA_89_Slope'] = (df['EMA_89'] - df['EMA_89'].shift(1)) / df['EMA_89'].shift(1) * 100
 
-        df['EMA_50_Slope_MA'] = df['EMA_50_Slope'].rolling(window=3).mean()
-        df['EMA_60_Slope_MA'] = df['EMA_60_Slope'].rolling(window=3).mean()
+        df['EMA_55_Slope_MA'] = df['EMA_55_Slope'].rolling(window=3).mean()
+        df['EMA_89_Slope_MA'] = df['EMA_89_Slope'].rolling(window=3).mean()
         
         print(f"단일 시뮬레이션 시작!!")
         
@@ -371,12 +376,13 @@ class AutoTradingBot:
             timestamp = df.index[i]
             timestamp_date = timestamp.date()
             
+            
             candle = ohlc_data[i]  # ✅ 이 줄이 중요!
             row = df.iloc[i]
             current_df = df.iloc[:i+1]  # 매수/매도 로직에 넘길 슬라이스
-            support = self.get_latest_confirmed_support(df, current_idx=i)
-            resistance = self.get_latest_confirmed_resistance(df, current_idx=i)
-            high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=i)
+            support = self.get_latest_confirmed_support(df, lookback_next=lookback_next, current_idx=i)
+            resistance = self.get_latest_confirmed_resistance(df, lookback_next=lookback_next, current_idx=i)
+            high_trendline = indicator.get_latest_trendline_from_highs(df, lookback_next=lookback_next, current_idx=i)
             
             close_price = float(row["Close"])
             volume = float(row["Volume"])
@@ -388,26 +394,28 @@ class AutoTradingBot:
             trade_entry = {
                 'symbol': symbol,
                 'Time': timestamp,
-                'price': close_price,
+                'Close': close_price,
                 'volume': volume,
-                'rsi': self._convert_float(row['rsi']),
+                # 'rsi': self._convert_float(row['rsi']),
                 'EMA_5': self._convert_float(row['EMA_5']),
-                'EMA_10': self._convert_float(row['EMA_10']),
-                'EMA_20': self._convert_float(row['EMA_20']),
-                'EMA_50': self._convert_float(row['EMA_50']),
-                'EMA_60': self._convert_float(row['EMA_60']),
-                'SMA_5': self._convert_float(row['SMA_5']),
-                'SMA_20': self._convert_float(row['SMA_20']),
-                'SMA_40': self._convert_float(row['SMA_40']),
-                'BB_Upper': self._convert_float(row['BB_Upper']),
-                'BB_Middle': self._convert_float(row['BB_Middle']),
-                'BB_Lower': self._convert_float(row['BB_Lower']),
-                'EMA_50_Slope_MA': self._convert_float(row['EMA_50_Slope_MA']),
-                'EMA_60_Slope_MA': self._convert_float(row['EMA_60_Slope_MA']),
-                'horizontal_high': self._convert_float(row['horizontal_high']),
-                'horizontal_low' : self._convert_float(row['horizontal_low']),
+                'EMA_13': self._convert_float(row['EMA_13']),
+                'EMA_21': self._convert_float(row['EMA_21']),
+                'EMA_55': self._convert_float(row['EMA_55']),
+                'EMA_89': self._convert_float(row['EMA_89']),
+                # 'SMA_5': self._convert_float(row['SMA_5']),
+                # 'SMA_20': self._convert_float(row['SMA_20']),
+                # 'SMA_40': self._convert_float(row['SMA_40']),
+                # 'BB_Upper': self._convert_float(row['BB_Upper']),
+                # 'BB_Middle': self._convert_float(row['BB_Middle']),
+                # 'BB_Lower': self._convert_float(row['BB_Lower']),
+                'EMA_55_Slope_MA': self._convert_float(row['EMA_55_Slope_MA']),
+                'EMA_89_Slope_MA': self._convert_float(row['EMA_89_Slope_MA']),
+                # 'horizontal_high': self._convert_float(row['horizontal_high']),
+                # 'horizontal_low' : self._convert_float(row['horizontal_low']),
+                'horizontal_high': resistance,
                 'extended_high_trendline': self._convert_float(row['extended_high_trendline']),
-                'High_price': self._convert_float(row['High'])
+                'High': self._convert_float(row['High']),
+                # 'high_trendline': high_trendline
                 
             }
             logic.trade_reasons.append(trade_entry)
@@ -559,13 +567,13 @@ class AutoTradingBot:
                     print("⚠️ 매도 수량이 0이라서 거래 내역에 추가하지 않음")
                                 
                     # 손익 및 매매 횟수 계산
-                    trading_history = self.calculate_pnl(trading_history, close_price)
+                    trading_history = self.calculate_pnl(trading_history, close_price, trade_amount)
 
             print(f"총 비용: {trading_history['total_cost']}KRW, 총 보유량: {trading_history['total_quantity']}주, 평균 단가: {trading_history['average_price']}KRW, "
                 f"실현 손익 (Realized PnL): {trading_history['realized_pnl']}KRW, 미실현 손익 (Unrealized PnL): {trading_history['unrealized_pnl']}KRW")
             
             # 손익 및 매매 횟수 계산
-            trading_history = self.calculate_pnl(trading_history, close_price)
+            trading_history = self.calculate_pnl(trading_history, close_price, trade_amount)
 
         # result_data 생성 시 시뮬레이션 구간 이후만 전달
         filtered_ohlc = []
@@ -632,11 +640,14 @@ class AutoTradingBot:
                 indicator = TechnicalIndicator()
                 rsi_period = simulation_settings['rsi_period']
                 
+                lookback_prev = 5
+                lookback_next = 5
+        
                 # 지표 계산
-                df = indicator.cal_ema_df(df, 10)
-                df = indicator.cal_ema_df(df, 20)
-                df = indicator.cal_ema_df(df, 50)
-                df = indicator.cal_ema_df(df, 60)
+                df = indicator.cal_ema_df(df, 13)
+                df = indicator.cal_ema_df(df, 21)
+                df = indicator.cal_ema_df(df, 55)
+                df = indicator.cal_ema_df(df, 89)
                 df = indicator.cal_ema_df(df, 5)
                 
                 df = indicator.cal_sma_df(df, 5)
@@ -648,15 +659,16 @@ class AutoTradingBot:
                 df = indicator.cal_stochastic_df(df)
                 df = indicator.cal_mfi_df(df)
                 df = indicator.cal_bollinger_band(df)
-                df = indicator.cal_horizontal_levels_df(df)
+                df = indicator.cal_horizontal_levels_df(df, lookback_prev, lookback_next)
                 
         
                 # 🔧 EMA 기울기 추가 및 이동평균 계산
-                df['EMA_50_Slope'] = df['EMA_50'] - df['EMA_50'].shift(1)
-                df['EMA_60_Slope'] = df['EMA_60'] - df['EMA_60'].shift(1)
-
-                df['EMA_50_Slope_MA'] = df['EMA_50_Slope'].rolling(window=3).mean()
-                df['EMA_60_Slope_MA'] = df['EMA_60_Slope'].rolling(window=3).mean()
+                #df['EMA_55_Slope'] = df['EMA_55'] - df['EMA_55'].shift(1)
+                df['EMA_89_Slope'] = df['EMA_89'] - df['EMA_89'].shift(1)
+                df['EMA_55_Slope'] = (df['EMA_55'] - df['EMA_55'].shift(1)) / df['EMA_55'].shift(1) * 100
+                
+                df['EMA_55_Slope_MA'] = df['EMA_55_Slope'].rolling(window=3).mean()
+                df['EMA_89_Slope_MA'] = df['EMA_89_Slope'].rolling(window=3).mean()
                                 
                 # 유효한 종목만 저장
                 valid_symbols[stock_name] = symbol
@@ -829,9 +841,10 @@ class AutoTradingBot:
         # 🔍 현재 row 위치
         current_idx = len(df) - 1
 
+        lookback_next = 5
         # ✅ 현재 시점까지 확정된 지지선만 사용
-        support = self.get_latest_confirmed_support(df, current_idx=current_idx)
-        resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx)
+        support = self.get_latest_confirmed_support(df, current_idx=current_idx, lookback_next = lookback_next)
+        resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx, lookback_next = lookback_next)
         high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=current_idx)
         
         # 시뮬레이션 시작 전 초기화
@@ -1293,7 +1306,7 @@ class AutoTradingBot:
                     buy_yn, _ = logic.sma_breakout_trading(ohlc_df, symbol)
                     
                 elif trading_logic == 'ema_breakout_trading3':
-                    buy_yn, _ = logic.ema_breakout_trading3(ohlc_df, symbol)
+                    buy_yn, _ = logic.ema_breakout_trading3(ohlc_df, high_trendline, resistance)
                     
                 elif trading_logic == 'ema_crossover_trading':
                     buy_yn, _ = logic.ema_crossover_trading(ohlc_df, symbol)
@@ -1843,7 +1856,7 @@ class AutoTradingBot:
             print(f"❌ 계산 오류: {e}")
             return 0
         
-    def get_latest_confirmed_support(self, df, current_idx, lookback_next=7):
+    def get_latest_confirmed_support(self, df, current_idx, lookback_next=5):
         """
         현재 시점(i)에서 확정된 지지선만 가져오기
         - i보다 최소 lookback_next 만큼 이전에 확정된 것만 허용
@@ -1858,7 +1871,7 @@ class AutoTradingBot:
 
         return valid.iloc[-1]['horizontal_low']
 
-    def get_latest_confirmed_resistance(self, df, current_idx, lookback_next=7):
+    def get_latest_confirmed_resistance(self, df, current_idx, lookback_next=5):
         """
         현재 시점(i)에서 확정된 저항선(horizontal_high)만 가져오기
         - i보다 최소 lookback_next 만큼 이전에 확정된 고점만 허용

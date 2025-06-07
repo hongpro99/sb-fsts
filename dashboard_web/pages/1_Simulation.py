@@ -57,10 +57,10 @@ def draw_lightweight_chart(data_df, selected_indicators):
     bollinger_band_middle = json.loads(data_df.dropna(subset=['middle']).rename(columns={"middle": "value",}).to_json(orient = "records"))
     bollinger_band_lower = json.loads(data_df.dropna(subset=['lower']).rename(columns={"lower": "value",}).to_json(orient = "records"))
 
-    ema_60 = json.loads(data_df.dropna(subset=['ema_60']).rename(columns={"ema_60": "value"}).to_json(orient="records"))
-    ema_10 = json.loads(data_df.dropna(subset=['ema_10']).rename(columns={"ema_10": "value"}).to_json(orient="records"))
-    ema_20 = json.loads(data_df.dropna(subset=['ema_20']).rename(columns={"ema_20": "value"}).to_json(orient="records"))
-    ema_50 = json.loads(data_df.dropna(subset=['ema_50']).rename(columns={"ema_50": "value"}).to_json(orient="records"))
+    ema_89 = json.loads(data_df.dropna(subset=['ema_89']).rename(columns={"ema_89": "value"}).to_json(orient="records"))
+    ema_13 = json.loads(data_df.dropna(subset=['ema_13']).rename(columns={"ema_13": "value"}).to_json(orient="records"))
+    ema_21 = json.loads(data_df.dropna(subset=['ema_21']).rename(columns={"ema_21": "value"}).to_json(orient="records"))
+    ema_55 = json.loads(data_df.dropna(subset=['ema_55']).rename(columns={"ema_55": "value"}).to_json(orient="records"))
     ema_5 = json.loads(data_df.dropna(subset=['ema_5']).rename(columns={"ema_5": "value"}).to_json(orient="records"))
     
     sma_5 = json.loads(data_df.dropna(subset=['sma_5']).rename(columns={"sma_5": "value"}).to_json(orient="records"))
@@ -362,10 +362,10 @@ def draw_lightweight_chart(data_df, selected_indicators):
         })
         
         # EMA 10
-    if "ema_10" in selected_indicators:
+    if "ema_13" in selected_indicators:
         seriesCandlestickChart.append({
             "type": 'Line',
-            "data": ema_10,
+            "data": ema_13,
             "options": {
                 "color": 'rgba(255, 0, 0, 1)', #빨간색
                 "lineWidth": 2,
@@ -376,10 +376,10 @@ def draw_lightweight_chart(data_df, selected_indicators):
         })
         
                 # EMA 20
-    if "ema_20" in selected_indicators:
+    if "ema_21" in selected_indicators:
         seriesCandlestickChart.append({
             "type": 'Line',
-            "data": ema_20,
+            "data": ema_21,
             "options": {
                 "color": 'rgba(0, 255, 0, 1)',  # 초록색
                 "lineWidth": 2,
@@ -390,10 +390,10 @@ def draw_lightweight_chart(data_df, selected_indicators):
         })
 
         # EMA 50
-    if "ema_50" in selected_indicators:
+    if "ema_55" in selected_indicators:
         seriesCandlestickChart.append({
             "type": 'Line',
-            "data": ema_50,
+            "data": ema_55,
             "options": {
                 "color": 'rgba(0, 0, 255, 1)',  # 파란색
                 "lineWidth": 2,
@@ -404,10 +404,10 @@ def draw_lightweight_chart(data_df, selected_indicators):
         })
         
         # EMA 60
-    if "ema_60" in selected_indicators:
+    if "ema_89" in selected_indicators:
         seriesCandlestickChart.append({
             "type": 'Line',
-            "data": ema_60,
+            "data": ema_89,
             "options": {
                 "color": 'rgba(0, 170, 170, 1)', #청록색
                 "lineWidth": 2,
@@ -1016,14 +1016,14 @@ def setup_simulation_tab():
     selected_indicators = []
     if st.checkbox("EMA 5(검)", value=True):
         selected_indicators.append("ema_5")
-    if st.checkbox("EMA 10(빨)", value=True):
-        selected_indicators.append("ema_10")
-    if st.checkbox("EMA 20(초)", value=True):
-        selected_indicators.append("ema_20")
-    if st.checkbox("EMA 50(파)", value=True):
-        selected_indicators.append("ema_50")        
-    if st.checkbox("EMA 60(청록)", value=True):
-        selected_indicators.append("ema_60")
+    if st.checkbox("EMA 13(빨)", value=True):
+        selected_indicators.append("ema_13")
+    if st.checkbox("EMA 21(초)", value=True):
+        selected_indicators.append("ema_21")
+    if st.checkbox("EMA 55(파)", value=True):
+        selected_indicators.append("ema_55")        
+    if st.checkbox("EMA 89(청록)", value=True):
+        selected_indicators.append("ema_89")
     if st.checkbox("SMA 5", value=False):
         selected_indicators.append("sma_5")
     if st.checkbox("SMA 20", value=False):
@@ -1504,35 +1504,60 @@ def main():
                 trading_history = json_data['trading_history']
                 trade_reasons = json_data['trade_reasons']
 
-                simulation_result = {
+                # ✅ 상태 저장
+                st.session_state["simulation_result"] = {
                     "data_df": data_df,
                     "trading_history": trading_history,
-                    "trade_reasons": trade_reasons
+                    "trade_reasons": trade_reasons,
+                    "selected_indicators": sidebar_settings['selected_indicators'],
+                    "selected_stock": sidebar_settings["selected_stock"]
                 }
-    
-            result = simulation_result
+
+        # ✅ 이전 시뮬 결과가 있는 경우 표시
+        if "simulation_result" in st.session_state:
+            result = st.session_state["simulation_result"]
             data_df = result["data_df"]
             trading_history = result["trading_history"]
             trade_reasons = result["trade_reasons"]
-            
-            # CSV 다운로드 버튼 - trade_reasons DataFrame 생성 후 다운로드
-            if trade_reasons:
-                df_trade = pd.DataFrame(trade_reasons)
-            else:
-                st.warning("🚨 거래 내역이 없습니다.")
-                df_trade = pd.DataFrame()
-            
+            selected_indicators = result["selected_indicators"]
+
+            # CSV 다운로드 버튼
             st.subheader("📥 데이터 다운로드")
             csv_buffer = io.StringIO()
-            df_trade.to_csv(csv_buffer, index=False)
+            pd.DataFrame(trade_reasons).to_csv(csv_buffer, index=False)
             st.download_button(
                 label="📄 CSV 파일 다운로드",
                 data=csv_buffer.getvalue(),
                 file_name="trade_reasons.csv",
                 mime="text/csv"
             )
+            #     simulation_result = {
+            #         "data_df": data_df,
+            #         "trading_history": trading_history,
+            #         "trade_reasons": trade_reasons
+            #     }
+    
+            # result = simulation_result
+            # data_df = result["data_df"]
+            # trading_history = result["trading_history"]
+            # trade_reasons = result["trade_reasons"]
             
-            selected_indicators = sidebar_settings['selected_indicators'] # 차트 지표 선택 리스트
+            # # CSV 다운로드 버튼 - trade_reasons DataFrame 생성 후 다운로드
+            # if trade_reasons:
+            #     df_trade = pd.DataFrame(trade_reasons)
+            # else:
+            #     st.warning("🚨 거래 내역이 없습니다.")
+            #     df_trade = pd.DataFrame()
+            
+            # st.subheader("📥 데이터 다운로드")
+            # csv_buffer = io.StringIO()
+            # df_trade.to_csv(csv_buffer, index=False)
+            # st.download_button(
+            #     label="📄 CSV 파일 다운로드",
+            #     data=csv_buffer.getvalue(),
+            #     file_name="trade_reasons.csv",
+            #     mime="text/csv"
+            # )
             
             # TradingView 차트 그리기
             draw_lightweight_chart(data_df, selected_indicators)

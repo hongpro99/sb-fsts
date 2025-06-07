@@ -211,7 +211,7 @@ class TechnicalIndicator:
         
         return df
     
-    def cal_horizontal_levels_df(self, df, lookback_prev=7, lookback_next=7):
+    def cal_horizontal_levels_df(self, df, lookback_prev=5, lookback_next=5):
         """
         df에 고점/저점 수평선 컬럼을 추가
         - 'horizontal_high': 해당 행이 고점 수평선이면 값
@@ -246,7 +246,7 @@ class TechnicalIndicator:
             target_x = float(target_x)
     
             slope, intercept = np.polyfit(x_vals, y_vals, 1)
-            print(f"📐 slope: {slope:.8f}")
+            # print(f"📐 slope: {slope:.8f}")
             
                 # 💡 기울기가 거의 0이면 0으로 간주
             if np.isclose(slope, 0, atol=1e-8):
@@ -259,21 +259,22 @@ class TechnicalIndicator:
             print(f"[❌ 추세선 계산 에러] {e}")
             return None
 
-    def get_latest_trendline_from_highs(self, df, current_idx, lookback_next=7, max_pair_candidates=5):
+    def get_latest_trendline_from_highs(self, df, current_idx, lookback_next=5, max_pair_candidates=5, lookback_period=12):
         """
-        누적된 고점 중에서 current_idx 시점 이전 고점들만 고려하여,
-        '가장 최근 고점'과 그 이전 max_pair_candidates개 고점을 연결해 추세선을 생성.
-        기울기 < 0인 하락 추세선 중 하나를 current_idx까지 연장한 y값을 반환.
+        가장 최근 고점과 그 이전 max_pair_candidates개의 고점을 연결해,
+        의미 있는 하락 추세선을 계산하여 current_idx까지 연장한 y값 반환.
         """
         max_idx = current_idx - lookback_next
         if max_idx <= 0:
             print(f"[❌ 중단] current_idx={current_idx}, lookback_next={lookback_next} → max_idx <= 0")
             return None
 
-        # ✅ 누적된 confirmed 고점 중 current_idx 이전까지만
-        confirmed_highs = df.iloc[:max_idx][df['horizontal_high'].notna()]
+        sub_df = df.iloc[:max_idx]
+        confirmed_idx = self.get_confirmed_highs_with_lookback(sub_df, lookback_period=lookback_period)
+        confirmed_highs = df.loc[confirmed_idx]
+        
         if confirmed_highs.empty:
-            print("[⚠️ 고점 없음] 추세선 계산 불가")
+            print("[⚠️ 고점 없음] 확정 고점 기반 추세선 계산 불가")
             return None
 
         indices = confirmed_highs.index.tolist()
@@ -281,59 +282,90 @@ class TechnicalIndicator:
             print("[⚠️ 고점 1개 이하] 추세선 연결 불가")
             return None
 
-        # ✅ 가장 최근 고점 하나 추출
         latest_idx = indices[-1]
         latest_x = df.index.get_loc(latest_idx)
         latest_y = float(df.at[latest_idx, 'horizontal_high'])
-        print(f"[🟩 최근 고점] idx={latest_idx}, x={latest_x}, y={latest_y}")
 
-        # ✅ 그 이전 고점들 중 최대 max_pair_candidates개만 사용
         past_highs = indices[:-1][-max_pair_candidates:]
-        print(f"[🔍 연결할 이전 고점들] {[str(idx.date()) for idx in past_highs]}")
 
-        best_trendline = None
+        best_info = None
+        min_avg_deviation = float('inf')
+
         for prev_idx in past_highs:
-            prev_x = df.index.get_loc(prev_idx)
+            prev_x = df.index.get_loc(prev_idx) 
             prev_y = float(df.at[prev_idx, 'horizontal_high'])
+            print(f"prev_y: {prev_y}")
+            print(f"latest_y: {latest_y}")
+
 
             if latest_x <= prev_x:
                 continue
+            
+            # ✅ 고점이 점점 낮아지는 구조만 허용
+            # if prev_y <= latest_y:
+            #     continue
 
             x_vals = [prev_x, latest_x]
             y_vals = [prev_y, latest_y]
+            
+                    # ✅ 하락 고점 흐름 검사
+            y_vals_list = [float(df.at[i, 'horizontal_high']) for i in past_highs if df.index.get_loc(i) >= prev_x] + [latest_y]
+            is_strictly_decreasing = all(y_vals_list[i] > y_vals_list[i + 1] for i in range(len(y_vals_list) - 1))
+            if not is_strictly_decreasing:
+                continue  # ❌ 고점 흐름이 하락하지 않음
 
             trend_y = self.extend_trendline_from_points(x_vals, y_vals, current_idx)
-            if trend_y is not None:
-                slope = (y_vals[1] - y_vals[0]) / (x_vals[1] - x_vals[0])
-                best_trendline = trend_y
-                intercept = y_vals[0] - slope * x_vals[0]
+            if trend_y is None:
+                continue
 
-                
-                print(f"✅ 추세선: {prev_idx.date()} @ {latest_idx.date()}, 기울기: {slope:.4f}, 연장 y값: {trend_y:.2f}")
-                
+            slope = (y_vals[1] - y_vals[0]) / (x_vals[1] - x_vals[0])
+            intercept = y_vals[0] - slope * x_vals[0]
+
+            # ✅ 중간 고점이 선 위에 있으면 제외
+            violated = False
+            deviations = []
+            for idx in indices:
+                x = df.index.get_loc(idx)
+                y = float(df.at[idx, 'horizontal_high'])
+                if x <= prev_x or x >= latest_x:
+                    continue
+                expected_y = slope * x + intercept
+                if y > expected_y:
+                    violated = True
+                    break
+                deviations.append(abs(y - expected_y))
+
+            if violated or len(deviations) < 1: #중간에 고점이 2개 이상 있어야 함
+                continue
+
+            avg_deviation = np.mean(deviations)
+            if avg_deviation < min_avg_deviation:
+                min_avg_deviation = avg_deviation
                 best_info = {
-                "prev_idx": prev_idx,
-                "latest_idx": latest_idx,
-                "slope": slope,
-                "intercept": intercept,
-                "trend_y": trend_y,
-                "x1": x_vals[0],
-                "x2": x_vals[1],
-                "y1": y_vals[0],
-                "y2": y_vals[1],
-            }
+                    "prev_idx": prev_idx,
+                    "latest_idx": latest_idx,
+                    "slope": slope,
+                    "intercept": intercept,
+                    "trend_y": slope * current_idx + intercept,
+                    "avg_deviation": avg_deviation,
+                    "x1": x_vals[0],
+                    "x2": x_vals[1],
+                    "y1": y_vals[0],
+                    "y2": y_vals[1],
+                }
 
-        if best_trendline is None:
-            print("⚠️ 유효한 하락 추세선 없음")
-        else:
-            print("📌 [최종 선택된 추세선]")
+        if best_info:
+            print("📌 [최종 의미 있는 추세선]")
             print(f"   • 시작점: {best_info['prev_idx'].date()} (x={best_info['x1']}, y={best_info['y1']})")
             print(f"   • 끝점  : {best_info['latest_idx'].date()} (x={best_info['x2']}, y={best_info['y2']})")
             print(f"   • 기울기: {best_info['slope']:.4f}")
-            print(f"   • 절편  : {best_info['intercept']:.2f}")
+            print(f"   • 평균 편차: {best_info['avg_deviation']:.2f}")
             print(f"   • 연장된 y({current_idx})값: {best_info['trend_y']:.2f}")
+            return best_info['trend_y']
+        else:
+            print("⚠️ 의미 있는 하락 추세선 없음")
+            return None
 
-        return best_trendline
 
     # def get_latest_trendline_from_highs(self, df, current_idx, window=2, lookback_next=5):
     #     """
@@ -365,7 +397,7 @@ class TechnicalIndicator:
 
     #     return self.extend_trendline_from_points(x_vals, y_vals, target_x)
     
-    def add_extended_high_trendline(self, df, window=2, lookback_next=7):
+    def add_extended_high_trendline(self, df, window=2, lookback_next=5):
         """
         df에 각 시점의 고점 추세선을 연장한 값을 계산하여 컬럼으로 추가
         """
@@ -382,3 +414,76 @@ class TechnicalIndicator:
 
         df['extended_high_trendline'] = extended_trendline
         return df
+    
+    # def cal_horizontal_levels_df(self, df, lookback_prev=5, lookback_next=5, tolerance=0.00, min_count=2):
+    #     """
+    #     df에 확정된 고점/저점 중 유사한 가격대가 2번 이상 반복되었을 때만 수평선 표시
+    #     - 'horizontal_high': 반복 고점이 감지된 경우 그 가격
+    #     - 'horizontal_low': 반복 저점이 감지된 경우 그 가격
+    #     """
+
+    #     df = df.copy()
+    #     pivot_highs = []
+    #     pivot_lows = []
+
+    #     df['horizontal_high'] = None
+    #     df['horizontal_low'] = None
+
+    #     for i in range(lookback_prev, len(df) - lookback_next):
+    #         window = df.iloc[i - lookback_prev : i + lookback_next + 1]
+    #         center = df.iloc[i]
+
+    #         if center['High'] == window['High'].max():
+    #             pivot_highs.append((df.index[i], center['High']))
+
+    #         if center['Low'] == window['Low'].min():
+    #             pivot_lows.append((df.index[i], center['Low']))
+
+    #     # 🔄 고점 클러스터링
+    #     def merge_pivots(pivot_points, tolerance, min_count):
+    #         levels = []
+    #         counts = []
+
+    #         for idx, val in pivot_points:
+    #             matched = False
+    #             for i, level in enumerate(levels):
+    #                 if abs(val - level) / level <= tolerance:
+    #                     # 평균 병합
+    #                     levels[i] = (levels[i] * counts[i] + val) / (counts[i] + 1)
+    #                     counts[i] += 1
+    #                     matched = True
+    #                     break
+    #             if not matched:
+    #                 levels.append(val)
+    #                 counts.append(1)
+
+    #         # N회 이상 등장한 레벨만 리턴
+    #         return [round(level, 2) for level, cnt in zip(levels, counts) if cnt >= min_count]
+
+    #     high_levels = merge_pivots(pivot_highs, tolerance, min_count)
+    #     low_levels = merge_pivots(pivot_lows, tolerance, min_count)
+
+    #     # 🔧 df에 수평선 표시
+    #     for level in high_levels:
+    #         df.loc[df['High'].between(level * (1 - tolerance), level * (1 + tolerance)), 'horizontal_high'] = level
+
+    #     for level in low_levels:
+    #         df.loc[df['Low'].between(level * (1 - tolerance), level * (1 + tolerance)), 'horizontal_low'] = level
+
+    #     return df
+
+    def get_confirmed_highs_with_lookback(self, df, lookback_period=10):
+        confirmed_indices = []
+
+        highs = df[df['horizontal_high'].notna()]
+        for idx in highs.index:
+            pos = df.index.get_loc(idx)
+
+            # 최근 lookback 기간 내에 다른 고점(high)이 있는지 확인
+            start = max(0, pos - lookback_period)
+            recent_window = df.iloc[start:pos]
+
+            if recent_window['horizontal_high'].notna().sum() == 0:
+                confirmed_indices.append(idx)
+
+        return confirmed_indices
