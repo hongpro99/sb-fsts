@@ -64,14 +64,10 @@ async def simulate_single_trade(data: SimulationTradingModel):
         interval=simulation_data["interval"],
         buy_percentage=simulation_data.get("buy_percentage"),
         ohlc_mode = simulation_data["ohlc_mode"],
-        rsi_buy_threshold= simulation_data['rsi_buy_threshold'],
-        rsi_sell_threshold= simulation_data['rsi_sell_threshold'],
         rsi_period= simulation_data['rsi_period'],
         initial_capital = simulation_data.get('initial_capital'),
-        use_take_profit=simulation_data["use_take_profit"],
-        take_profit_ratio=simulation_data["take_profit_ratio"],
-        use_stop_loss=simulation_data["use_stop_loss"],
-        stop_loss_ratio=simulation_data["stop_loss_ratio"]
+        take_profit_logic=simulation_data.get("take_profit_logic"),
+        stop_loss_logic=simulation_data.get("stop_loss_logic")
     )
 
     csv_url = save_df_to_s3(data_df, bucket_name="sb-fsts")
