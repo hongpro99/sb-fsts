@@ -349,7 +349,7 @@ class AutoTradingBot:
 
         # 지표 계산
         df = pd.DataFrame(ohlc, columns=["Time", "Open", "High", "Low", "Close", "Volume"], index=pd.DatetimeIndex(timestamps))
-        for p in [5, 13, 21, 55, 89]:
+        for p in [5, 10, 13, 20, 21, 55, 60, 89]:
             df = indicator.cal_ema_df(df, p)
         for p in [5, 20, 40, 120, 200]:
             df = indicator.cal_sma_df(df, p)
@@ -644,9 +644,12 @@ class AutoTradingBot:
                 lookback_next = 5
         
                 # 지표 계산
+                df = indicator.cal_ema_df(df, 10)
                 df = indicator.cal_ema_df(df, 13)
+                df = indicator.cal_ema_df(df, 20)
                 df = indicator.cal_ema_df(df, 21)
                 df = indicator.cal_ema_df(df, 55)
+                df = indicator.cal_ema_df(df, 60)
                 df = indicator.cal_ema_df(df, 89)
                 df = indicator.cal_ema_df(df, 5)
                 
@@ -807,7 +810,15 @@ class AutoTradingBot:
                     f"평균단가: {holding_state[symbol]['average_price']:.2f}, "
                     f"총비용: {holding_state[symbol]['total_cost']:.0f}")
                     
-                    #global_state = trading_history.copy()
+
+                    # if trading_history:
+                    #     trading_history["ohlc_data_full"] = df.copy(deep=False)
+                    #     results.append(trading_history)
+                    #     print(f"✅ [{symbol} - {current_date.date()}] trading result added")
+
+                    # else:
+                    #     print(f"ℹ️ [{symbol} - {current_date.date()}] No trade signal, skipped.")
+
                     results.append(trading_history)
 
                 except Exception as e:
@@ -1055,7 +1066,14 @@ class AutoTradingBot:
         #holding_state.update(state)
         holding_state[symbol] = state
 
+        # ✅ 가상 매수 시점 정보 추가
+        buy_signal_info = {
+            "symbol": symbol,
+            "date": candle_time,
+            "price": close_price
+        } if buy_signal else None
         
+        print(f"buy_signal_info: {buy_signal_info}")
         return {
             'symbol': symbol,
             'sim_date': timestamp_str,
@@ -1085,7 +1103,8 @@ class AutoTradingBot:
                                 (sell_fee if sell_signal else 0) + 
                                 (tax if sell_signal else 0), 2),
             'buy_logic_count': buy_logic_count,
-            "total_buy_cost": total_buy_cost
+            "total_buy_cost": total_buy_cost,
+            "buy_signal_info": buy_signal_info  # ✅ 추가
         }
     
     # 실시간 매매 함수
@@ -1306,13 +1325,13 @@ class AutoTradingBot:
                     buy_yn, _ = logic.sma_breakout_trading(ohlc_df, symbol)
                     
                 elif trading_logic == 'ema_breakout_trading3':
-                    buy_yn, _ = logic.ema_breakout_trading3(ohlc_df, high_trendline, resistance)
+                    buy_yn, _ = logic.ema_breakout_trading3(ohlc_df)
                     
                 elif trading_logic == 'ema_crossover_trading':
-                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df, symbol)
+                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df)
                     
                 elif trading_logic == 'anti_retail_ema_entry':
-                    buy_yn, _ = logic.anti_retail_ema_entry(ohlc_df, support)
+                    buy_yn, _ = logic.anti_retail_ema_entry(ohlc_df)
                     
                 elif trading_logic == 'trendline_breakout_trading':
                     buy_yn, _ = logic.trendline_breakout_trading(ohlc_df, resistance)

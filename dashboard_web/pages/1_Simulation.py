@@ -1100,10 +1100,23 @@ def format_date_ymd(value):
     else:
         return str(value)  # 혹시 모를 예외 처리
 
+            # ✅ 함수: 가상 익절/손절 판단
+def simulate_virtual_sell(df, start_idx, buy_price, take_profit_ratio, stop_loss_ratio):
+    for i in range(start_idx + 1, len(df)):
+        close = df["Close"].iloc[i]
+        roi = ((close - buy_price) / buy_price) * 100
+
+        if roi >= take_profit_ratio:
+            return "take_profit", roi, df.index[i]
+        elif roi <= -stop_loss_ratio:
+            return "stop_loss", roi, df.index[i]
+    return None, None, None
+            
+
 def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
 
     signal_logs = []
-
+    
     if results:
         results_df = pd.DataFrame(results)
 
@@ -1114,7 +1127,7 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
         reorder_columns = [
             "sim_date", "symbol", "initial_capital", "portfolio_value", "buy_count", "sell_count", "quantity",
             "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi",
-            "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", 'buy_logic_count', "signal_reasons", "total_buy_cost", "history"
+            "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", 'buy_logic_count', "signal_reasons", "total_buy_cost", "buy_signal_info", "ohlc_data_full", "history"
         ]
         results_df = results_df[[col for col in reorder_columns if col in results_df.columns]]
 
@@ -1378,7 +1391,127 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
                 st.metric("📜 총 거래세", f"{total_tax:,.0f} KRW")
             with col4:
                 st.metric("💰 총 수수료 비용 합계", f"{total_costs:,.0f} KRW")
-                
+
+            # ✅ 거래 여부와 무관한 신호 발생 통계 요약
+            if signal_logs:
+                df_signals_stat = pd.DataFrame(signal_logs)
+                total_buy_signals = len(df_signals_stat[df_signals_stat["signal"] == "BUY_SIGNAL"])
+                total_sell_signals = len(df_signals_stat[df_signals_stat["signal"] == "SELL_SIGNAL"])
+
+                # 익절/손절은 거래가 발생했을 때만 측정 가능 → 거래 결과로부터
+                total_tp_from_trades = results_df["take_profit_hit"].sum() if "take_profit_hit" in results_df.columns else 0
+                total_sl_from_trades = results_df["stop_loss_hit"].sum() if "stop_loss_hit" in results_df.columns else 0
+
+                take_profit_ratio_per_sell_signal = (
+                    (total_tp_from_trades / total_sell_signals) * 100 if total_sell_signals > 0 else None
+                )
+
+                st.markdown("---")
+                st.subheader("📌 매매 신호 통계 요약 (거래 여부 무관)")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("📍 총 매수 신호", total_buy_signals)
+                    st.metric("📍 총 매도 신호", total_sell_signals)
+                with col2:
+                    st.metric("✅ 익절 발생 (총)", total_tp_from_trades)
+                    st.metric("⚠️ 손절 발생 (총)", total_sl_from_trades)
+                    st.metric("📈 매도 신호 대비 익절률", f"{take_profit_ratio_per_sell_signal:.2f}%" if take_profit_ratio_per_sell_signal is not None else "N/A")
+                    
+
+            # st.markdown("---")
+            # st.subheader("🛠️ 가상 익절/손절 판단 디버깅")
+
+            # debug_rows = 0
+            # for row in results:
+            #     signal_info = row.get("buy_signal_info")
+            #     df_full = row.get("ohlc_data_full")
+
+            #     if signal_info:
+            #         st.write(
+            #         f"📘 BUY_SIGNAL 발생: {row['symbol']} on {signal_info['date'].strftime('%Y-%m-%d')} @ {signal_info['price']}"
+            #     )
+            #     else:
+            #         st.write(f"🚫 No buy_signal_info for {row['symbol']}")
+            #         continue
+
+            #     if df_full is None:
+            #         st.write(f"❌ {row['symbol']} → ohlc_data_full 없음")
+            #         continue
+            #     st.write(f"📂 df_full type: {type(df_full)}")
+            #     st.write(f"🧩 df_full.index: {df_full.index if hasattr(df_full, 'index') else '❌ index 없음'}")
+
+            #     try:
+            #         start_idx = df_full.index.get_loc(pd.Timestamp(signal_info["date"]))
+            #     except KeyError:
+            #         st.write(f"❌ {row['symbol']} → Index에서 {signal_info['date']} 못 찾음")
+            #         continue
+
+            #     outcome, roi, outcome_date = simulate_virtual_sell(
+            #         df_full, start_idx, signal_info["price"],
+            #         take_profit_ratio=simulation_settings["take_profit_ratio"],
+            #         stop_loss_ratio=simulation_settings["stop_loss_ratio"]
+            #     )
+
+                # debug_rows += 1
+                # if debug_rows >= 5:
+                #     break  # 디버깅 출력 너무 많으면 중단
+    
+                # ✅ 거래 여부 무관, 신호 발생 기준 가상 익절/손절 내역 추적
+                # virtual_hits = []
+
+                # for row in results:
+                #     signal_info = row.get("buy_signal_info")
+                #     df_full = row.get("ohlc_data_full")
+
+                #     if signal_info is None:
+                #         st.write(f"🚫 No buy_signal_info for {row['symbol']}")
+                #         continue
+                #     if df_full is None or not isinstance(df_full, pd.DataFrame):
+                #         st.write(f"❌ ohlc_data_full이 잘못되었거나 없음: {row['symbol']}")
+                #         continue
+
+                #     # ✅ 안전하게 날짜 변환
+                #     try:
+                #         signal_dt = pd.to_datetime(signal_info["date"]).normalize()
+                #     except Exception as e:
+                #         st.write(f"❌ 날짜 변환 실패: {e}")
+                #         continue
+
+                #     try:
+                #         df_full.index = pd.to_datetime(df_full.index).normalize()
+                #         start_idx = df_full.index.get_loc(signal_dt)
+                #     except KeyError:
+                #         st.write(f"❌ {row['symbol']} → df_full.index에 {signal_dt} 없음")
+                #         continue
+                #     except Exception as e:
+                #         st.write(f"❌ index 오류: {e}")
+                #         continue
+
+                #     outcome, roi, outcome_date = simulate_virtual_sell(
+                #         df_full, start_idx, signal_info["price"],
+                #         take_profit_ratio=simulation_settings["take_profit_ratio"],
+                #         stop_loss_ratio=simulation_settings["stop_loss_ratio"]
+                #     )
+
+                #     if outcome:
+                #         virtual_hits.append({
+                #             "symbol": row["symbol"],
+                #             "buy_date": signal_dt.strftime("%Y-%m-%d"),
+                #             "outcome_date": outcome_date.strftime("%Y-%m-%d"),
+                #             "type": "✅ 익절" if outcome == "take_profit" else "⚠️ 손절",
+                #             "roi": f"{roi:.2f}%",
+                #             "reason": "가상 매수 후 조건 충족"
+                #         })
+
+                # if virtual_hits:
+                #     df_virtual = pd.DataFrame(virtual_hits)
+                #     st.markdown("---")
+                #     st.subheader("🧪 거래 여부 무관: 가상 매수 기준 익절/손절 내역")
+                #     st.dataframe(df_virtual, use_container_width=True)
+                # else:
+                #     st.info("📭 가상 익절/손절 내역 없음")
+                                    
         if failed_stocks:
             st.warning(f"⚠️ 시뮬레이션 실패 종목 ({len(failed_stocks)}개): {', '.join(sorted(failed_stocks))}")
 
