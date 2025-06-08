@@ -21,6 +21,7 @@ import time
 #sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
+from app.utils.dynamodb.model.auto_trading_model import AutoTrading
 from app.utils.dynamodb.model.stock_symbol_model import StockSymbol, StockSymbol2
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
 from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
@@ -986,6 +987,9 @@ def setup_simulation_tab():
     selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic] if selected_buy_logic else []
     selected_sellTrading_logic = [available_sell_logic[logic] for logic in selected_sell_logic] if selected_sell_logic else []
     
+    take_profit_logic = []
+    stop_loss_logic = []
+
     #mode
     ohlc_mode_checkbox = st.checkbox("차트 연결 모드")  # True / False 반환
     ohlc_mode = "continuous" if ohlc_mode_checkbox else "default"
@@ -999,11 +1003,27 @@ def setup_simulation_tab():
     if real_trading_yn == "Y":
         initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10000000, step=1000000)
         
-    use_take_profit = st.checkbox("익절 조건", value=False)
-    take_profit_ratio = st.number_input("익절(%)", value=5.0, min_value=0.0,  key="take_profit_ratio")
+    use_take_profit = st.checkbox("익절 조건 사용", value=False)
+    if use_take_profit:
+        selected_take_profit_logic = st.selectbox("익절 방식 선택", ['절대 비율'])
+        take_profit_ratio = st.number_input("익절 기준 (%)", value=5.0, min_value=0.0)
+        
+        logic = {}
+        logic['name'] = selected_take_profit_logic
+        logic['ratio'] = take_profit_ratio
+        logic['use_yn'] = True
+        take_profit_logic.append(logic)
 
-    use_stop_loss = st.checkbox("손절 조건", value=False)
-    stop_loss_ratio = st.number_input("손절(%)", value=5.0, min_value=0.0,  key="stop_loss_ratio")
+    use_stop_loss = st.checkbox("손절 조건 사용", value=False)
+    if use_stop_loss:
+        selected_stop_loss_logic = st.selectbox("손절 방식 선택", ['절대 비율'])
+        stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0) 
+
+        logic = {}
+        logic['name'] = selected_stop_loss_logic
+        logic['ratio'] = stop_loss_ratio
+        logic['use_yn'] = True
+        stop_loss_logic.append(logic)
         
     #✅ rsi 조건값 입력
     rsi_buy_threshold = st.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1)
@@ -1065,10 +1085,8 @@ def setup_simulation_tab():
         "rsi_period" : rsi_period,
         "selected_indicators" : selected_indicators,
         "initial_capital" : initial_capital,
-        "use_take_profit" : use_take_profit,
-        "take_profit_ratio": take_profit_ratio,
-        "use_stop_loss": use_stop_loss,
-        "stop_loss_ratio": stop_loss_ratio
+        "take_profit_logic" : take_profit_logic,
+        "stop_loss_logic": stop_loss_logic,
     }
 
 def read_csv_from_presigned_url(presigned_url):
@@ -1190,9 +1208,7 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
             st.metric("rsi_buy_threshold", simulation_settings["rsi_buy_threshold"] if simulation_settings.get("rsi_buy_threshold") else "없음")
             st.metric("rsi_sell_threshold", simulation_settings["rsi_sell_threshold"] if simulation_settings.get("rsi_sell_threshold") else "없음")
         with col4:
-            st.metric("익절 여부", simulation_settings["use_take_profit"] if simulation_settings.get("use_take_profit") else "없음")
             st.metric("익절 비율", simulation_settings["take_profit_ratio"] if simulation_settings.get("use_take_profit") else "없음")
-            st.metric("손절 여부", simulation_settings["use_stop_loss"] if simulation_settings.get("use_stop_loss") else "없음")
             st.metric("손절 비율", simulation_settings["stop_loss_ratio"] if simulation_settings.get("use_stop_loss") else "없음")
 
         # 한글 로직 이름 맵핑
@@ -1540,7 +1556,7 @@ def main():
     #         st.rerun()  # 로그아웃 후 페이지 새로고침
     
     # 탭 생성
-    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "📊 Simulation Result", "📈Auto Trading Bot Balance", "🏆Ranking"])
+    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "📊 Simulation Result", "📈Auto Trading Bot Balance", "🏆Ranking", "Setting"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
@@ -1621,10 +1637,8 @@ def main():
                     "rsi_sell_threshold": sidebar_settings["rsi_sell_threshold"],
                     "rsi_period": sidebar_settings["rsi_period"],
                     "initial_capital": sidebar_settings["initial_capital"],
-                    "use_take_profit": sidebar_settings["use_take_profit"],
-                    "take_profit_ratio": sidebar_settings["take_profit_ratio"],
-                    "use_stop_loss": sidebar_settings["use_stop_loss"],
-                    "stop_loss_ratio": sidebar_settings["stop_loss_ratio"]
+                    "take_profit_logic": sidebar_settings["take_profit_logic"],
+                    "stop_loss_logic": sidebar_settings["stop_loss_logic"]
                 }
 
                 response = requests.post(url, json=payload).json()
@@ -1880,11 +1894,13 @@ def main():
         if buy_condition_yn:
             buy_percentage = st.number_input("💵 퍼센트 (%) 입력", min_value=0.0, max_value=100.0, value=3.0, step=0.1, key="buy_percentage")
             
-        use_take_profit = st.checkbox("익절 조건 사용", value=False)
-        take_profit_ratio = st.number_input("익절 기준 (%)", value=5.0, min_value=0.0)
+        use_take_profit = st.checkbox("익절 조건 사용", value=False, key="use_take_profit")
+        selected_take_profit_logic = st.selectbox("익절 방식 선택", ['절대 비율'], key="selected_take_profit_logic")
+        take_profit_ratio = st.number_input("익절 기준 (%)", value=5.0, min_value=0.0, key="take_profit_ratio")
 
-        use_stop_loss = st.checkbox("손절 조건 사용", value=False)
-        stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0)        
+        use_stop_loss = st.checkbox("손절 조건 사용", value=False, key="use_stop_loss")
+        selected_stop_loss_logic = st.selectbox("손절 방식 선택", ['절대 비율'], key="selected_stop_loss_logic")
+        stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0, key="stop_loss_ratio")        
 
         #✅ rsi 조건값 입력
         st.subheader("🎯 RSI 조건값 설정")
@@ -2184,6 +2200,48 @@ def main():
         )
 
         st.plotly_chart(fig, use_container_width=True)
+    
+
+    with tabs[6]:
+        
+        st.header("Setting")
+        # 선택할 옵션 리스트
+        auto_trading_bots = list(UserInfo.scan())
+        print(f"AutoTrading BOTS: {auto_trading_bots}")
+        # 봇 이름 추출 및 중복 제거
+        bot_names = sorted({item.trading_bot_name for item in auto_trading_bots if item.trading_bot_name is not None})
+        # buy_trading_logics = {item.buy_trading_logic for item in auto_trading_bots if item.buy_trading_logic is not None}
+        selected_bot_name = st.selectbox("봇을 선택하세요.", bot_names)
+
+        # 선택된 봇에 해당하는 거래 내역 가져오기
+        if selected_bot_name:
+            st.write(f"선택한 봇: {selected_bot_name}")
+            selected_bot = [item for item in auto_trading_bots if item.trading_bot_name == selected_bot_name][0]
+            print(f"Selected Bot: {selected_bot.id}")
+            trading_bot = list(UserInfo.query(selected_bot.id))[0]
+            
+            selected_buy_trading_logics = st.multiselect(
+                "매수 로직 리스트",
+                options=trading_bot.buy_trading_logic,        # 전체 선택지
+                default=trading_bot.buy_trading_logic
+            )
+
+            # 출력 예시
+            st.write({
+                "날짜": trading_bot.stop_loss_threshold,
+                "매수로직": selected_buy_trading_logics,
+            })
+
+        # selected_buy_trading_logics = st.selectbox("매수 로직 리스트", buy_trading_logics)
+
+        # data_model = SimulationHistory(
+        #     simulation_id=simulation_id,
+        #     updated_at=updated_at,
+        #     updated_at_dt=updated_at_dt,
+        #     status=status
+        # )
+
+        # result = dynamodb_executor.execute_update(data_model, pk_name)
 
 
 if __name__ == "__main__":

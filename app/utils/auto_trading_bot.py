@@ -297,24 +297,26 @@ class AutoTradingBot:
     
 
     def simulate_trading(self, symbol, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None,
-                        interval='day', buy_percentage = None, ohlc_mode = 'default', initial_capital=None, rsi_buy_threshold = 30, rsi_sell_threshold = 70, rsi_period = 25, take_profit_ratio=5.0, stop_loss_ratio=3.0,
-                        use_take_profit = False, use_stop_loss = False):
+                        interval='day', buy_percentage = None, ohlc_mode = 'default', initial_capital=None, rsi_period = 25, take_profit_logic=None, stop_loss_logic=None):
+        
         start_date = pd.to_datetime(start_date)
         if start_date.tzinfo is None:
             start_date = start_date.tz_localize("Asia/Seoul")  # 또는 timestamp.tzinfo
         start_date = pd.to_datetime(start_date)
         data_start_date = start_date - timedelta(days=180)
 
+        take_profit_logic = take_profit_logic[0] if len(take_profit_logic) > 0 else None
+        stop_loss_logic = stop_loss_logic[0] if len(stop_loss_logic) > 0 else None
+        
         ohlc_data = self._get_ohlc(symbol, data_start_date, end_date, interval, ohlc_mode)
         if not ohlc_data:
             print(f"❌ No OHLC data: {symbol}")
             return None, None, None
         
-        # trade_reasons = logic.trade_reasons
+        # 거래 로직 초기화
         logic.trade_reasons = []
-        # ✅ trade_reasons 초기화
     
-        real_trading = initial_capital is not None
+        use_initial_capital_yn = initial_capital is not None
         trade_amount = target_trade_value_krw
 
         trading_history = {
@@ -322,7 +324,8 @@ class AutoTradingBot:
             'realized_roi': 0, 'unrealized_roi': 0, 'total_cost': 0,
             'total_quantity': 0, 'buy_count': 0, 'sell_count': 0,
             'buy_dates': [], 'sell_dates': [], 'history': [],
-            'initial_capital': initial_capital
+            'initial_capital': initial_capital,
+            'capital': initial_capital
         }
 
         timestamps, ohlc, closes, previous_closes = [], [], [], []
@@ -330,8 +333,6 @@ class AutoTradingBot:
 
         logic.trade_reasons = []
         recent_buy_prices = {'price': 0, 'timestamp': None}
-
-        signal_reasons = []
         
         lookback_prev = 5
         lookback_next = 5
@@ -375,7 +376,6 @@ class AutoTradingBot:
         for i in range(len(df)):
             timestamp = df.index[i]
             timestamp_date = timestamp.date()
-            
             
             candle = ohlc_data[i]  # ✅ 이 줄이 중요!
             row = df.iloc[i]
@@ -424,6 +424,24 @@ class AutoTradingBot:
             buy_logic_reasons = []
             sell_logic_reasons = []
 
+            # 매도형 로직 처리
+            sell_yn = False
+
+            # ✅ 익절 / 손절 먼저 검사
+            if trading_history['total_quantity'] > 0:
+                avg_price = trading_history['average_price']
+                current_return_rate = (close_price - avg_price) / avg_price * 100 if avg_price > 0 else 0.0
+
+                if take_profit_logic['use_yn']:
+                    if current_return_rate >= take_profit_logic['ratio']:
+                        sell_yn = True
+                        sell_logic_reasons.append('익절')
+
+                if stop_loss_logic['use_yn']:
+                    if current_return_rate <= -stop_loss_logic['ratio']:
+                        sell_yn = True
+                        sell_logic_reasons.append('손절')
+
             # 매수형 로직 처리
             if buy_trading_logic:
                 buy_logic_reasons = self._get_trading_logic_reasons(
@@ -441,9 +459,7 @@ class AutoTradingBot:
             # 매수, 전일 거래량이 전전일 거래량보다 크다는 조건 추가, #d_1.volume > avg_volume_20_days  
             #if buy_yn and d_1 is not None and volume > d_1.volume and d_1.volume > avg_volume_20_days:
             if len(buy_logic_reasons) > 0: # 일단 매수 거래량 조건 제거
-                            
                 can_buy = True
-                
                 # 매수 제한 조건 확인                        
                 if buy_percentage is not None:
                     #첫 매수는 항상 허용
@@ -459,21 +475,24 @@ class AutoTradingBot:
                             print(f"🚫 매수 조건 충족했지만, {buy_percentage}% 범위 내 기존 매수가 존재하여 매수하지 않음 ({close_price}KRW)")
                             can_buy = False  # 매수를 막음
                 # ✅ 실제 투자 모드: 현금 확인 후 매수
-                if real_trading:
+                if use_initial_capital_yn:
                     #현재 initial_capital을 기준으로 예수금 체크
-                    if trading_history['initial_capital'] < close_price:
-                        print(f"❌ 현금 부족으로 매수 불가 (잔액: {trading_history['initial_capital']:,.0f} KRW)")
+                    if trading_history['capital'] < close_price:
+                        print(f"❌ 현금 부족으로 매수 불가 (잔액: {trading_history['capital']:,.0f} KRW)")
                         can_buy = False
-                        
+                    else:
+                        print(f"✅ 현금 충분 (잔액: {trading_history['capital']:,.0f} KRW)")
+                        can_buy = True
+
                 if can_buy:
                     # stop_loss_price = d_1.low if d_1 else None
                     stop_loss_price = None
                     float_stop_loss_price = float(stop_loss_price) if stop_loss_price else None
                     target_price = close_price + 2*(close_price - float_stop_loss_price) if float_stop_loss_price else None
                     
-                if real_trading:
+                if use_initial_capital_yn:
                     # 매수 가능 최대 금액은 남은 initial_capital
-                    max_affordable_amount = min(trade_amount, trading_history['initial_capital'])
+                    max_affordable_amount = min(trade_amount, trading_history['capital'])
                     buy_quantity = math.floor(max_affordable_amount / close_price)
                 else:
                     buy_quantity = math.floor(trade_amount / close_price)
@@ -482,8 +501,8 @@ class AutoTradingBot:
                     total_trade_cost = buy_quantity * close_price
 
                     # 예수금 차감
-                    if real_trading:
-                        trading_history['initial_capital'] -= total_trade_cost
+                    if use_initial_capital_yn:
+                        trading_history['capital'] -= total_trade_cost
                     if timestamp >= start_date:
                         
                         trading_history['history'].append({
@@ -503,21 +522,6 @@ class AutoTradingBot:
                         
                         })
                     print(f"매수 시점: {timestamp_iso}, 매수가: {close_price} KRW, 매수량: {buy_quantity}, 손절가격: {stop_loss_price}, 익절 가격: {target_price}")        
-                
-            # 매도형 로직 처리
-            sell_yn = False
-
-            # ✅ 익절 / 손절 먼저 검사
-            if trading_history['total_quantity'] > 0:
-                avg_price = trading_history['average_price']
-                current_return_rate = (close_price - avg_price) / avg_price * 100 if avg_price > 0 else 0.0
-
-                if use_take_profit and take_profit_ratio is not None and current_return_rate >= take_profit_ratio:
-                    sell_yn = True
-                    sell_logic_reasons.append('익절')
-                elif use_stop_loss and stop_loss_ratio is not None and current_return_rate <= -stop_loss_ratio:
-                    sell_yn = True
-                    sell_logic_reasons.append('손절')
 
             if not sell_yn and sell_trading_logic:
                 sell_logic_reasons = self._get_trading_logic_reasons(
@@ -545,8 +549,8 @@ class AutoTradingBot:
                     invested_amount = trading_history['average_price'] * sell_quantity
                     realized_roi = (realized_pnl / invested_amount) if invested_amount > 0 else 0.0
 
-                    if real_trading:
-                        trading_history['initial_capital'] += total_sale_amount
+                    if use_initial_capital_yn:
+                        trading_history['capital'] += total_sale_amount
                         
                     if timestamp >= start_date:
                         
@@ -780,8 +784,6 @@ class AutoTradingBot:
                         buy_trading_logic=simulation_settings["buy_trading_logic"],
                         sell_trading_logic=simulation_settings["sell_trading_logic"],
                         initial_capital=global_state["initial_capital"],
-                        rsi_buy_threshold=simulation_settings["rsi_buy_threshold"],
-                        rsi_sell_threshold=simulation_settings["rsi_sell_threshold"],
                         global_state=global_state,  #공유 상태
                         holding_state=holding_state[symbol], # 종목별 상태
                         use_take_profit=simulation_settings["use_take_profit"],
@@ -843,8 +845,7 @@ class AutoTradingBot:
     def whole_simulate_trading2(
         self, symbol, end_date, df, ohlc_data, trade_ratio, fixed_portfolio_value,
         target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None,
-        initial_capital=None, rsi_buy_threshold=30, rsi_sell_threshold=70,
-        global_state=None, holding_state=None,use_take_profit=False, take_profit_ratio=5.0,
+        initial_capital=None, global_state=None, holding_state=None, use_take_profit=False, take_profit_ratio=5.0,
         use_stop_loss=False, stop_loss_ratio=5.0):
         
         df = df[df.index <= pd.Timestamp(end_date)]
@@ -922,6 +923,7 @@ class AutoTradingBot:
         if total_quantity > 0:
             current_roi = ((close_price - avg_price) / avg_price) * 100
 
+            # 익절 조건
             if use_take_profit and current_roi >= take_profit_ratio:
                 # 실제 매도 조건 충족
                 sell_fee = total_quantity * close_price * 0.00014
@@ -942,9 +944,9 @@ class AutoTradingBot:
                 reason = f"익절 조건 충족 (+{current_roi:.2f}%)"
                 signal_reasons.append(reason)
 
+            # 손절 조건
             elif use_stop_loss and current_roi <= -stop_loss_ratio:
                 # 실제 손절 조건 충족
-                #sell_value = total_quantity * close_price
                 sell_fee = total_quantity * close_price * 0.00014
                 tax = total_quantity * close_price * 0.0015
                 revenue = total_quantity * close_price - sell_fee - tax

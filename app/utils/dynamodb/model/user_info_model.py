@@ -31,3 +31,4 @@ class UserInfo(Model):
     stop_loss_threshold = NumberAttribute(null=True)    # 예: -0.05
     use_take_profit = BooleanAttribute(null=True)       # 예: True
     use_stop_loss = BooleanAttribute(null=True)         # 예: True
+    trading_bot_name = UnicodeAttribute(null=True)
