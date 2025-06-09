@@ -119,7 +119,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
 
     for holding in balance.stocks:
         symbol = holding.symbol
-        original_symbol_name = holding.symbol_name
+        original_symbol_name = ""
         symbol_name = f"[{i}]{original_symbol_name}"  # 종목명에 번호 붙이기
         
         # ✅ 매입금액 0인 경우 방어 처리
