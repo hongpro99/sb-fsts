@@ -117,7 +117,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     account = trading_bot.kis.account()
     balance: KisBalance = account.balance()
 
-    for holding in balance.stocks:
+    for i, holding in enumerate(balance.stocks):
         symbol = holding.symbol
         original_symbol_name = ""
         symbol_name = f"[{i}]{original_symbol_name}"  # 종목명에 번호 붙이기
