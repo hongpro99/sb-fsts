@@ -1640,8 +1640,8 @@ class AutoTradingBot:
             
         elif order_type == 'sell':
             # ✅ 보유 종목에서 해당 symbol 찾아서 수량 확인
-            holdings = self._get_holdings()
-            holding = next((item for item in holdings if item[0] == symbol), None) #holding => 튜플
+            holdings = self._get_holdings_with_details()
+            holding = next((item for item in holdings if item['symbol'] == symbol), None)
 
             if not holding:
                 print(f"[{datetime.now()}] 🚫 매도 생략: {symbol} 보유 수량 없음")
@@ -1669,19 +1669,6 @@ class AutoTradingBot:
             
         webhook.send_discord_webhook(message, "trading")
             
-
-    def _get_holdings(self):
-        """보유 종목의 (symbol, qty) 튜플 리스트 반환"""
-        account = self.kis.account()
-        balance = account.balance()
-
-        holdings = [
-            (stock.symbol, stock.qty)
-            for stock in balance.stocks
-            if stock.qty > 0
-        ]
-        return holdings
-
     def _get_holdings_with_details(self):
 
         account = self.kis.account()
