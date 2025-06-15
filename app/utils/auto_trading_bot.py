@@ -626,72 +626,34 @@ class AutoTradingBot:
     
     def simulate_trading_bulk(self, simulation_settings):
 
-        precomputed_df_dict = {}
-        precomputed_ohlc_dict = {}
-        valid_symbols = {}
+        auto_trading_stock = AutoTradingBot(id=simulation_settings["user_id"], virtual=False)
+
+        valid_symbols = []
 
         start_date = simulation_settings["start_date"] - timedelta(days=180)
         end_date = simulation_settings["end_date"]
         interval = simulation_settings["interval"]
         
         failed_stocks = set()  # 중복 제거 자동 처리
-        auto_trading_stock = AutoTradingBot(id=simulation_settings["user_id"], virtual=False)
 
+        # 사전에 계산된 OHLC 데이터와 DataFrame을 저장 (api 이슈)
         for stock_name, symbol in simulation_settings["selected_symbols"].items():
+            
+            valid_symbol = {}
             try:
                 # ✅ OHLC 데이터 가져오기
                 ohlc_data = auto_trading_stock._get_ohlc(symbol, start_date, end_date, interval)
-                precomputed_ohlc_dict[symbol] = ohlc_data
-
-                # ✅ OHLC → DataFrame 변환
-                timestamps = [c.time for c in ohlc_data]
-                ohlc = [
-                    [c.time, float(c.open), float(c.high), float(c.low), float(c.close), float(c.volume)]
-                    for c in ohlc_data
-                ]
-                df = pd.DataFrame(ohlc, columns=["Time", "Open", "High", "Low", "Close", "Volume"], index=pd.DatetimeIndex(timestamps))
-                df.index = df.index.tz_localize(None)
-                indicator = TechnicalIndicator()
                 rsi_period = simulation_settings['rsi_period']
                 
-                lookback_prev = 5
-                lookback_next = 5
-        
-                # 지표 계산
-                df = indicator.cal_ema_df(df, 5)
-                df = indicator.cal_ema_df(df, 10)
-                df = indicator.cal_ema_df(df, 13)
-                df = indicator.cal_ema_df(df, 20)
-                df = indicator.cal_ema_df(df, 21)
-                df = indicator.cal_ema_df(df, 55)
-                df = indicator.cal_ema_df(df, 60)
-                df = indicator.cal_ema_df(df, 89)
-
+                df = self._create_ohlc_df(ohlc_data, rsi_period)
                 
-                df = indicator.cal_sma_df(df, 5)
-                df = indicator.cal_sma_df(df, 20)
-                df = indicator.cal_sma_df(df, 40)
-
-                df = indicator.cal_rsi_df(df, rsi_period)
-                df = indicator.cal_macd_df(df)
-                df = indicator.cal_stochastic_df(df)
-                df = indicator.cal_mfi_df(df)
-                df = indicator.cal_bollinger_band(df)
-                df = indicator.cal_horizontal_levels_df(df, lookback_prev, lookback_next)
-                
-        
-                # 🔧 EMA 기울기 추가 및 이동평균 계산
-                #df['EMA_55_Slope'] = df['EMA_55'] - df['EMA_55'].shift(1)
-                df['EMA_89_Slope'] = df['EMA_89'] - df['EMA_89'].shift(1)
-                df['EMA_55_Slope'] = (df['EMA_55'] - df['EMA_55'].shift(1)) / df['EMA_55'].shift(1) * 100
-                
-                df['EMA_55_Slope_MA'] = df['EMA_55_Slope'].rolling(window=3).mean()
-                df['EMA_89_Slope_MA'] = df['EMA_89_Slope'].rolling(window=3).mean()
-                                
                 # 유효한 종목만 저장
-                valid_symbols[stock_name] = symbol
-                precomputed_df_dict[symbol] = df
-                precomputed_ohlc_dict[symbol] = ohlc_data
+                valid_symbol['symbol'] = symbol
+                valid_symbol['stock_name'] = stock_name
+                valid_symbol['ohlc_data'] = ohlc_data
+                valid_symbol['df'] = df
+
+                valid_symbols.append(valid_symbol)
 
             except Exception as e:
                 # 지표 계산에 실패한 종목 리스트
@@ -700,13 +662,10 @@ class AutoTradingBot:
                         
         # ✅ 세션 상태에 저장
         simulation_settings["selected_symbols"] = valid_symbols
-        simulation_settings["precomputed_df_dict"] = precomputed_df_dict
-        simulation_settings["precomputed_ohlc_dict"] = precomputed_ohlc_dict
 
         symbols = valid_symbols
         target_ratio = simulation_settings.get("target_trade_value_ratio", None)  # None이면 직접 입력 방식
         target_trade_value = simulation_settings.get("target_trade_value_krw")
-        date_range = pd.date_range(start=simulation_settings["start_date"], end=simulation_settings["end_date"])
 
         global_state = {
             'initial_capital': simulation_settings["initial_capital"],
@@ -716,7 +675,7 @@ class AutoTradingBot:
         }
 
         holding_state = {
-            symbol: {
+            symbol['symbol']: {
                 'total_quantity': 0,
                 'average_price': 0,
                 'total_cost': 0,
@@ -724,17 +683,16 @@ class AutoTradingBot:
                 'sell_count': 0,
                 'buy_dates': [],
                 'sell_dates': [],
-            } for symbol in symbols.values()
+            } for symbol in symbols
         }
 
         results = []
-        failed_stocks = set()  # 중복 제거 자동 처리
         
         start_date = pd.Timestamp(simulation_settings["start_date"]).normalize()
         # 공통된 모든 날짜 모으기
         all_dates = set()
-        for symbol in symbols.values():
-            ohlc_data = simulation_settings["precomputed_ohlc_dict"][symbol]
+        for symbol in symbols:
+            ohlc_data = symbol['ohlc_data']
             dates = [pd.Timestamp(c.time).tz_localize(None).normalize() for c in ohlc_data]
             all_dates.update(d for d in dates if d >= start_date)
 
@@ -764,16 +722,20 @@ class AutoTradingBot:
 
         # ✅ 시뮬레이션 시작
         for current_date in date_range: # ✅ 하루 기준 고정 portfolio_value 계산 (종목별 보유 상태 반영)
-            portfolio_value_fixed = global_state["initial_capital"] + sum(
-                holding_state[symbol]["total_quantity"] * simulation_settings["precomputed_df_dict"][symbol].loc[current_date]["Close"]
-                for symbol in symbols.values()
-                if current_date in simulation_settings["precomputed_df_dict"][symbol].index
-            )
+            portfolio_value_fixed = global_state["initial_capital"]
+            for symbol in symbols:
+                df = symbol['df']
+                if current_date in df.index:
+                    quantity = holding_state[symbol['symbol']]["total_quantity"]
+                    close_price = df.loc[current_date]["Close"]
+                    portfolio_value_fixed += quantity * close_price
             
-            for stock_name, symbol in symbols.items():
+            for s in symbols:
                 try:
-                    df = simulation_settings["precomputed_df_dict"][symbol]
-                    ohlc_data = simulation_settings["precomputed_ohlc_dict"][symbol]
+                    symbol = s['symbol']
+                    df = s['df']
+                    ohlc_data = s['ohlc_data']
+                    stock_name = s['stock_name']
                     
                     if not any(pd.Timestamp(c.time).tz_localize(None).normalize() == current_date for c in ohlc_data):
                         continue
@@ -852,6 +814,52 @@ class AutoTradingBot:
         
         return results, failed_stocks
 
+    def _create_ohlc_df(self, ohlc_data, rsi_period):
+
+        # ✅ OHLC → DataFrame 변환
+        timestamps = [c.time for c in ohlc_data]
+        ohlc = [
+            [c.time, float(c.open), float(c.high), float(c.low), float(c.close), float(c.volume)]
+            for c in ohlc_data
+        ]
+        df = pd.DataFrame(ohlc, columns=["Time", "Open", "High", "Low", "Close", "Volume"], index=pd.DatetimeIndex(timestamps))
+        df.index = df.index.tz_localize(None)
+        indicator = TechnicalIndicator()
+        
+        lookback_prev = 5
+        lookback_next = 5
+
+        # 지표 계산
+        df = indicator.cal_ema_df(df, 10)
+        df = indicator.cal_ema_df(df, 13)
+        df = indicator.cal_ema_df(df, 20)
+        df = indicator.cal_ema_df(df, 21)
+        df = indicator.cal_ema_df(df, 55)
+        df = indicator.cal_ema_df(df, 60)
+        df = indicator.cal_ema_df(df, 89)
+        df = indicator.cal_ema_df(df, 5)
+        
+        df = indicator.cal_sma_df(df, 5)
+        df = indicator.cal_sma_df(df, 20)
+        df = indicator.cal_sma_df(df, 40)
+
+        df = indicator.cal_rsi_df(df, rsi_period)
+        df = indicator.cal_macd_df(df)
+        df = indicator.cal_stochastic_df(df)
+        df = indicator.cal_mfi_df(df)
+        df = indicator.cal_bollinger_band(df)
+        df = indicator.cal_horizontal_levels_df(df, lookback_prev, lookback_next)
+        
+        # 🔧 EMA 기울기 추가 및 이동평균 계산
+        #df['EMA_55_Slope'] = df['EMA_55'] - df['EMA_55'].shift(1)
+        df['EMA_89_Slope'] = df['EMA_89'] - df['EMA_89'].shift(1)
+        df['EMA_55_Slope'] = (df['EMA_55'] - df['EMA_55'].shift(1)) / df['EMA_55'].shift(1) * 100
+        
+        df['EMA_55_Slope_MA'] = df['EMA_55_Slope'].rolling(window=3).mean()
+        df['EMA_89_Slope_MA'] = df['EMA_89_Slope'].rolling(window=3).mean()
+
+        return df
+    
 
     def whole_simulate_trading2(
         self, symbol, end_date, df, ohlc_data, trade_ratio, fixed_portfolio_value,
@@ -1636,7 +1644,6 @@ class AutoTradingBot:
         
             # if order_amount > buying_limit:
             #     print(f"[{datetime.now()}] 🚫 매수 생략: 주문금액 {order_amount:,}원이 예수금의 {max_allocation*100:.0f}% 초과")
-            #     message = f"[{datetime.now()}] 🚫 매수 생략: 주문금액 {order_amount:,}원이 예수금의 {max_allocation*100:.0f}% 초과"
             #     return
             order_amount = qty * quote.close
             print(f"[{datetime.now()}] ✅ 자동 매수 실행: bot: {trading_bot_name} 종목 {symbol_name}, 수량 {qty}주, 주문 금액 {order_amount:,}원")

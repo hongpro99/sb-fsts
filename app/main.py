@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 from pytz import timezone
 import numpy as np
+import os
 from io import StringIO, BytesIO
 import boto3
 import json
@@ -22,10 +23,14 @@ from app.utils.database import get_db, get_db_session
 from app.utils.crud_sql import SQLExecutor
 from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
 from ecs.run_ecs_task import run_ecs_task
+from app.utils.utils import setup_env
+from ecs.run_ecs_task_local import run_ecs_task_local
+
 
 app = FastAPI() 
 
-# api 별 router 등록
+# env 파일 로드
+setup_env()
 
 # 스케줄러 설정(병렬로 실행)
 scheduler = BackgroundScheduler(timezone=timezone('Asia/Seoul'))
@@ -113,11 +118,25 @@ async def simulate_bulk_trade(data: SimulationTradingBulkModel):
     json_url = save_json_to_s3(simulation_data, bucket_name="sb-fsts", save_path=f"simulation-results/{key}/simulation_data.json")
     result_save_path = f"simulation-results/{key}/simulation_result.json"
 
-    result = run_ecs_task(simulation_data, json_url, key, result_save_path)
+    env = os.getenv("ENV", "dev")
+    if env == "local":
+        # 로컬 환경에서는 ECS 태스크를 실행하지 않고 바로 시뮬레이션 실행
+        print(f"Running simulation locally for simulation_id: {key}")
+        result = run_ecs_task_local(simulation_data, json_url, key, result_save_path)
+        
+        response_dict = {
+            "simulation_id": key
+        }
 
-    response_dict = {
-        "simulation_id": key
-    }
+    else:
+        # ECS 태스크 실행
+        print(f"Running ECS task for simulation_id: {key}")
+        # ECS 태스크 실행
+        result = run_ecs_task(simulation_data, json_url, key, result_save_path)
+        
+        response_dict = {
+            "simulation_id": key
+        }
 
     return response_dict
 

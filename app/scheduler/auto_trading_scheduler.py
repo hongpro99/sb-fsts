@@ -1,4 +1,5 @@
 from datetime import datetime, date, timedelta
+from pytz import timezone
 import requests
 import json
 import math
@@ -6,6 +7,8 @@ import math
 from app.utils.database import get_db, get_db_session
 from app.utils.crud_sql import SQLExecutor
 from app.utils.auto_trading_bot import AutoTradingBot
+from app.utils.dynamodb.crud import DynamoDBExecutor
+from app.utils.dynamodb.model.auto_trading_balance_model import AutoTradingBalance
 from app.utils.dynamodb.model.stock_symbol_model import StockSymbol
 from app.utils.dynamodb.model.user_info_model import UserInfo
 from pykis import KisBalance
@@ -197,6 +200,52 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
                     
     trading_bot._upsert_account_balance(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨
     trading_bot.update_roi(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨
+
+
+def scheduled_save_account_balance():
+    """
+    스케줄러: 계좌 잔고 저장
+    """
+    
+    trading_bot = AutoTradingBot(id=id, virtual=virtual)
+
+    kst = timezone("Asia/Seoul")
+    updated_at = int(datetime.now(kst).timestamp() * 1000)
+
+    holdings = trading_bot.get_holdings_with_details()
+    
+    dynamodb_executor = DynamoDBExecutor()
+
+    # ✅ 3. 기존 잔고 모두 삭제
+    existing_items = AutoTradingBalance.query(trading_bot_name)
+    for item in existing_items:
+        try:
+            item.delete()
+            print(f'🗑️ 삭제된 종목: {item.symbol}')
+        except Exception as e:
+            print(f'❌ 삭제 실패 ({item.symbol}): {e}')
+
+    # ✅ 4. 현재 잔고 다시 저장
+    for holding in holdings:
+        try:
+            model = AutoTradingBalance(
+                trading_bot_name=trading_bot_name,
+                symbol=holding['symbol'],
+                updated_at=updated_at,
+                symbol_name=holding['symbol_name'],
+                market=holding['market'],
+                quantity=holding['quantity'],
+                avg_price=holding['price'],
+                amount=holding['amount'],
+                profit=holding['profit'],
+                profit_rate=holding['profit_rate'],
+            )
+
+            dynamodb_executor.execute_save(model)
+            print(f'[💾 잔고 저장] {holding["symbol"]}')
+
+        except Exception as e:
+            print(f"❌ 잔고 저장 실패 ({holding['symbol_name']}): {e}")
 
 
 def scheduled_single_buy_task():

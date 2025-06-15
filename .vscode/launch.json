@@ -15,6 +15,9 @@
                 "--port",
                 "7001"
             ],
+            "env": {
+                "ENV": "local"
+            },
             "jinja": true
         }
     ]
