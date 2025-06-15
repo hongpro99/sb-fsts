@@ -350,7 +350,7 @@ class AutoTradingBot:
 
         # 지표 계산
         df = pd.DataFrame(ohlc, columns=["Time", "Open", "High", "Low", "Close", "Volume"], index=pd.DatetimeIndex(timestamps))
-        for p in [5, 10, 13, 20, 21, 55, 60, 89]:
+        for p in [5, 10, 13, 20, 21, 50, 55, 60, 89]:
             df = indicator.cal_ema_df(df, p)
         for p in [5, 20, 40, 120, 200]:
             df = indicator.cal_sma_df(df, p)
@@ -648,6 +648,7 @@ class AutoTradingBot:
                 lookback_next = 5
         
                 # 지표 계산
+                df = indicator.cal_ema_df(df, 5)
                 df = indicator.cal_ema_df(df, 10)
                 df = indicator.cal_ema_df(df, 13)
                 df = indicator.cal_ema_df(df, 20)
@@ -655,7 +656,7 @@ class AutoTradingBot:
                 df = indicator.cal_ema_df(df, 55)
                 df = indicator.cal_ema_df(df, 60)
                 df = indicator.cal_ema_df(df, 89)
-                df = indicator.cal_ema_df(df, 5)
+
                 
                 df = indicator.cal_sma_df(df, 5)
                 df = indicator.cal_sma_df(df, 20)
@@ -1127,11 +1128,15 @@ class AutoTradingBot:
         df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
 
         # 지표 계산 (전체 df에 대해)
-        df = indicator.cal_ema_df(df, 5)
         df = indicator.cal_ema_df(df, 10)
+        df = indicator.cal_ema_df(df, 13)
         df = indicator.cal_ema_df(df, 20)
-        df = indicator.cal_ema_df(df, 50)
+        df = indicator.cal_ema_df(df, 21)
+        df = indicator.cal_ema_df(df, 55)
         df = indicator.cal_ema_df(df, 60)
+        df = indicator.cal_ema_df(df, 89)
+        df = indicator.cal_ema_df(df, 5)
+        
         df = indicator.cal_rsi_df(df)
         df = indicator.cal_macd_df(df)
         df = indicator.cal_stochastic_df(df)
@@ -1403,7 +1408,7 @@ class AutoTradingBot:
             print(f"현재 종목: {symbol}, order type: {order_type}")
             
             # 매수 주문은 특정 로직에서만 실행
-            if 'trend_entry_trading' in trading_logic or 'ema_breakout_trading3' in trading_logic or 'trendline_breakout_trading' in trading_logic:
+            if 'trend_entry_trading' in trading_logic or 'ema_breakout_trading3' in trading_logic or 'sma_breakout_trading' in trading_logic:
                 self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
 
             position = 'BUY'
