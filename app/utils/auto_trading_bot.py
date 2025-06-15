@@ -431,16 +431,26 @@ class AutoTradingBot:
             if trading_history['total_quantity'] > 0:
                 avg_price = trading_history['average_price']
                 current_return_rate = (close_price - avg_price) / avg_price * 100 if avg_price > 0 else 0.0
-
-                if take_profit_logic['use_yn']:
-                    if current_return_rate >= take_profit_logic['ratio']:
+                
+                if take_profit_logic and take_profit_logic.get('use_yn'):
+                    if current_return_rate >= take_profit_logic.get('ratio', 0):
                         sell_yn = True
                         sell_logic_reasons.append('익절')
 
-                if stop_loss_logic['use_yn']:
-                    if current_return_rate <= -stop_loss_logic['ratio']:
+                if stop_loss_logic and stop_loss_logic.get('use_yn'):
+                    if current_return_rate <= -stop_loss_logic.get('ratio', 0):
                         sell_yn = True
                         sell_logic_reasons.append('손절')
+
+                # if take_profit_logic['use_yn']:
+                #     if current_return_rate >= take_profit_logic['ratio']:
+                #         sell_yn = True
+                #         sell_logic_reasons.append('익절')
+
+                # if stop_loss_logic['use_yn']:
+                #     if current_return_rate <= -stop_loss_logic['ratio']:
+                #         sell_yn = True
+                #         sell_logic_reasons.append('손절')
 
             # 매수형 로직 처리
             if buy_trading_logic:
