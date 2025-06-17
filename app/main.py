@@ -61,6 +61,7 @@ async def simulate_single_trade(data: SimulationTradingModel):
 
     data_df, trading_history, trade_reasons = auto_trading_stock.simulate_trading(
         symbol=simulation_data["symbol"],
+        stock_name=simulation_data["stock_name"],
         start_date=start_date,
         end_date=end_date,
         target_trade_value_krw=simulation_data["target_trade_value_krw"],

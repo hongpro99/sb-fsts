@@ -5,6 +5,7 @@ from typing import Dict, Optional, List
 class SimulationTradingModel(BaseModel):
     user_id: str
     symbol: str
+    stock_name: str
     start_date: str
     end_date: str
     target_trade_value_krw: Optional[int]

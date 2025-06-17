@@ -54,9 +54,9 @@ def draw_lightweight_chart(data_df, selected_indicators):
     # export to JSON format
     candles = json.loads(data_df.to_json(orient = "records"))
 
-    bollinger_band_upper = json.loads(data_df.dropna(subset=['upper']).rename(columns={"upper": "value",}).to_json(orient = "records"))
-    bollinger_band_middle = json.loads(data_df.dropna(subset=['middle']).rename(columns={"middle": "value",}).to_json(orient = "records"))
-    bollinger_band_lower = json.loads(data_df.dropna(subset=['lower']).rename(columns={"lower": "value",}).to_json(orient = "records"))
+    bollinger_band_upper = json.loads(data_df.dropna(subset=['bb_upper']).rename(columns={"bb_upper": "value",}).to_json(orient = "records"))
+    bollinger_band_middle = json.loads(data_df.dropna(subset=['bb_middle']).rename(columns={"bb_middle": "value",}).to_json(orient = "records"))
+    bollinger_band_lower = json.loads(data_df.dropna(subset=['bb_lower']).rename(columns={"bb_lower": "value",}).to_json(orient = "records"))
 
     ema_89 = json.loads(data_df.dropna(subset=['ema_89']).rename(columns={"ema_89": "value"}).to_json(orient="records"))
     ema_13 = json.loads(data_df.dropna(subset=['ema_13']).rename(columns={"ema_13": "value"}).to_json(orient="records"))
@@ -1713,6 +1713,7 @@ def main():
                 payload = {
                     "user_id": sidebar_settings["id"],
                     "symbol": sidebar_settings["symbol"],
+                    "stock_name": sidebar_settings["selected_stock"],
                     "start_date": sidebar_settings["start_date"].isoformat(),
                     "end_date": sidebar_settings["end_date"].isoformat(),
                     "target_trade_value_krw": sidebar_settings["target_trade_value_krw"],

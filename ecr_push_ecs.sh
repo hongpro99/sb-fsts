@@ -10,6 +10,9 @@ docker tag sb-fsts:$ECR_IMAGE_TAG 196441063343.dkr.ecr.ap-northeast-2.amazonaws.
 # 3. ECR에 푸시
 docker push 196441063343.dkr.ecr.ap-northeast-2.amazonaws.com/sb-fsts-ecr:$ECR_IMAGE_TAG
 
+# ecs task definition 업데이트
+python ecs/register_task_definition.py
+
 # ECS 서비스 업데이트
 # aws ecs update-service \
 #     --cluster $CLUSTER_NAME \

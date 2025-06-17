@@ -9,10 +9,10 @@ pandas
 discord
 requests
 lightweight-charts
-streamlit
+streamlit==1.40.1
 seaborn
-streamlit-aggrid
-streamlit-lightweight-charts
+streamlit-aggrid==1.1.4.post1
+streamlit-lightweight-charts==0.7.20
 pynamodb
 feedparser
 openai
