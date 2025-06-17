@@ -1135,404 +1135,492 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
 
     signal_logs = []
     
-    if results:
-        results_df = pd.DataFrame(results)
-
-        results_df["sim_date"] = pd.to_datetime(results_df["sim_date"])
-        results_df = results_df.sort_values(by=["sim_date", "symbol"]).reset_index(drop=True)
-        results_df["sim_date"] = results_df["sim_date"].dt.strftime("%Y-%m-%d")
-
-        reorder_columns = [
-            "sim_date", "symbol", "initial_capital", "portfolio_value", "buy_count", "sell_count", "quantity",
-            "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi",
-            "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", 'buy_logic_count', "signal_reasons", "total_buy_cost", "buy_signal_info", "ohlc_data_full", "history"
-        ]
-        results_df = results_df[[col for col in reorder_columns if col in results_df.columns]]
-
-        for col in ["realized_roi", "unrealized_roi"]:
-            if col in results_df.columns:
-                results_df[col] = results_df[col].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
-        
-        # st.subheader("📋 시뮬레이션 결과 테이블")
-        # st.dataframe(results_df, use_container_width=True)
-
-        signal_logs = []
-        for row in results:
-            raw_reasons = row.get("signal_reasons", [])
-            
-            # 문자열이면 리스트로 변환
-            if isinstance(raw_reasons, str):
-                reasons_list = [raw_reasons]
-            # 리스트인데 내부에 리스트가 있으면 flatten
-            elif isinstance(raw_reasons, list):
-                if raw_reasons and isinstance(raw_reasons[0], list):
-                    reasons_list = [item for sublist in raw_reasons for item in sublist]
-                else:
-                    reasons_list = raw_reasons
-            else:
-                reasons_list = []
-
-            reasons = ", ".join(map(str, reasons_list))
-
-            if row.get("buy_signal"):
-                signal_logs.append({
-                    "sim_date": row["sim_date"],
-                    "symbol": row["symbol"],
-                    "signal": "BUY_SIGNAL",
-                    "reason": reasons
-                })
-            if row.get("sell_signal"):
-                signal_logs.append({
-                    "sim_date": row["sim_date"],
-                    "symbol": row["symbol"],
-                    "signal": "SELL_SIGNAL",
-                    "reason": reasons
-                })
-
-        # ✅ 시뮬레이션 params
-        st.markdown("---")
-        st.subheader("📊 시뮬레이션 설정")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("시작 날짜", format_date_ymd(simulation_settings["start_date"]))
-            st.metric("종료 날짜", format_date_ymd(simulation_settings["end_date"]))
-            st.metric("일자 별", simulation_settings.get("interval") if simulation_settings.get("interval") else "없음")
-            st.metric("매수 제약 조건", simulation_settings["buy_condition_yn"] if simulation_settings.get("buy_condition_yn") else "없음")
-        with col2:
-            st.metric("초기 자본", f"{int(simulation_settings['initial_capital']):,}" if simulation_settings.get("initial_capital") else "없음")
-            st.metric("자본 비율", simulation_settings["target_trade_value_ratio"] if simulation_settings.get("target_trade_value_ratio") else "없음")
-            st.metric("목표 거래 금액", simulation_settings.get("target_trade_value_krw") if simulation_settings.get("target_trade_value_krw") else "없음")
-            st.metric("매수 제약 조건 비율", simulation_settings["buy_percentage"] if simulation_settings.get("buy_percentage") else "없음")
-        with col3:
-            st.metric("rsi_period", simulation_settings["rsi_period"] if simulation_settings.get("rsi_period") else "없음")
-            st.metric("rsi_buy_threshold", simulation_settings["rsi_buy_threshold"] if simulation_settings.get("rsi_buy_threshold") else "없음")
-            st.metric("rsi_sell_threshold", simulation_settings["rsi_sell_threshold"] if simulation_settings.get("rsi_sell_threshold") else "없음")
-        with col4:
-            st.metric("익절 비율", simulation_settings["take_profit_ratio"] if simulation_settings.get("use_take_profit") else "없음")
-            st.metric("손절 비율", simulation_settings["stop_loss_ratio"] if simulation_settings.get("use_stop_loss") else "없음")
-
-        # 한글 로직 이름 맵핑
-        file_path = "./dashboard_web/trading_logic.json"
-        with open(file_path, "r", encoding="utf-8") as f:
-            trading_logic = json.load(f)
-
-        buy_trading_logic = simulation_settings["buy_trading_logic"]
-        sell_trading_logic = simulation_settings["sell_trading_logic"]
-
-        # 코드 기준으로 필요한 항목만 필터링
-        filtered_buy_logic = {
-            k: v for k, v in trading_logic["available_buy_logic"].items() if v in buy_trading_logic
-        }
-        filtered_sell_logic = {
-            k: v for k, v in trading_logic["available_sell_logic"].items() if v in sell_trading_logic
-        }
-
-        # 최종 결과
-        trading_logic_dict = {
-            "buy_trading_logic": filtered_buy_logic,
-            "sell_trading_logic": filtered_sell_logic
-        }
-
-        st.write("###### 선택한 종목")
-        st.json(simulation_settings["selected_symbols"], expanded=False)
-        st.write("###### 매수 로직")
-        st.json(trading_logic_dict["buy_trading_logic"], expanded=False)
-        st.write("###### 매도 로직")
-        st.json(trading_logic_dict["sell_trading_logic"], expanded=False)
-        st.markdown("---")
-
-        if signal_logs:
-            df_signals = pd.DataFrame(signal_logs)
-            df_signals["sim_date"] = pd.to_datetime(df_signals["sim_date"])
-            df_signals = df_signals.sort_values(by=["sim_date", "symbol"]).reset_index(drop=True)
-            df_signals["sim_date"] = df_signals["sim_date"].dt.strftime("%Y-%m-%d")
-
-            st.subheader("📌 매매 신호가 발생한 날짜 (거래 여부와 무관)")
-            st.dataframe(df_signals, use_container_width=True)
-
-        # ✅ 실제 거래 발생 테이블 (추가)
-        df_trades = results_df[
-            (results_df["buy_count"] > 0) | (results_df["sell_count"] > 0)
-        ].copy()
-
-        if not df_trades.empty:
-            df_trades["trade_pnl"] = df_trades["realized_pnl"].apply(
-                lambda x: f"{x:,.0f} KRW" if pd.notnull(x) and x != 0 else "-"
-            )
-
-            df_trades["total_costs"] = df_trades["total_costs"].apply(
-                    lambda x: f"{x:,.0f} KRW" if pd.notnull(x) and x != 0 else "-"
-                )
-
-            df_trades["fee_buy"] = df_trades["fee_buy"].apply(lambda x: f"{x:,.0f} KRW" if x > 0 else "-")
-            df_trades["fee_sell"] = df_trades["fee_sell"].apply(lambda x: f"{x:,.0f} KRW" if x > 0 else "-")
-            df_trades["tax"] = df_trades["tax"].apply(lambda x: f"{x:,.0f} KRW" if x > 0 else "-")
-
-            # 익절/손절 텍스트
-            if "take_profit_hit" in df_trades.columns:
-                df_trades["take_profit_hit"] = df_trades["take_profit_hit"].apply(
-                    lambda x: "✅ 익절" if x else ""
-                )
-            if "stop_loss_hit" in df_trades.columns:
-                df_trades["stop_loss_hit"] = df_trades["stop_loss_hit"].apply(
-                    lambda x: "⚠️ 손절" if x else ""
-                )
-
-            # ✅ 사유 컬럼 만들기 (존재할 때만 처리)
-            if "signal_reasons" in df_trades.columns:
-                def format_reasons(x):
-                    if isinstance(x, str):
-                        return x
-                    elif isinstance(x, list):
-                        if x and isinstance(x[0], list):
-                            # flatten 후 문자열 join
-                            flat = [item for sublist in x for item in sublist]
-                            return ", ".join(map(str, flat))
-                        else:
-                            return ", ".join(map(str, x))
-                    else:
-                        return ""
-
-                df_trades["reason"] = df_trades["signal_reasons"].apply(format_reasons)
-            else:
-                df_trades["reason"] = "-"
-
-            # for i, row in df_trades.iterrows():
-            #     history = row.get("history", [])
-            #     sim_date = row["sim_date_dt"].date()
-                
-            columns_to_show = [
-                "sim_date", "symbol", "buy_count", "sell_count", "quantity",
-                "trade_pnl", 'fee_buy', "fee_sell", "tax", "total_costs", "reason"
-            ]
-
-            # ✅ 컬럼이 존재할 경우에만 추가
-            if "take_profit_hit" in df_trades.columns:
-                columns_to_show.append("take_profit_hit")
-            if "stop_loss_hit" in df_trades.columns:
-                columns_to_show.append("stop_loss_hit")
-                    
-            st.subheader("📅 실제 거래 발생 요약 (날짜별)")
-            st.dataframe(df_trades[columns_to_show], use_container_width=True)
-
-        if not df_trades.empty and "reason" in df_trades.columns and "realized_pnl" in df_trades.columns:
-            # 문자열 기준 첫 번째 이유 추출
-            df_trades["sell_logic_name"] = df_trades["reason"].apply(
-                lambda x: x.split(",")[0].strip() if isinstance(x, str) and x else "기타"
-            )
-
-            df_sell_summary = df_trades[df_trades["sell_count"] > 0].copy()
-
-            logic_summary = df_sell_summary.groupby("sell_logic_name").agg(
-                거래수=("sell_count", "sum"),
-                총실현손익=("realized_pnl", "sum"),
-                평균손익=("realized_pnl", "mean")
-            ).fillna(0).reset_index()
-
-            logic_summary["총실현손익"] = logic_summary["총실현손익"].apply(lambda x: f"{x:,.0f} KRW")
-            logic_summary["평균손익"] = logic_summary["평균손익"].apply(lambda x: f"{x:,.0f} KRW")
-
-            st.markdown("---")
-            st.subheader("📉 매도 로직별 실현손익 요약")
-            st.dataframe(logic_summary, use_container_width=True)
-            
-        # ✅ 요약 통계
-        if not results_df.empty:
-            df_last_unrealized = results_df.sort_values("sim_date").groupby("symbol").last()
-
-            total_realized_pnl = results_df["realized_pnl"].sum()
-            total_unrealized_pnl = df_last_unrealized["unrealized_pnl"].sum()
-
-            initial_capital = simulation_settings["initial_capital"]
-            if initial_capital and initial_capital > 0:
-                avg_realized_roi_per_capital = (total_realized_pnl / initial_capital) * 100
-                avg_total_roi_per_capital = ((total_realized_pnl + total_unrealized_pnl) / initial_capital) * 100
-            else:
-                avg_realized_roi_per_capital = None
-                avg_total_roi_per_capital = None
-
-            st.subheader("📊 전체 요약 통계")
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("💰 총 실현 손익", f"{total_realized_pnl:,.0f} KRW")
-                st.metric("📈 총 미실현 손익", f"{total_unrealized_pnl:,.0f} KRW")
-            with col2:
-                st.metric("📊 초기 자본 대비 평균 실현 손익률", f"{avg_realized_roi_per_capital:.2f}%" if avg_realized_roi_per_capital is not None else "N/A")
-                st.metric("📉 초기 자본 대비 평균 총 손익률", f"{avg_total_roi_per_capital:.2f}%" if avg_total_roi_per_capital is not None else "N/A")
-
-            # ✅ 세부 통계 추가
-            total_buy_count = results_df["buy_count"].sum()
-            total_sell_count = results_df["sell_count"].sum()
-            total_take_profit = results_df["take_profit_hit"].sum() if "take_profit_hit" in results_df.columns else 0
-            total_stop_loss = results_df["stop_loss_hit"].sum() if "stop_loss_hit" in results_df.columns else 0
-
-            tp_pnl = results_df[results_df["take_profit_hit"] == True]["realized_pnl"].sum() if "take_profit_hit" in results_df.columns else 0
-            sl_pnl = results_df[results_df["stop_loss_hit"] == True]["realized_pnl"].sum() if "stop_loss_hit" in results_df.columns else 0
-            logic_sell_pnl = results_df[
-                (results_df["sell_count"] > 0) &
-                (~results_df.get("take_profit_hit", False)) &
-                (~results_df.get("stop_loss_hit", False))
-            ]["realized_pnl"].sum()
-            
-            total_fee_buy = results_df["fee_buy"].sum()
-            total_fee_sell = results_df["fee_sell"].sum()
-            total_tax = results_df["tax"].sum()
-            total_costs = results_df["total_costs"].sum()
-            total_buy_logic_count = results_df['buy_logic_count'].sum()
-            roi_per_total_buy_cost = ((total_realized_pnl + total_unrealized_pnl) / results_df['total_buy_cost'].sum()) * 100
-            total_take_profit_per_total_sell_count = (total_take_profit / total_sell_count) * 100
-            st.markdown("---")
-            st.subheader("📊 추가 세부 요약 통계")
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                st.metric("🔄 총 매수로직 횟수", f"{total_buy_logic_count}")
-                st.metric("🟢 총 매수 횟수", f"{total_buy_count}")
-                st.metric("🔴 총 매도 횟수", f"{total_sell_count}")
-                st.metric("✅ 익절 횟수", f"{total_take_profit}")
-                st.metric("⚠️ 손절 횟수", f"{total_stop_loss}")
-
-            with col2:
-                st.metric("💸 익절로 인한 손익", f"{tp_pnl:,.0f} KRW")
-                st.metric("💥 손절로 인한 손익", f"{sl_pnl:,.0f} KRW")
-                st.metric("🔄 로직 매도로 인한 손익", f"{logic_sell_pnl:,.0f} KRW")
-                st.metric("🔄 총 매수 금액 대비 수익률", f"{roi_per_total_buy_cost:.2f}%")
-                st.metric("💸 매도 횟수 대비 익절률", f"{total_take_profit_per_total_sell_count:.2f}%")
-            col3, col4 = st.columns(2)
-            with col3:
-                st.metric("🧾 총 매수 수수료", f"{total_fee_buy:,.0f} KRW")
-                st.metric("🧾 총 매도 수수료", f"{total_fee_sell:,.0f} KRW")
-                st.metric("📜 총 거래세", f"{total_tax:,.0f} KRW")
-            with col4:
-                st.metric("💰 총 수수료 비용 합계", f"{total_costs:,.0f} KRW")
-
-            # ✅ 거래 여부와 무관한 신호 발생 통계 요약
-            if signal_logs:
-                df_signals_stat = pd.DataFrame(signal_logs)
-                total_buy_signals = len(df_signals_stat[df_signals_stat["signal"] == "BUY_SIGNAL"])
-                total_sell_signals = len(df_signals_stat[df_signals_stat["signal"] == "SELL_SIGNAL"])
-
-                # 익절/손절은 거래가 발생했을 때만 측정 가능 → 거래 결과로부터
-                total_tp_from_trades = results_df["take_profit_hit"].sum() if "take_profit_hit" in results_df.columns else 0
-                total_sl_from_trades = results_df["stop_loss_hit"].sum() if "stop_loss_hit" in results_df.columns else 0
-
-                take_profit_ratio_per_sell_signal = (
-                    (total_tp_from_trades / total_sell_signals) * 100 if total_sell_signals > 0 else None
-                )
-
-                st.markdown("---")
-                st.subheader("📌 매매 신호 통계 요약 (거래 여부 무관)")
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("📍 총 매수 신호", total_buy_signals)
-                    st.metric("📍 총 매도 신호", total_sell_signals)
-                with col2:
-                    st.metric("✅ 익절 발생 (총)", total_tp_from_trades)
-                    st.metric("⚠️ 손절 발생 (총)", total_sl_from_trades)
-                    st.metric("📈 매도 신호 대비 익절률", f"{take_profit_ratio_per_sell_signal:.2f}%" if take_profit_ratio_per_sell_signal is not None else "N/A")
-                    
-
-            # st.markdown("---")
-            # st.subheader("🛠️ 가상 익절/손절 판단 디버깅")
-
-            # debug_rows = 0
-            # for row in results:
-            #     signal_info = row.get("buy_signal_info")
-            #     df_full = row.get("ohlc_data_full")
-
-            #     if signal_info:
-            #         st.write(
-            #         f"📘 BUY_SIGNAL 발생: {row['symbol']} on {signal_info['date'].strftime('%Y-%m-%d')} @ {signal_info['price']}"
-            #     )
-            #     else:
-            #         st.write(f"🚫 No buy_signal_info for {row['symbol']}")
-            #         continue
-
-            #     if df_full is None:
-            #         st.write(f"❌ {row['symbol']} → ohlc_data_full 없음")
-            #         continue
-            #     st.write(f"📂 df_full type: {type(df_full)}")
-            #     st.write(f"🧩 df_full.index: {df_full.index if hasattr(df_full, 'index') else '❌ index 없음'}")
-
-            #     try:
-            #         start_idx = df_full.index.get_loc(pd.Timestamp(signal_info["date"]))
-            #     except KeyError:
-            #         st.write(f"❌ {row['symbol']} → Index에서 {signal_info['date']} 못 찾음")
-            #         continue
-
-            #     outcome, roi, outcome_date = simulate_virtual_sell(
-            #         df_full, start_idx, signal_info["price"],
-            #         take_profit_ratio=simulation_settings["take_profit_ratio"],
-            #         stop_loss_ratio=simulation_settings["stop_loss_ratio"]
-            #     )
-
-                # debug_rows += 1
-                # if debug_rows >= 5:
-                #     break  # 디버깅 출력 너무 많으면 중단
+    # debug 용
+    # st.json(results, expanded=False)
     
-                # ✅ 거래 여부 무관, 신호 발생 기준 가상 익절/손절 내역 추적
-                # virtual_hits = []
+    results_df = pd.DataFrame(results)
 
-                # for row in results:
-                #     signal_info = row.get("buy_signal_info")
-                #     df_full = row.get("ohlc_data_full")
+    # 표출하고 싶은 컬럼 필터
+    columns_to_show = [
+        "timestamp", "stock_name", "avg_price", "total_quantity", "trade_type",
+        "reason", "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi", "krw_balance",
+        "buy_logic_reasons", "sell_logic_reasons"
+    ]
+    columns_rename = {
+        "timestamp": "날짜",
+        "stock_name": "종목명",
+        "avg_price": "평균단가",
+        "total_quantity": "보유수량",
+        "trade_type": "거래유형",
+        "reason": "사유",
+        "realized_pnl": "실현손익",
+        "realized_roi": "실현수익률(%)",
+        "unrealized_pnl": "미실현손익",
+        "unrealized_roi": "미실현수익률(%)",
+        "krw_balance": "잔고",
+        "buy_logic_reasons": "매수사유",
+        "sell_logic_reasons": "매도사유"
+    }
+    # 선택한 컬럼만 DataFrame 생성
+    results_df_display = results_df[columns_to_show]
+    results_df_display_ko = results_df_display.rename(columns=columns_rename)
 
-                #     if signal_info is None:
-                #         st.write(f"🚫 No buy_signal_info for {row['symbol']}")
-                #         continue
-                #     if df_full is None or not isinstance(df_full, pd.DataFrame):
-                #         st.write(f"❌ ohlc_data_full이 잘못되었거나 없음: {row['symbol']}")
-                #         continue
+    gb = GridOptionsBuilder.from_dataframe(results_df_display_ko)
 
-                #     # ✅ 안전하게 날짜 변환
-                #     try:
-                #         signal_dt = pd.to_datetime(signal_info["date"]).normalize()
-                #     except Exception as e:
-                #         st.write(f"❌ 날짜 변환 실패: {e}")
-                #         continue
+    int_columns = ["avg_price", "total_quantity", "realized_pnl", "unrealized_pnl", "krw_balance"]
+    float_columns = ["realized_roi", "unrealized_roi"]
 
-                #     try:
-                #         df_full.index = pd.to_datetime(df_full.index).normalize()
-                #         start_idx = df_full.index.get_loc(signal_dt)
-                #     except KeyError:
-                #         st.write(f"❌ {row['symbol']} → df_full.index에 {signal_dt} 없음")
-                #         continue
-                #     except Exception as e:
-                #         st.write(f"❌ index 오류: {e}")
-                #         continue
+    # 한글 컬럼명 리스트 생성
+    columns_to_show_ko = [columns_rename.get(col, col) for col in columns_to_show]
+    int_columns_ko = [columns_rename.get(col, col) for col in int_columns]
+    float_columns_ko = [columns_rename.get(col, col) for col in float_columns]
 
-                #     outcome, roi, outcome_date = simulate_virtual_sell(
-                #         df_full, start_idx, signal_info["price"],
-                #         take_profit_ratio=simulation_settings["take_profit_ratio"],
-                #         stop_loss_ratio=simulation_settings["stop_loss_ratio"]
-                #     )
+    for col in columns_to_show_ko:
+        if col in int_columns_ko: # int 표현하고 싶은 컬럼에 대해 format 지정
+            gb.configure_column(
+                col,
+                filter=True,  # 문자 필터 활성화
+                type=["numericColumn", "numberColumnFilter", "customNumericFormat"],
+                valueFormatter="x == null ? '' : x.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})" # 천 단위로 표시 및 소숫점 0자리 표현
+            )
+    
+        elif col in float_columns_ko: # 소숫점 한자리로 표현하고 싶은 컬럼에 대해 format 지정
+            gb.configure_column(
+                col,
+                filter=True,  # 문자 필터 활성화
+                type=["numericColumn", "numberColumnFilter", "customNumericFormat"],
+                valueFormatter="x == null ? '' : x.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2})" # 천 단위로 표시 및 소숫점 2자리 표현
+            )
+        else:
+            gb.configure_column(
+                col,
+                filter=True,  # 문자 필터 활성화
+                type=["agTextColumnFilter"]
+            )
 
-                #     if outcome:
-                #         virtual_hits.append({
-                #             "symbol": row["symbol"],
-                #             "buy_date": signal_dt.strftime("%Y-%m-%d"),
-                #             "outcome_date": outcome_date.strftime("%Y-%m-%d"),
-                #             "type": "✅ 익절" if outcome == "take_profit" else "⚠️ 손절",
-                #             "roi": f"{roi:.2f}%",
-                #             "reason": "가상 매수 후 조건 충족"
-                #         })
+    grid_options = gb.build()
+    grid_options["autoSizeStrategy"] = {
+        "type": "fitGridWidth",  # 또는 "expand", "off" 등
+        "defaultMinWidth": 100    # 최소 너비(px) 지정 가능
+    }
 
-                # if virtual_hits:
-                #     df_virtual = pd.DataFrame(virtual_hits)
-                #     st.markdown("---")
-                #     st.subheader("🧪 거래 여부 무관: 가상 매수 기준 익절/손절 내역")
-                #     st.dataframe(df_virtual, use_container_width=True)
-                # else:
-                #     st.info("📭 가상 익절/손절 내역 없음")
-                                    
-        if failed_stocks:
-            st.warning(f"⚠️ 시뮬레이션 실패 종목 ({len(failed_stocks)}개): {', '.join(sorted(failed_stocks))}")
+    st.markdown("---")
+    st.subheader("📋 시뮬레이션 상세 내용")
+    # AgGrid로 테이블 표시
+    grid_response = AgGrid(
+        results_df_display_ko,
+        key='bulk_simulation_result_detail',
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        sortable=True,  # 정렬 가능
+        filter=True,    # 필터링 가능
+        resizable=True, # 크기 조절 가능
+        theme='streamlit',   # 테마 변경 가능 ('light', 'dark', 'blue', 등)
+    )
+    
+    # if results:
+    #     results_df = pd.DataFrame(results)
 
+    #     results_df["timestamp"] = pd.to_datetime(results_df["timestamp"])
+    #     results_df = results_df.sort_values(by=["timestamp", "symbol"]).reset_index(drop=True)
+    #     results_df["timestamp"] = results_df["timestamp"].dt.strftime("%Y-%m-%d")
+
+    #     reorder_columns = [
+    #         "timestamp", "symbol", "initial_capital", "portfolio_value", "quantity",
+    #         "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi",
+    #         "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", "signal_reasons", "total_buy_cost", "buy_signal_info", "ohlc_data_full", "history"
+    #     ]
+    #     results_df = results_df[[col for col in reorder_columns if col in results_df.columns]]
+
+    #     for col in ["realized_roi", "unrealized_roi"]:
+    #         if col in results_df.columns:
+    #             results_df[col] = results_df[col].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
+        
+    #     # st.subheader("📋 시뮬레이션 결과 테이블")
+    #     # st.dataframe(results_df, use_container_width=True)
+
+    #     signal_logs = []
+    #     for row in results:
+    #         raw_reasons = row.get("signal_reasons", [])
+            
+    #         # 문자열이면 리스트로 변환
+    #         if isinstance(raw_reasons, str):
+    #             reasons_list = [raw_reasons]
+    #         # 리스트인데 내부에 리스트가 있으면 flatten
+    #         elif isinstance(raw_reasons, list):
+    #             if raw_reasons and isinstance(raw_reasons[0], list):
+    #                 reasons_list = [item for sublist in raw_reasons for item in sublist]
+    #             else:
+    #                 reasons_list = raw_reasons
+    #         else:
+    #             reasons_list = []
+
+    #         reasons = ", ".join(map(str, reasons_list))
+
+    #         if row.get("buy_signal"):
+    #             signal_logs.append({
+    #                 "timestamp": row["timestamp"],
+    #                 "symbol": row["symbol"],
+    #                 "signal": "BUY_SIGNAL",
+    #                 "reason": reasons
+    #             })
+    #         if row.get("sell_signal"):
+    #             signal_logs.append({
+    #                 "timestamp": row["timestamp"],
+    #                 "symbol": row["symbol"],
+    #                 "signal": "SELL_SIGNAL",
+    #                 "reason": reasons
+    #             })
+
+    #     # ✅ 시뮬레이션 params
+    #     st.markdown("---")
+    #     st.subheader("📊 시뮬레이션 설정")
+    #     col1, col2, col3, col4 = st.columns(4)
+    #     with col1:
+    #         st.metric("시작 날짜", format_date_ymd(simulation_settings["start_date"]))
+    #         st.metric("종료 날짜", format_date_ymd(simulation_settings["end_date"]))
+    #         st.metric("일자 별", simulation_settings.get("interval") if simulation_settings.get("interval") else "없음")
+    #         st.metric("매수 제약 조건", simulation_settings["buy_condition_yn"] if simulation_settings.get("buy_condition_yn") else "없음")
+    #     with col2:
+    #         st.metric("초기 자본", f"{int(simulation_settings['initial_capital']):,}" if simulation_settings.get("initial_capital") else "없음")
+    #         st.metric("자본 비율", simulation_settings["target_trade_value_ratio"] if simulation_settings.get("target_trade_value_ratio") else "없음")
+    #         st.metric("목표 거래 금액", simulation_settings.get("target_trade_value_krw") if simulation_settings.get("target_trade_value_krw") else "없음")
+    #         st.metric("매수 제약 조건 비율", simulation_settings["buy_percentage"] if simulation_settings.get("buy_percentage") else "없음")
+    #     with col3:
+    #         st.metric("rsi_period", simulation_settings["rsi_period"] if simulation_settings.get("rsi_period") else "없음")
+    #         st.metric("rsi_buy_threshold", simulation_settings["rsi_buy_threshold"] if simulation_settings.get("rsi_buy_threshold") else "없음")
+    #         st.metric("rsi_sell_threshold", simulation_settings["rsi_sell_threshold"] if simulation_settings.get("rsi_sell_threshold") else "없음")
+    #     with col4:
+    #         st.metric("익절 비율", simulation_settings["take_profit_ratio"] if simulation_settings.get("use_take_profit") else "없음")
+    #         st.metric("손절 비율", simulation_settings["stop_loss_ratio"] if simulation_settings.get("use_stop_loss") else "없음")
+
+    #     # 한글 로직 이름 맵핑
+    #     file_path = "./dashboard_web/trading_logic.json"
+    #     with open(file_path, "r", encoding="utf-8") as f:
+    #         trading_logic = json.load(f)
+
+    #     buy_trading_logic = simulation_settings["buy_trading_logic"]
+    #     sell_trading_logic = simulation_settings["sell_trading_logic"]
+
+    #     # 코드 기준으로 필요한 항목만 필터링
+    #     filtered_buy_logic = {
+    #         k: v for k, v in trading_logic["available_buy_logic"].items() if v in buy_trading_logic
+    #     }
+    #     filtered_sell_logic = {
+    #         k: v for k, v in trading_logic["available_sell_logic"].items() if v in sell_trading_logic
+    #     }
+
+    #     # 최종 결과
+    #     trading_logic_dict = {
+    #         "buy_trading_logic": filtered_buy_logic,
+    #         "sell_trading_logic": filtered_sell_logic
+    #     }
+
+    #     st.write("###### 선택한 종목")
+    #     st.json(simulation_settings["selected_symbols"], expanded=False)
+    #     st.write("###### 매수 로직")
+    #     st.json(trading_logic_dict["buy_trading_logic"], expanded=False)
+    #     st.write("###### 매도 로직")
+    #     st.json(trading_logic_dict["sell_trading_logic"], expanded=False)
+    #     st.markdown("---")
+
+    #     if signal_logs:
+    #         df_signals = pd.DataFrame(signal_logs)
+    #         df_signals["sim_date"] = pd.to_datetime(df_signals["sim_date"])
+    #         df_signals = df_signals.sort_values(by=["sim_date", "symbol"]).reset_index(drop=True)
+    #         df_signals["sim_date"] = df_signals["sim_date"].dt.strftime("%Y-%m-%d")
+
+    #         st.subheader("📌 매매 신호가 발생한 날짜 (거래 여부와 무관)")
+    #         st.dataframe(df_signals, use_container_width=True)
+
+    #     # ✅ 실제 거래 발생 테이블 (추가)
+    #     df_trades = results_df.copy()
+
+    #     if not df_trades.empty:
+    #         df_trades["trade_pnl"] = df_trades["realized_pnl"].apply(
+    #             lambda x: f"{x:,.0f} KRW" if pd.notnull(x) and x != 0 else "-"
+    #         )
+
+    #         df_trades["total_costs"] = df_trades["total_costs"].apply(
+    #                 lambda x: f"{x:,.0f} KRW" if pd.notnull(x) and x != 0 else "-"
+    #             )
+
+    #         df_trades["fee_buy"] = df_trades["fee_buy"].apply(lambda x: f"{x:,.0f} KRW" if x > 0 else "-")
+    #         df_trades["fee_sell"] = df_trades["fee_sell"].apply(lambda x: f"{x:,.0f} KRW" if x > 0 else "-")
+    #         df_trades["tax"] = df_trades["tax"].apply(lambda x: f"{x:,.0f} KRW" if x > 0 else "-")
+
+    #         # 익절/손절 텍스트
+    #         if "take_profit_hit" in df_trades.columns:
+    #             df_trades["take_profit_hit"] = df_trades["take_profit_hit"].apply(
+    #                 lambda x: "✅ 익절" if x else ""
+    #             )
+    #         if "stop_loss_hit" in df_trades.columns:
+    #             df_trades["stop_loss_hit"] = df_trades["stop_loss_hit"].apply(
+    #                 lambda x: "⚠️ 손절" if x else ""
+    #             )
+
+    #         # ✅ 사유 컬럼 만들기 (존재할 때만 처리)
+    #         if "signal_reasons" in df_trades.columns:
+    #             def format_reasons(x):
+    #                 if isinstance(x, str):
+    #                     return x
+    #                 elif isinstance(x, list):
+    #                     if x and isinstance(x[0], list):
+    #                         # flatten 후 문자열 join
+    #                         flat = [item for sublist in x for item in sublist]
+    #                         return ", ".join(map(str, flat))
+    #                     else:
+    #                         return ", ".join(map(str, x))
+    #                 else:
+    #                     return ""
+
+    #             df_trades["reason"] = df_trades["signal_reasons"].apply(format_reasons)
+    #         else:
+    #             df_trades["reason"] = "-"
+
+    #         # for i, row in df_trades.iterrows():
+    #         #     history = row.get("history", [])
+    #         #     sim_date = row["sim_date_dt"].date()
+                
+    #         columns_to_show = [
+    #             "sim_date", "symbol", "quantity",
+    #             "trade_pnl", 'fee_buy', "fee_sell", "tax", "total_costs", "reason"
+    #         ]
+
+    #         # ✅ 컬럼이 존재할 경우에만 추가
+    #         if "take_profit_hit" in df_trades.columns:
+    #             columns_to_show.append("take_profit_hit")
+    #         if "stop_loss_hit" in df_trades.columns:
+    #             columns_to_show.append("stop_loss_hit")
+                    
+    #         st.subheader("📅 실제 거래 발생 요약 (날짜별)")
+    #         st.dataframe(df_trades[columns_to_show], use_container_width=True)
+
+    #     if not df_trades.empty and "reason" in df_trades.columns and "realized_pnl" in df_trades.columns:
+    #         # 문자열 기준 첫 번째 이유 추출
+    #         df_trades["sell_logic_name"] = df_trades["reason"].apply(
+    #             lambda x: x.split(",")[0].strip() if isinstance(x, str) and x else "기타"
+    #         )
+
+    #         df_sell_summary = df_trades.copy()
+
+    #         logic_summary = df_sell_summary.groupby("sell_logic_name").agg(
+    #             거래수=("sell_count", "sum"),
+    #             총실현손익=("realized_pnl", "sum"),
+    #             평균손익=("realized_pnl", "mean")
+    #         ).fillna(0).reset_index()
+
+    #         logic_summary["총실현손익"] = logic_summary["총실현손익"].apply(lambda x: f"{x:,.0f} KRW")
+    #         logic_summary["평균손익"] = logic_summary["평균손익"].apply(lambda x: f"{x:,.0f} KRW")
+
+    #         st.markdown("---")
+    #         st.subheader("📉 매도 로직별 실현손익 요약")
+    #         st.dataframe(logic_summary, use_container_width=True)
+            
+    #     # ✅ 요약 통계
+    #     if not results_df.empty:
+    #         df_last_unrealized = results_df.sort_values("sim_date").groupby("symbol").last()
+
+    #         total_realized_pnl = results_df["realized_pnl"].sum()
+    #         total_unrealized_pnl = df_last_unrealized["unrealized_pnl"].sum()
+
+    #         initial_capital = simulation_settings["initial_capital"]
+    #         if initial_capital and initial_capital > 0:
+    #             avg_realized_roi_per_capital = (total_realized_pnl / initial_capital) * 100
+    #             avg_total_roi_per_capital = ((total_realized_pnl + total_unrealized_pnl) / initial_capital) * 100
+    #         else:
+    #             avg_realized_roi_per_capital = None
+    #             avg_total_roi_per_capital = None
+
+    st.markdown("---")
+    st.subheader("📊 전체 요약 통계")
+
+    total_realized_pnl = results_df["realized_pnl"].sum()
+    total_unrealized_pnl = results_df["unrealized_pnl"].sum()
+    total_buy_count = (results_df["trade_type"] == "BUY").sum()
+    total_sell_count = (results_df["trade_type"] == "SELL").sum()
+
+    initial_capital = simulation_settings["initial_capital"]
+    if initial_capital and initial_capital > 0:
+        avg_realized_roi_per_capital = (total_realized_pnl / initial_capital) * 100
+        avg_total_roi_per_capital = ((total_realized_pnl + total_unrealized_pnl) / initial_capital) * 100
     else:
-        st.warning("⚠️ 시뮬레이션 결과가 없습니다.")
+        avg_realized_roi_per_capital = None
+        avg_total_roi_per_capital = None
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("💰 총 실현 손익", f"{total_realized_pnl:,.0f} KRW")
+        st.metric("📈 총 미실현 손익", f"{total_unrealized_pnl:,.0f} KRW")
+    with col2:
+        st.metric("📊 초기 자본 대비 평균 실현 손익률", f"{avg_realized_roi_per_capital:.2f}%" if avg_realized_roi_per_capital is not None else "N/A")
+        st.metric("📉 초기 자본 대비 평균 총 손익률", f"{avg_total_roi_per_capital:.2f}%" if avg_total_roi_per_capital is not None else "N/A")
+
+    # ✅ 세부 통계 추가
+    total_take_profit = results_df["take_profit_hit"].sum() if "take_profit_hit" in results_df.columns else 0
+    total_stop_loss = results_df["stop_loss_hit"].sum() if "stop_loss_hit" in results_df.columns else 0
+
+    tp_pnl = results_df[results_df["take_profit_hit"] == True]["realized_pnl"].sum() if "take_profit_hit" in results_df.columns else 0
+    sl_pnl = results_df[results_df["stop_loss_hit"] == True]["realized_pnl"].sum() if "stop_loss_hit" in results_df.columns else 0
+    logic_sell_pnl = results_df[
+        (results_df["trade_type"] == "SELL") &
+        (results_df["take_profit_hit"] == False) &
+        (results_df["stop_loss_hit"] == False)
+    ]["realized_pnl"].sum()
+    
+    total_fee = results_df["fee"].sum()
+    total_tax = results_df["tax"].sum()
+
+    roi_per_total_buy_cost = ((total_realized_pnl + total_unrealized_pnl) / results_df['total_buy_cost'].sum()) * 100
+    total_take_profit_per_total_sell_count = (total_take_profit / total_sell_count) * 100
+    st.markdown("---")
+    st.subheader("📊 추가 세부 요약 통계")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric("🟢 총 매수 횟수", f"{total_buy_count}")
+        st.metric("🔴 총 매도 횟수", f"{total_sell_count}")
+        st.metric("✅ 익절 횟수", f"{total_take_profit}")
+        st.metric("⚠️ 손절 횟수", f"{total_stop_loss}")
+
+    with col2:
+        st.metric("💸 익절로 인한 손익", f"{tp_pnl:,.0f} KRW")
+        st.metric("💥 손절로 인한 손익", f"{sl_pnl:,.0f} KRW")
+        st.metric("🔄 로직 매도로 인한 손익", f"{logic_sell_pnl:,.0f} KRW")
+        st.metric("🔄 총 매수 금액 대비 수익률", f"{roi_per_total_buy_cost:.2f}%")
+        st.metric("💸 매도 횟수 대비 익절률", f"{total_take_profit_per_total_sell_count:.2f}%")
+    col3, col4 = st.columns(2)
+    with col3:
+        st.metric("🧾 총 수수료", f"{total_fee:,.0f} KRW")
+        st.metric("📜 총 거래세", f"{total_tax:,.0f} KRW")
+    # with col4:
+    #     st.metric("💰 총 수수료 비용 합계", f"{total_costs:,.0f} KRW")
+
+    # ✅ 거래 여부와 무관한 신호 발생 통계 요약
+    if signal_logs:
+        df_signals_stat = pd.DataFrame(signal_logs)
+        total_buy_signals = len(df_signals_stat[df_signals_stat["signal"] == "BUY_SIGNAL"])
+        total_sell_signals = len(df_signals_stat[df_signals_stat["signal"] == "SELL_SIGNAL"])
+
+        # 익절/손절은 거래가 발생했을 때만 측정 가능 → 거래 결과로부터
+        total_tp_from_trades = results_df["take_profit_hit"].sum() if "take_profit_hit" in results_df.columns else 0
+        total_sl_from_trades = results_df["stop_loss_hit"].sum() if "stop_loss_hit" in results_df.columns else 0
+
+        take_profit_ratio_per_sell_signal = (
+            (total_tp_from_trades / total_sell_signals) * 100 if total_sell_signals > 0 else None
+        )
+
+        st.markdown("---")
+        st.subheader("📌 매매 신호 통계 요약 (거래 여부 무관)")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("📍 총 매수 신호", total_buy_signals)
+            st.metric("📍 총 매도 신호", total_sell_signals)
+        with col2:
+            st.metric("✅ 익절 발생 (총)", total_tp_from_trades)
+            st.metric("⚠️ 손절 발생 (총)", total_sl_from_trades)
+            st.metric("📈 매도 신호 대비 익절률", f"{take_profit_ratio_per_sell_signal:.2f}%" if take_profit_ratio_per_sell_signal is not None else "N/A")
+            
+
+    #         # st.markdown("---")
+    #         # st.subheader("🛠️ 가상 익절/손절 판단 디버깅")
+
+    #         # debug_rows = 0
+    #         # for row in results:
+    #         #     signal_info = row.get("buy_signal_info")
+    #         #     df_full = row.get("ohlc_data_full")
+
+    #         #     if signal_info:
+    #         #         st.write(
+    #         #         f"📘 BUY_SIGNAL 발생: {row['symbol']} on {signal_info['date'].strftime('%Y-%m-%d')} @ {signal_info['price']}"
+    #         #     )
+    #         #     else:
+    #         #         st.write(f"🚫 No buy_signal_info for {row['symbol']}")
+    #         #         continue
+
+    #         #     if df_full is None:
+    #         #         st.write(f"❌ {row['symbol']} → ohlc_data_full 없음")
+    #         #         continue
+    #         #     st.write(f"📂 df_full type: {type(df_full)}")
+    #         #     st.write(f"🧩 df_full.index: {df_full.index if hasattr(df_full, 'index') else '❌ index 없음'}")
+
+    #         #     try:
+    #         #         start_idx = df_full.index.get_loc(pd.Timestamp(signal_info["date"]))
+    #         #     except KeyError:
+    #         #         st.write(f"❌ {row['symbol']} → Index에서 {signal_info['date']} 못 찾음")
+    #         #         continue
+
+    #         #     outcome, roi, outcome_date = simulate_virtual_sell(
+    #         #         df_full, start_idx, signal_info["price"],
+    #         #         take_profit_ratio=simulation_settings["take_profit_ratio"],
+    #         #         stop_loss_ratio=simulation_settings["stop_loss_ratio"]
+    #         #     )
+
+    #             # debug_rows += 1
+    #             # if debug_rows >= 5:
+    #             #     break  # 디버깅 출력 너무 많으면 중단
+    
+    #             # ✅ 거래 여부 무관, 신호 발생 기준 가상 익절/손절 내역 추적
+    #             # virtual_hits = []
+
+    #             # for row in results:
+    #             #     signal_info = row.get("buy_signal_info")
+    #             #     df_full = row.get("ohlc_data_full")
+
+    #             #     if signal_info is None:
+    #             #         st.write(f"🚫 No buy_signal_info for {row['symbol']}")
+    #             #         continue
+    #             #     if df_full is None or not isinstance(df_full, pd.DataFrame):
+    #             #         st.write(f"❌ ohlc_data_full이 잘못되었거나 없음: {row['symbol']}")
+    #             #         continue
+
+    #             #     # ✅ 안전하게 날짜 변환
+    #             #     try:
+    #             #         signal_dt = pd.to_datetime(signal_info["date"]).normalize()
+    #             #     except Exception as e:
+    #             #         st.write(f"❌ 날짜 변환 실패: {e}")
+    #             #         continue
+
+    #             #     try:
+    #             #         df_full.index = pd.to_datetime(df_full.index).normalize()
+    #             #         start_idx = df_full.index.get_loc(signal_dt)
+    #             #     except KeyError:
+    #             #         st.write(f"❌ {row['symbol']} → df_full.index에 {signal_dt} 없음")
+    #             #         continue
+    #             #     except Exception as e:
+    #             #         st.write(f"❌ index 오류: {e}")
+    #             #         continue
+
+    #             #     outcome, roi, outcome_date = simulate_virtual_sell(
+    #             #         df_full, start_idx, signal_info["price"],
+    #             #         take_profit_ratio=simulation_settings["take_profit_ratio"],
+    #             #         stop_loss_ratio=simulation_settings["stop_loss_ratio"]
+    #             #     )
+
+    #             #     if outcome:
+    #             #         virtual_hits.append({
+    #             #             "symbol": row["symbol"],
+    #             #             "buy_date": signal_dt.strftime("%Y-%m-%d"),
+    #             #             "outcome_date": outcome_date.strftime("%Y-%m-%d"),
+    #             #             "type": "✅ 익절" if outcome == "take_profit" else "⚠️ 손절",
+    #             #             "roi": f"{roi:.2f}%",
+    #             #             "reason": "가상 매수 후 조건 충족"
+    #             #         })
+
+    #             # if virtual_hits:
+    #             #     df_virtual = pd.DataFrame(virtual_hits)
+    #             #     st.markdown("---")
+    #             #     st.subheader("🧪 거래 여부 무관: 가상 매수 기준 익절/손절 내역")
+    #             #     st.dataframe(df_virtual, use_container_width=True)
+    #             # else:
+    #             #     st.info("📭 가상 익절/손절 내역 없음")
+                                    
+    #     if failed_stocks:
+    #         st.warning(f"⚠️ 시뮬레이션 실패 종목 ({len(failed_stocks)}개): {', '.join(sorted(failed_stocks))}")
+    # else:
+    #     st.warning("⚠️ 시뮬레이션 결과가 없습니다.")
 
 def main():
     
@@ -1727,7 +1815,7 @@ def main():
                 reorder_columns = [
                     "symbol", "average_price",
                     "realized_pnl", "unrealized_pnl", "realized_roi", "unrealized_roi", "total_cost",
-                    "buy_count", "sell_count", "buy_dates", "sell_dates", "total_quantity", "history", "created_at"
+                    "total_quantity", "history", "created_at"
                 ]
                 history_df = history_df[[col for col in reorder_columns if col in history_df.columns]]
         
