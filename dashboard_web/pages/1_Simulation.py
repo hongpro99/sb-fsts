@@ -933,14 +933,14 @@ def setup_simulation_tab():
     target_method = st.radio(
         "매수 금액을 어떻게 설정할까요?",
         ["직접 입력", "자본 비율 (%)"],
-        index=0
+        index=1
     )
 
     if target_method == "직접 입력":
         target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000, key=f'target_trade_value_krw_single')
         target_trade_value_ratio = None
     else:
-        target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 50, key=f'target_trade_value_ratio_single') #마우스 커서로 왔다갔다 하는 기능
+        target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio_single') #마우스 커서로 왔다갔다 하는 기능
         target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
 
     initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital_single")
@@ -1452,7 +1452,9 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
     st.markdown("---")
     st.subheader("📊 전체 요약 통계")
 
+    krw_balance = assets['krw_balance']
     total_realized_pnl = results_df["realized_pnl"].sum()
+
     # unrealized_pnl 연산 (종목 합)
     total_unrealized_pnl = 0
     
@@ -1473,9 +1475,11 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
 
     col1, col2 = st.columns(2)
     with col1:
+        st.metric("💰 총 자산", f"{(krw_balance+total_unrealized_pnl):,.0f} KRW")
         st.metric("💰 총 실현 손익", f"{total_realized_pnl:,.0f} KRW")
         st.metric("📈 총 미실현 손익", f"{total_unrealized_pnl:,.0f} KRW")
     with col2:
+        st.metric("💰 현재 예수금", f"{krw_balance:,.0f} KRW")
         st.metric("📊 초기 자본 대비 평균 실현 손익률", f"{avg_realized_roi_per_capital:.2f}%" if avg_realized_roi_per_capital is not None else "N/A")
         st.metric("📉 초기 자본 대비 평균 총 손익률", f"{avg_total_roi_per_capital:.2f}%" if avg_total_roi_per_capital is not None else "N/A")
 
@@ -1883,7 +1887,7 @@ def main():
         target_method = st.radio(
             "매수 금액을 어떻게 설정할까요?",
             ["직접 입력", "자본 비율 (%)"],
-            index=0,
+            index=1,
             key=f'target_method'
         )
 
@@ -1891,7 +1895,7 @@ def main():
             target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000, key=f'target_trade_value_krw')
             target_trade_value_ratio = None
         else:
-            target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 50, key=f'target_trade_value_ratio') #마우스 커서로 왔다갔다 하는 기능
+            target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio') #마우스 커서로 왔다갔다 하는 기능
             target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
 
         initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital")
