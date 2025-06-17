@@ -9,6 +9,7 @@ class SimulationTradingModel(BaseModel):
     start_date: str
     end_date: str
     target_trade_value_krw: Optional[int]
+    target_trade_value_ratio: Optional[float]
     buy_trading_logic: Optional[List[str]]
     sell_trading_logic: Optional[List[str]]
     interval: str

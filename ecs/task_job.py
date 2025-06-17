@@ -83,10 +83,11 @@ def run_job():
 
     result = dynamodb_executor.execute_update(data_model, pk_name)
 
-    results, failed_stocks = auto_trading_stock.simulate_trading_bulk(simulation_data)
+    assets, simulation_histories, failed_stocks = auto_trading_stock.simulate_trading_bulk(simulation_data)
 
     json_dict = {
-        "results": results,
+        "assets": assets,
+        "simulation_histories": simulation_histories,
         # "data_df": data_df_cleaned.to_dict(orient="records") if hasattr(data_df_cleaned, "to_dict") else data_df_cleaned,
         "failed_stocks": failed_stocks
     }

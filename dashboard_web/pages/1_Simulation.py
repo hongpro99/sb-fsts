@@ -12,6 +12,7 @@ import pytz
 import streamlit.components.v1 as components
 from streamlit_lightweight_charts import renderLightweightCharts
 import json
+import random
 import numpy as np
 import plotly.express as px
 import requests
@@ -35,9 +36,20 @@ setup_env()
 
 backend_base_url = os.getenv('BACKEND_BASE_URL')
 
-def draw_lightweight_chart(data_df, selected_indicators):
+def draw_lightweight_chart(data_df, assets, selected_indicators):
 
+    buy_signals = []
+    sell_signals = []
 
+    holding = assets['account_holdings'][0]
+    for trade in holding["trading_histories"]:
+        if trade["trade_type"] == "BUY":
+            # timestamp와 price(또는 avg_price 등)를 추출
+            buy_signals.append((trade["timestamp"], trade["close_price"]))
+        elif trade["trade_type"] == "SELL":
+            # timestamp와 price(또는 avg_price 등)를 추출
+            sell_signals.append((trade["timestamp"], trade["close_price"]))
+    
     # 차트 color
     COLOR_BULL = 'rgba(236, 57, 72, 1)' # #26a69a
     COLOR_BEAR = 'rgba(74, 86, 160, 1)'  # #ef5350
@@ -47,9 +59,6 @@ def draw_lightweight_chart(data_df, selected_indicators):
     data_df.columns = [col.lower() for col in data_df.columns] #모두 소문자로 수정
     
     data_df['time'] = pd.to_datetime(data_df['time']).dt.strftime('%Y-%m-%d')
-
-    buy_signal_df = data_df[data_df['buy_signal'].notna()]
-    sell_signal_df = data_df[data_df['sell_signal'].notna()]
 
     # export to JSON format
     candles = json.loads(data_df.to_json(orient = "records"))
@@ -84,9 +93,11 @@ def draw_lightweight_chart(data_df, selected_indicators):
     
     # 매매 마커 추가
     markers = []
-    for _, row in buy_signal_df.iterrows():
+    # for _, row in buy_signal_df.iterrows():
+    for signal in buy_signals:
         marker = {
-            "time": row['time'],  # 'date' 열을 'time' 키로 변환
+            # "time": row['time'],  # 'date' 열을 'time' 키로 변환
+            "time": signal[0],  # 'date' 열을 'time' 키로 변환
             "position": "belowBar",  # 'position_type' 열을 'position' 키로 변환
             "color": "rgba(0, 0, 0, 1)",  # 'marker_color' 열을 'color' 키로 변환
             "shape": "arrowUp",  # 'marker_shape' 열을 'shape' 키로 변환
@@ -95,9 +106,11 @@ def draw_lightweight_chart(data_df, selected_indicators):
         }
         markers.append(marker)
 
-    for _, row in sell_signal_df.iterrows():
+    # for _, row in sell_signal_df.iterrows():
+    for signal in sell_signals:
         marker = {
-            "time": row['time'],  # 'date' 열을 'time' 키로 변환
+            # "time": row['time'],  # 'date' 열을 'time' 키로 변환
+            "time": signal[0],  # 'date' 열을 'time' 키로 변환
             "position": "aboveBar",  # 'position_type' 열을 'position' 키로 변환
             "color": "rgba(0, 0, 0, 1)",  # 'marker_color' 열을 'color' 키로 변환
             "shape": "arrowDown",  # 'marker_shape' 열을 'shape' 키로 변환
@@ -908,15 +921,29 @@ def setup_simulation_tab():
     공통적으로 사용할 사이드바 UI를 설정하는 함수
     """
     
-    id = 'id1'
-    
+    id = "id1"  # 사용자 이름 (고정값)
+        
     current_date_kst = datetime.now(pytz.timezone('Asia/Seoul')).date()
-    
-    # 사용자 입력
-    # user_name = st.text_input("User Name", value="홍석문")
-    start_date = st.date_input("Start Date", value=date(2023, 1, 1))
-    end_date = st.date_input("End Date", value=current_date_kst)
-    target_trade_value_krw = st.number_input("Target Trade Value (KRW)", value=1000000, step=100000)
+
+    start_date = st.date_input("📅 Start Date", value=date(2023, 1, 1), key=f'start_date')
+    end_date = st.date_input("📅 End Date", value=current_date_kst, key=f'end_date')
+
+    st.subheader("💰 매수 금액 설정 방식")
+
+    target_method = st.radio(
+        "매수 금액을 어떻게 설정할까요?",
+        ["직접 입력", "자본 비율 (%)"],
+        index=0
+    )
+
+    if target_method == "직접 입력":
+        target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000, key=f'target_trade_value_krw_single')
+        target_trade_value_ratio = None
+    else:
+        target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 50, key=f'target_trade_value_ratio_single') #마우스 커서로 왔다갔다 하는 기능
+        target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
+
+    initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital_single")
 
     result = list(StockSymbol.scan(
         filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'NASDAQ') | (StockSymbol.type == 'etf') )
@@ -994,16 +1021,9 @@ def setup_simulation_tab():
     ohlc_mode_checkbox = st.checkbox("차트 연결 모드")  # True / False 반환
     ohlc_mode = "continuous" if ohlc_mode_checkbox else "default"
     
-        # ✅ 실제 투자 조건 체크박스
-    real_trading_enabled = st.checkbox("💰 실제 투자자본 설정")
-    real_trading_yn = "Y" if real_trading_enabled else "N"
-
-    # ✅ 매수 퍼센트 입력
-    initial_capital = None
-    if real_trading_yn == "Y":
-        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10000000, step=1000000)
+    initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10000000, step=1000000)
         
-    use_take_profit = st.checkbox("익절 조건 사용", value=False)
+    use_take_profit = st.checkbox("익절 조건 사용", value=True)
     if use_take_profit:
         selected_take_profit_logic = st.selectbox("익절 방식 선택", ['절대 비율'])
         take_profit_ratio = st.number_input("익절 기준 (%)", value=5.0, min_value=0.0)
@@ -1014,7 +1034,7 @@ def setup_simulation_tab():
         logic['use_yn'] = True
         take_profit_logic.append(logic)
 
-    use_stop_loss = st.checkbox("손절 조건 사용", value=False)
+    use_stop_loss = st.checkbox("손절 조건 사용", value=True)
     if use_stop_loss:
         selected_stop_loss_logic = st.selectbox("손절 방식 선택", ['절대 비율'])
         stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0) 
@@ -1071,6 +1091,7 @@ def setup_simulation_tab():
         "start_date": start_date,
         "end_date": end_date,
         "target_trade_value_krw": target_trade_value_krw,
+        "target_trade_value_ratio": target_trade_value_ratio,
         "kospi200": symbol_options,
         "symbol": symbol,
         "selected_stock": selected_stock,
@@ -1131,23 +1152,124 @@ def simulate_virtual_sell(df, start_idx, buy_price, take_profit_ratio, stop_loss
     return None, None, None
             
 
-def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
+def draw_bulk_simulation_result(assets, results, simulation_settings):
 
-    signal_logs = []
-    
     # debug 용
     # st.json(results, expanded=False)
     
     results_df = pd.DataFrame(results)
 
+    results_df["timestamp"] = pd.to_datetime(results_df["timestamp"])
+    results_df = results_df.sort_values(by=["timestamp", "symbol"]).reset_index(drop=True)
+    results_df["timestamp"] = results_df["timestamp"].dt.strftime("%Y-%m-%d")
+
+    reorder_columns = [
+        "timestamp", "symbol", "initial_capital", "portfolio_value", "quantity",
+        "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi",
+        "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", "signal_reasons", "total_buy_cost", "buy_signal_info", "ohlc_data_full", "history"
+    ]
+    results_df = results_df[[col for col in reorder_columns if col in results_df.columns]]
+
+    for col in ["realized_roi", "unrealized_roi"]:
+        if col in results_df.columns:
+            results_df[col] = results_df[col].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
+    
+
+    signal_logs = []
+    for row in results:
+        raw_reasons = row.get("signal_reasons", [])
+        
+        # 문자열이면 리스트로 변환
+        if isinstance(raw_reasons, str):
+            reasons_list = [raw_reasons]
+        # 리스트인데 내부에 리스트가 있으면 flatten
+        elif isinstance(raw_reasons, list):
+            if raw_reasons and isinstance(raw_reasons[0], list):
+                reasons_list = [item for sublist in raw_reasons for item in sublist]
+            else:
+                reasons_list = raw_reasons
+        else:
+            reasons_list = []
+
+        reasons = ", ".join(map(str, reasons_list))
+
+        if row.get("buy_signal"):
+            signal_logs.append({
+                "timestamp": row["timestamp"],
+                "symbol": row["symbol"],
+                "signal": "BUY_SIGNAL",
+                "reason": reasons
+            })
+        if row.get("sell_signal"):
+            signal_logs.append({
+                "timestamp": row["timestamp"],
+                "symbol": row["symbol"],
+                "signal": "SELL_SIGNAL",
+                "reason": reasons
+            })
+
+    # ✅ 시뮬레이션 params
+    st.markdown("---")
+    st.subheader("📊 시뮬레이션 설정")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("시작 날짜", format_date_ymd(simulation_settings["start_date"]))
+        st.metric("종료 날짜", format_date_ymd(simulation_settings["end_date"]))
+        st.metric("일자 별", simulation_settings.get("interval") if simulation_settings.get("interval") else "없음")
+        st.metric("매수 제약 조건", simulation_settings["buy_condition_yn"] if simulation_settings.get("buy_condition_yn") else "없음")
+    with col2:
+        st.metric("초기 자본", f"{int(simulation_settings['initial_capital']):,}" if simulation_settings.get("initial_capital") else "없음")
+        st.metric("자본 비율", simulation_settings["target_trade_value_ratio"] if simulation_settings.get("target_trade_value_ratio") else "없음")
+        st.metric("목표 거래 금액", simulation_settings.get("target_trade_value_krw") if simulation_settings.get("target_trade_value_krw") else "없음")
+        st.metric("매수 제약 조건 비율", simulation_settings["buy_percentage"] if simulation_settings.get("buy_percentage") else "없음")
+    with col3:
+        st.metric("rsi_period", simulation_settings["rsi_period"] if simulation_settings.get("rsi_period") else "없음")
+        st.metric("rsi_buy_threshold", simulation_settings["rsi_buy_threshold"] if simulation_settings.get("rsi_buy_threshold") else "없음")
+        st.metric("rsi_sell_threshold", simulation_settings["rsi_sell_threshold"] if simulation_settings.get("rsi_sell_threshold") else "없음")
+    with col4:
+        st.metric("익절 비율", simulation_settings["take_profit_ratio"] if simulation_settings.get("use_take_profit") else "없음")
+        st.metric("손절 비율", simulation_settings["stop_loss_ratio"] if simulation_settings.get("use_stop_loss") else "없음")
+
+    # 한글 로직 이름 맵핑
+    file_path = "./dashboard_web/trading_logic.json"
+    with open(file_path, "r", encoding="utf-8") as f:
+        trading_logic = json.load(f)
+
+    buy_trading_logic = simulation_settings["buy_trading_logic"]
+    sell_trading_logic = simulation_settings["sell_trading_logic"]
+
+    # 코드 기준으로 필요한 항목만 필터링
+    filtered_buy_logic = {
+        k: v for k, v in trading_logic["available_buy_logic"].items() if v in buy_trading_logic
+    }
+    filtered_sell_logic = {
+        k: v for k, v in trading_logic["available_sell_logic"].items() if v in sell_trading_logic
+    }
+
+    # 최종 결과
+    trading_logic_dict = {
+        "buy_trading_logic": filtered_buy_logic,
+        "sell_trading_logic": filtered_sell_logic
+    }
+
+    st.write("###### 선택한 종목")
+    st.json(simulation_settings.get("selected_symbols", []), expanded=False)
+    st.write("###### 매수 로직")
+    st.json(trading_logic_dict["buy_trading_logic"], expanded=False)
+    st.write("###### 매도 로직")
+    st.json(trading_logic_dict["sell_trading_logic"], expanded=False)
+
+    ### 시뮬레이션 상세 내용 코드
+    results_df = pd.DataFrame(results)
+
     # 표출하고 싶은 컬럼 필터
     columns_to_show = [
-        "timestamp", "stock_name", "avg_price", "total_quantity", "trade_type",
+        "timestamp_str", "stock_name", "avg_price", "total_quantity", "trade_type",
         "reason", "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi", "krw_balance",
         "buy_logic_reasons", "sell_logic_reasons"
     ]
     columns_rename = {
-        "timestamp": "날짜",
+        "timestamp_str": "날짜",
         "stock_name": "종목명",
         "avg_price": "평균단가",
         "total_quantity": "보유수량",
@@ -1207,9 +1329,10 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
     st.markdown("---")
     st.subheader("📋 시뮬레이션 상세 내용")
     # AgGrid로 테이블 표시
+
     grid_response = AgGrid(
         results_df_display_ko,
-        key='bulk_simulation_result_detail',
+        key=f'bulk_simulation_result_detail_{random.random()}',
         gridOptions=grid_options,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         sortable=True,  # 정렬 가능
@@ -1217,112 +1340,6 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
         resizable=True, # 크기 조절 가능
         theme='streamlit',   # 테마 변경 가능 ('light', 'dark', 'blue', 등)
     )
-    
-    # if results:
-    #     results_df = pd.DataFrame(results)
-
-    #     results_df["timestamp"] = pd.to_datetime(results_df["timestamp"])
-    #     results_df = results_df.sort_values(by=["timestamp", "symbol"]).reset_index(drop=True)
-    #     results_df["timestamp"] = results_df["timestamp"].dt.strftime("%Y-%m-%d")
-
-    #     reorder_columns = [
-    #         "timestamp", "symbol", "initial_capital", "portfolio_value", "quantity",
-    #         "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi",
-    #         "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", "signal_reasons", "total_buy_cost", "buy_signal_info", "ohlc_data_full", "history"
-    #     ]
-    #     results_df = results_df[[col for col in reorder_columns if col in results_df.columns]]
-
-    #     for col in ["realized_roi", "unrealized_roi"]:
-    #         if col in results_df.columns:
-    #             results_df[col] = results_df[col].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
-        
-    #     # st.subheader("📋 시뮬레이션 결과 테이블")
-    #     # st.dataframe(results_df, use_container_width=True)
-
-    #     signal_logs = []
-    #     for row in results:
-    #         raw_reasons = row.get("signal_reasons", [])
-            
-    #         # 문자열이면 리스트로 변환
-    #         if isinstance(raw_reasons, str):
-    #             reasons_list = [raw_reasons]
-    #         # 리스트인데 내부에 리스트가 있으면 flatten
-    #         elif isinstance(raw_reasons, list):
-    #             if raw_reasons and isinstance(raw_reasons[0], list):
-    #                 reasons_list = [item for sublist in raw_reasons for item in sublist]
-    #             else:
-    #                 reasons_list = raw_reasons
-    #         else:
-    #             reasons_list = []
-
-    #         reasons = ", ".join(map(str, reasons_list))
-
-    #         if row.get("buy_signal"):
-    #             signal_logs.append({
-    #                 "timestamp": row["timestamp"],
-    #                 "symbol": row["symbol"],
-    #                 "signal": "BUY_SIGNAL",
-    #                 "reason": reasons
-    #             })
-    #         if row.get("sell_signal"):
-    #             signal_logs.append({
-    #                 "timestamp": row["timestamp"],
-    #                 "symbol": row["symbol"],
-    #                 "signal": "SELL_SIGNAL",
-    #                 "reason": reasons
-    #             })
-
-    #     # ✅ 시뮬레이션 params
-    #     st.markdown("---")
-    #     st.subheader("📊 시뮬레이션 설정")
-    #     col1, col2, col3, col4 = st.columns(4)
-    #     with col1:
-    #         st.metric("시작 날짜", format_date_ymd(simulation_settings["start_date"]))
-    #         st.metric("종료 날짜", format_date_ymd(simulation_settings["end_date"]))
-    #         st.metric("일자 별", simulation_settings.get("interval") if simulation_settings.get("interval") else "없음")
-    #         st.metric("매수 제약 조건", simulation_settings["buy_condition_yn"] if simulation_settings.get("buy_condition_yn") else "없음")
-    #     with col2:
-    #         st.metric("초기 자본", f"{int(simulation_settings['initial_capital']):,}" if simulation_settings.get("initial_capital") else "없음")
-    #         st.metric("자본 비율", simulation_settings["target_trade_value_ratio"] if simulation_settings.get("target_trade_value_ratio") else "없음")
-    #         st.metric("목표 거래 금액", simulation_settings.get("target_trade_value_krw") if simulation_settings.get("target_trade_value_krw") else "없음")
-    #         st.metric("매수 제약 조건 비율", simulation_settings["buy_percentage"] if simulation_settings.get("buy_percentage") else "없음")
-    #     with col3:
-    #         st.metric("rsi_period", simulation_settings["rsi_period"] if simulation_settings.get("rsi_period") else "없음")
-    #         st.metric("rsi_buy_threshold", simulation_settings["rsi_buy_threshold"] if simulation_settings.get("rsi_buy_threshold") else "없음")
-    #         st.metric("rsi_sell_threshold", simulation_settings["rsi_sell_threshold"] if simulation_settings.get("rsi_sell_threshold") else "없음")
-    #     with col4:
-    #         st.metric("익절 비율", simulation_settings["take_profit_ratio"] if simulation_settings.get("use_take_profit") else "없음")
-    #         st.metric("손절 비율", simulation_settings["stop_loss_ratio"] if simulation_settings.get("use_stop_loss") else "없음")
-
-    #     # 한글 로직 이름 맵핑
-    #     file_path = "./dashboard_web/trading_logic.json"
-    #     with open(file_path, "r", encoding="utf-8") as f:
-    #         trading_logic = json.load(f)
-
-    #     buy_trading_logic = simulation_settings["buy_trading_logic"]
-    #     sell_trading_logic = simulation_settings["sell_trading_logic"]
-
-    #     # 코드 기준으로 필요한 항목만 필터링
-    #     filtered_buy_logic = {
-    #         k: v for k, v in trading_logic["available_buy_logic"].items() if v in buy_trading_logic
-    #     }
-    #     filtered_sell_logic = {
-    #         k: v for k, v in trading_logic["available_sell_logic"].items() if v in sell_trading_logic
-    #     }
-
-    #     # 최종 결과
-    #     trading_logic_dict = {
-    #         "buy_trading_logic": filtered_buy_logic,
-    #         "sell_trading_logic": filtered_sell_logic
-    #     }
-
-    #     st.write("###### 선택한 종목")
-    #     st.json(simulation_settings["selected_symbols"], expanded=False)
-    #     st.write("###### 매수 로직")
-    #     st.json(trading_logic_dict["buy_trading_logic"], expanded=False)
-    #     st.write("###### 매도 로직")
-    #     st.json(trading_logic_dict["sell_trading_logic"], expanded=False)
-    #     st.markdown("---")
 
     #     if signal_logs:
     #         df_signals = pd.DataFrame(signal_logs)
@@ -1436,11 +1453,17 @@ def draw_bulk_simulation_result(simulation_settings, results, failed_stocks):
     st.subheader("📊 전체 요약 통계")
 
     total_realized_pnl = results_df["realized_pnl"].sum()
-    total_unrealized_pnl = results_df["unrealized_pnl"].sum()
+    # unrealized_pnl 연산 (종목 합)
+    total_unrealized_pnl = 0
+    
+    for holding in assets['account_holdings']:
+        unrealized_pnl = (holding['close_price'] - holding['avg_price']) * holding['total_quantity']
+        total_unrealized_pnl += unrealized_pnl
+
     total_buy_count = (results_df["trade_type"] == "BUY").sum()
     total_sell_count = (results_df["trade_type"] == "SELL").sum()
 
-    initial_capital = simulation_settings["initial_capital"]
+    initial_capital = assets["initial_capital"]
     if initial_capital and initial_capital > 0:
         avg_realized_roi_per_capital = (total_realized_pnl / initial_capital) * 100
         avg_total_roi_per_capital = ((total_realized_pnl + total_unrealized_pnl) / initial_capital) * 100
@@ -1699,35 +1722,36 @@ def main():
     with tabs[1]:
         st.header("📈 종목 시뮬레이션")
 
-        sidebar_settings = setup_simulation_tab()
+        simulation_settings = setup_simulation_tab()
         
         if st.button("개별 종목 시뮬레이션 실행", key = 'simulation_button'):
             
             with st.container():
-                st.write(f"📊 {sidebar_settings['selected_stock']} 시뮬레이션 실행 중...")
+                st.write(f"📊 {simulation_settings['selected_stock']} 시뮬레이션 실행 중...")
                 
                 url = f"{backend_base_url}/stock/simulate/single"
 
                 print(f'url = {url}')
 
                 payload = {
-                    "user_id": sidebar_settings["id"],
-                    "symbol": sidebar_settings["symbol"],
-                    "stock_name": sidebar_settings["selected_stock"],
-                    "start_date": sidebar_settings["start_date"].isoformat(),
-                    "end_date": sidebar_settings["end_date"].isoformat(),
-                    "target_trade_value_krw": sidebar_settings["target_trade_value_krw"],
-                    "buy_trading_logic": sidebar_settings["buy_trading_logic"],
-                    "sell_trading_logic": sidebar_settings["sell_trading_logic"],
-                    "interval": sidebar_settings["interval"],
-                    "buy_percentage": sidebar_settings["buy_percentage"],
-                    "ohlc_mode": sidebar_settings["ohlc_mode"],
-                    "rsi_buy_threshold": sidebar_settings["rsi_buy_threshold"],
-                    "rsi_sell_threshold": sidebar_settings["rsi_sell_threshold"],
-                    "rsi_period": sidebar_settings["rsi_period"],
-                    "initial_capital": sidebar_settings["initial_capital"],
-                    "take_profit_logic": sidebar_settings["take_profit_logic"],
-                    "stop_loss_logic": sidebar_settings["stop_loss_logic"]
+                    "user_id": simulation_settings["id"],
+                    "symbol": simulation_settings["symbol"],
+                    "stock_name": simulation_settings["selected_stock"],
+                    "start_date": simulation_settings["start_date"].isoformat(),
+                    "end_date": simulation_settings["end_date"].isoformat(),
+                    "target_trade_value_krw": simulation_settings["target_trade_value_krw"],
+                    "target_trade_value_ratio": simulation_settings['target_trade_value_ratio'],
+                    "buy_trading_logic": simulation_settings["buy_trading_logic"],
+                    "sell_trading_logic": simulation_settings["sell_trading_logic"],
+                    "interval": simulation_settings["interval"],
+                    "buy_percentage": simulation_settings["buy_percentage"],
+                    "ohlc_mode": simulation_settings["ohlc_mode"],
+                    "rsi_buy_threshold": simulation_settings["rsi_buy_threshold"],
+                    "rsi_sell_threshold": simulation_settings["rsi_sell_threshold"],
+                    "rsi_period": simulation_settings["rsi_period"],
+                    "initial_capital": simulation_settings["initial_capital"],
+                    "take_profit_logic": simulation_settings["take_profit_logic"],
+                    "stop_loss_logic": simulation_settings["stop_loss_logic"]
                 }
 
                 response = requests.post(url, json=payload).json()
@@ -1737,36 +1761,36 @@ def main():
                 json_data = read_json_from_presigned_url(json_url)
                 data_url = json_data['data_url']
                 data_df = read_csv_from_presigned_url(data_url)
-                trading_history = json_data['trading_history']
-                trade_reasons = json_data['trade_reasons']
+                simulation_histories = json_data['simulation_histories']
+                assets = json_data['assets']
 
                 # ✅ 상태 저장
                 st.session_state["simulation_result"] = {
                     "data_df": data_df,
-                    "trading_history": trading_history,
-                    "trade_reasons": trade_reasons,
-                    "selected_indicators": sidebar_settings['selected_indicators'],
-                    "selected_stock": sidebar_settings["selected_stock"]
+                    "assets": assets,
+                    "simulation_histories": simulation_histories,
+                    "selected_indicators": simulation_settings['selected_indicators'],
+                    "selected_stock": simulation_settings["selected_stock"]
                 }
 
         # ✅ 이전 시뮬 결과가 있는 경우 표시
         if "simulation_result" in st.session_state:
             result = st.session_state["simulation_result"]
             data_df = result["data_df"]
-            trading_history = result["trading_history"]
-            trade_reasons = result["trade_reasons"]
+            assets = result["assets"]
+            simulation_histories = result["simulation_histories"]
             selected_indicators = result["selected_indicators"]
 
             # CSV 다운로드 버튼
-            st.subheader("📥 데이터 다운로드")
-            csv_buffer = io.StringIO()
-            pd.DataFrame(trade_reasons).to_csv(csv_buffer, index=False)
-            st.download_button(
-                label="📄 CSV 파일 다운로드",
-                data=csv_buffer.getvalue(),
-                file_name="trade_reasons.csv",
-                mime="text/csv"
-            )
+            # st.subheader("📥 데이터 다운로드")
+            # csv_buffer = io.StringIO()
+            # pd.DataFrame(trade_reasons).to_csv(csv_buffer, index=False)
+            # st.download_button(
+            #     label="📄 CSV 파일 다운로드",
+            #     data=csv_buffer.getvalue(),
+            #     file_name="trade_reasons.csv",
+            #     mime="text/csv"
+            # )
             #     simulation_result = {
             #         "data_df": data_df,
             #         "trading_history": trading_history,
@@ -1796,50 +1820,52 @@ def main():
             # )
             
             # TradingView 차트 그리기
-            draw_lightweight_chart(data_df, selected_indicators)
-            
-            # -- Trading History 처리 --
-            if not trading_history:
-                st.write("No trading history available.")
-            else:
-                # 거래 내역을 DataFrame으로 변환
-                history_df = pd.DataFrame([trading_history])
+            draw_lightweight_chart(data_df, assets, selected_indicators)
+            # 결과 result
+            draw_bulk_simulation_result(assets, simulation_histories, simulation_settings)
+
+            # # -- Trading History 처리 --
+            # if not simulation_histories:
+            #     st.write("No trading history available.")
+            # else:
+            #     # 거래 내역을 DataFrame으로 변환
+            #     history_df = pd.DataFrame([simulation_histories])
         
-                # 실현/미실현 수익률에 % 포맷 적용
-                for column in ["realized_roi", "unrealized_roi"]:
-                    if column in history_df.columns:
-                        history_df[column] = history_df[column].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
+            #     # 실현/미실현 수익률에 % 포맷 적용
+            #     for column in ["realized_roi", "unrealized_roi"]:
+            #         if column in history_df.columns:
+            #             history_df[column] = history_df[column].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
                         
-                # symbol 변수 설정 (예시; 필요시 수정)
-                history_df["symbol"] = sidebar_settings['selected_stock']
+            #     # symbol 변수 설정 (예시; 필요시 수정)
+            #     history_df["symbol"] = simulation_settings['selected_stock']
         
-                reorder_columns = [
-                    "symbol", "average_price",
-                    "realized_pnl", "unrealized_pnl", "realized_roi", "unrealized_roi", "total_cost",
-                    "total_quantity", "history", "created_at"
-                ]
-                history_df = history_df[[col for col in reorder_columns if col in history_df.columns]]
+            #     reorder_columns = [
+            #         "symbol", "average_price",
+            #         "realized_pnl", "unrealized_pnl", "realized_roi", "unrealized_roi", "total_cost",
+            #         "total_quantity", "history", "created_at"
+            #     ]
+            #     history_df = history_df[[col for col in reorder_columns if col in history_df.columns]]
         
-                history_df_transposed = history_df.transpose().reset_index()
-                history_df_transposed.columns = ["Field", "Value"]
+            #     history_df_transposed = history_df.transpose().reset_index()
+            #     history_df_transposed.columns = ["Field", "Value"]
         
-                st.subheader("📊 Trading History Summary")
-                st.dataframe(history_df_transposed, use_container_width=True)
+            #     st.subheader("📊 Trading History Summary")
+            #     st.dataframe(history_df_transposed, use_container_width=True)
                 
-                if "history" in trading_history and isinstance(trading_history["history"], list) and trading_history["history"]:
-                    rename_tradingLogic(trading_history["history"])  # 필요 시 로직명 변환
-                    trade_history_df = pd.DataFrame(trading_history["history"])
+            #     if "history" in simulation_histories and isinstance(simulation_histories["history"], list) and simulation_histories["history"]:
+            #         rename_tradingLogic(simulation_histories["history"])  # 필요 시 로직명 변환
+            #         trade_history_df = pd.DataFrame(simulation_histories["history"])
                     
-                                        # ✅ 실현 수익률 퍼센트 표시
-                    if "realized_roi" in trade_history_df.columns:
-                        trade_history_df["realized_roi (%)"] = trade_history_df["realized_roi"].apply(
-                            lambda x: f"{x * 100:.2f}%" if pd.notnull(x) else None
-                        )
+            #                             # ✅ 실현 수익률 퍼센트 표시
+            #         if "realized_roi" in trade_history_df.columns:
+            #             trade_history_df["realized_roi (%)"] = trade_history_df["realized_roi"].apply(
+            #                 lambda x: f"{x * 100:.2f}%" if pd.notnull(x) else None
+            #             )
                     
-                    st.subheader("📋 Detailed Trade History")
-                    st.dataframe(trade_history_df, use_container_width=True)
-                else:
-                    st.write("No detailed trade history found.")
+            #         st.subheader("📋 Detailed Trade History")
+            #         st.dataframe(trade_history_df, use_container_width=True)
+            #     else:
+            #         st.write("No detailed trade history found.")
         else:
             st.info("먼저 시뮬레이션을 실행해주세요.")
             
@@ -1857,23 +1883,18 @@ def main():
         target_method = st.radio(
             "매수 금액을 어떻게 설정할까요?",
             ["직접 입력", "자본 비율 (%)"],
-            index=0
+            index=0,
+            key=f'target_method'
         )
 
         if target_method == "직접 입력":
-            target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000)
+            target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000, key=f'target_trade_value_krw')
             target_trade_value_ratio = None
         else:
-            target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 50) #마우스 커서로 왔다갔다 하는 기능
+            target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 50, key=f'target_trade_value_ratio') #마우스 커서로 왔다갔다 하는 기능
             target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
-        # ✅ 실제 투자 조건 체크박스
-        real_trading_enabled = st.checkbox("💰 실제 투자자본 설정", value=True, key="real_trading_enabled")
-        real_trading_yn = "Y" if real_trading_enabled else "N"
 
-        # ✅ 매수 퍼센트 입력
-        initial_capital = None
-        if real_trading_yn == "Y":
-            initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key="initial_capital")
+        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital")
             
         # ✅ DB에서 종목 리스트 가져오기
         result = list(StockSymbol.scan(
@@ -1983,11 +2004,11 @@ def main():
         if buy_condition_yn:
             buy_percentage = st.number_input("💵 퍼센트 (%) 입력", min_value=0.0, max_value=100.0, value=3.0, step=0.1, key="buy_percentage")
             
-        use_take_profit = st.checkbox("익절 조건 사용", value=False, key="use_take_profit")
+        use_take_profit = st.checkbox("익절 조건 사용", value=True, key="use_take_profit")
         selected_take_profit_logic = st.selectbox("익절 방식 선택", ['절대 비율'], key="selected_take_profit_logic")
         take_profit_ratio = st.number_input("익절 기준 (%)", value=5.0, min_value=0.0, key="take_profit_ratio")
 
-        use_stop_loss = st.checkbox("손절 조건 사용", value=False, key="use_stop_loss")
+        use_stop_loss = st.checkbox("손절 조건 사용", value=True, key="use_stop_loss")
         selected_stop_loss_logic = st.selectbox("손절 방식 선택", ['절대 비율'], key="selected_stop_loss_logic")
         stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0, key="stop_loss_ratio")        
 
@@ -2100,10 +2121,11 @@ def main():
                 
                 json_data = read_json_from_presigned_url(result_presigned_url)
 
-                results = json_data['results']
+                assets = json_data['assets']
+                results = json_data['simulation_histories']
                 failed_stocks = json_data['failed_stocks']
 
-                draw_bulk_simulation_result(simulation_settings, results, failed_stocks)
+                draw_bulk_simulation_result(assets, results, simulation_settings)
     
     with tabs[3]:
         st.header("🏠 Simulation Result")
@@ -2176,10 +2198,11 @@ def main():
                 simulation_settings = read_json_from_presigned_url(params_presigned_url)
                 result_json_data = read_json_from_presigned_url(result_presigned_url)
 
-                results = result_json_data['results']
+                assets = result_json_data['assets']
+                simulation_histories = result_json_data['simulation_histories']
                 failed_stocks = result_json_data['failed_stocks']
                                 
-                draw_bulk_simulation_result(simulation_settings, results, failed_stocks)
+                draw_bulk_simulation_result(assets, simulation_histories, simulation_settings)
             
     with tabs[4]:
         st.header("🏠 Auto Trading Bot Balance")

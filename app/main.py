@@ -59,12 +59,13 @@ async def simulate_single_trade(data: SimulationTradingModel):
     start_date = datetime.fromisoformat(simulation_data["start_date"])
     end_date = datetime.fromisoformat(simulation_data["end_date"])
 
-    data_df, trading_history, trade_reasons = auto_trading_stock.simulate_trading(
+    data_df, assets, simulation_histories, = auto_trading_stock.simulate_trading(
         symbol=simulation_data["symbol"],
         stock_name=simulation_data["stock_name"],
         start_date=start_date,
         end_date=end_date,
-        target_trade_value_krw=simulation_data["target_trade_value_krw"],
+        target_trade_value_krw=simulation_data.get("target_trade_value_krw"),
+        target_trade_value_ratio=simulation_data.get("target_trade_value_ratio"),
         buy_trading_logic=simulation_data["buy_trading_logic"],
         sell_trading_logic=simulation_data["sell_trading_logic"],
         interval=simulation_data["interval"],
@@ -84,8 +85,8 @@ async def simulate_single_trade(data: SimulationTradingModel):
     json_dict = {
         "data_url": csv_url,
         # "data_df": data_df_cleaned.to_dict(orient="records") if hasattr(data_df_cleaned, "to_dict") else data_df_cleaned,
-        "trading_history": trading_history,
-        "trade_reasons": trade_reasons
+        "assets": assets,
+        "simulation_histories": simulation_histories
     }
 
     json_url = save_json_to_s3(json_dict, bucket_name="sb-fsts")

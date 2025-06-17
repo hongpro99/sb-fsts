@@ -145,34 +145,7 @@ class AutoTradingBot:
             
         return klines
 
-    def _draw_chart(self, ohlc, timestamps, buy_signals, sell_signals):
-
-        # 캔들 차트 데이터프레임 생성
-        df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
-
-        # 볼린저 밴드 계산
-        df['Middle'] = df['Close'].rolling(window=20).mean()
-        df['Upper'] = df['Middle'] + (df['Close'].rolling(window=20).std() * 2)
-        df['Lower'] = df['Middle'] - (df['Close'].rolling(window=20).std() * 2)
-
-        #sma
-        df = indicator.cal_sma_df(df, 5)
-        df = indicator.cal_sma_df(df, 20)
-        df = indicator.cal_sma_df(df, 40)
-        df = indicator.cal_sma_df(df, 120)
-        df = indicator.cal_sma_df(df, 200)        
-
-        #ema
-        df = indicator.cal_ema_df(df, 13)
-        df = indicator.cal_ema_df(df, 21)
-        df = indicator.cal_ema_df(df, 55)
-        df = indicator.cal_ema_df(df, 89)
-        df = indicator.cal_ema_df(df, 5)
-
-        df = indicator.cal_rsi_df(df)
-        df = indicator.cal_macd_df(df)
-        df = indicator.cal_stochastic_df(df)
-        df = indicator.cal_mfi_df(df)
+    def _draw_chart(self, df, ohlc, timestamps, buy_signals, sell_signals):
 
         # 매수 및 매도 시그널 표시를 위한 추가 데이터 (x와 y의 길이 맞추기 위해 NaN 사용)
         df['Buy_Signal'] = np.nan
@@ -297,9 +270,9 @@ class AutoTradingBot:
     
 
     def simulate_trading(
-            self, symbol, stock_name, start_date, end_date, target_trade_value_krw, buy_trading_logic=None, sell_trading_logic=None,
+            self, symbol, stock_name, start_date, end_date, target_trade_value_krw, target_trade_value_ratio, buy_trading_logic=None, sell_trading_logic=None,
             interval='day', buy_percentage = None, ohlc_mode = 'default', initial_capital=None, rsi_period = 25, take_profit_logic=None, 
-            stop_loss_logic=None, use_take_profit=False, take_profit_ratio=5, use_stop_loss=False, stop_loss_ratio=5, completed_task_cnt=0, updated_at=None, updated_at_dt=None, pk_name=None
+            stop_loss_logic=None, completed_task_cnt=0, updated_at=None, updated_at_dt=None, pk_name=None
         ):
 
         # 지표 계산을 위해 180일 이전부터 OHLC 데이터를 가져옵니다.        
@@ -309,6 +282,12 @@ class AutoTradingBot:
         take_profit_logic = take_profit_logic[0] if len(take_profit_logic) > 0 else None
         stop_loss_logic = stop_loss_logic[0] if len(stop_loss_logic) > 0 else None
         
+        use_take_profit = take_profit_logic['use_yn']
+        take_profit_ratio = take_profit_logic['ratio']
+
+        use_stop_loss = stop_loss_logic['use_yn']
+        stop_loss_ratio = stop_loss_logic['ratio']
+
         # ✅ OHLC 데이터 가져오기
         simulation_ohlc_data = self._get_ohlc(symbol, start_date_for_ohlc, end_date, interval, ohlc_mode)    
         simulation_df = self._create_ohlc_df(simulation_ohlc_data, rsi_period)
@@ -317,20 +296,18 @@ class AutoTradingBot:
             print(f"❌ No OHLC data: {symbol}")
             return None, None, None
         
-        # trade_ratio = simulation_settings.get("target_trade_value_ratio", 100)  # None 이면 직접 입력 방식
+        trade_ratio = target_trade_value_ratio  # None 이면 직접 입력 방식
+
+        account_holdings = []
+        simulation_histories = []
 
         # account
         global_state = {
             'initial_capital': initial_capital,
             'krw_balance': initial_capital,
-            'realized_pnl': 0,
-            'buy_dates': [],
-            'sell_dates': [],
+            'account_holdings': account_holdings
         }
 
-        account_holdings = []
-        results = []
-        
         # 공통된 모든 날짜 모으기
         all_dates = set()
         dates = [pd.Timestamp(c.time).tz_localize(None).normalize() for c in simulation_ohlc_data]
@@ -339,6 +316,8 @@ class AutoTradingBot:
         holding = {
             'symbol': symbol,
             'stock_name': stock_name,
+            'timestamp_str': "",
+            'close_price': 0,
             'total_quantity': 0,
             'avg_price': 0,
             'total_buy_cost': 0,
@@ -347,7 +326,7 @@ class AutoTradingBot:
 
         account_holdings.append(holding)
 
-        date_range = sorted(list(dates))  # 날짜 정렬
+        date_range = sorted(list(all_dates))  # 날짜 정렬
 
         # ✅ 시뮬레이션 시작
         for idx, current_date in enumerate(date_range): # ✅ 하루 기준 고정 portfolio_value 계산 (종목별 보유 상태 반영)            
@@ -379,14 +358,6 @@ class AutoTradingBot:
             
             timestamp_str = current_date.date().isoformat()
             
-            # ✅ 상태 초기화
-            #trading_history = global_state.copy() if global_state else {}
-            trading_history = global_state if global_state is not None else {}
-            trading_history.setdefault('initial_capital', global_state["initial_capital"])
-            trading_history.setdefault('realized_pnl', 0)
-            trading_history.setdefault('buy_dates', [])
-            trading_history.setdefault('sell_dates', [])
-
             print(f"💰 시뮬 중: {symbol} / 날짜: {timestamp_str} / 사용가능한 예수금: {global_state['krw_balance']:,}")
 
             trade_quantity = 0
@@ -405,6 +376,10 @@ class AutoTradingBot:
             
             buy_logic_reasons = []
             sell_logic_reasons = []
+            
+            # 데이터 최신화
+            holding['timstamp_str'] = timestamp_str
+            holding['close_price'] = close_price
             
             # ✅ 익절/손절 조건 우선 적용
             if holding['total_quantity'] > 0:
@@ -432,33 +407,37 @@ class AutoTradingBot:
                     take_profit_hit = True
                     reason = f"익절 조건 충족 (+{current_roi:.2f}%)"
 
-                    trading_history = {}
-                    trading_history['symbol'] = symbol
-                    trading_history['stock_name'] = holding['stock_name']
-                    trading_history['fee'] = fee
-                    trading_history['tax'] = tax
-                    trading_history['revenue'] = revenue
-                    trading_history['timestamp'] = timestamp_str
-                    trading_history['reason'] = reason
-                    trading_history['trade_type'] = 'SELL'
-                    trading_history['trade_quantity'] = trade_quantity
-                    trading_history['avg_price'] = holding['avg_price']
-                    trading_history['buy_logic_reasons'] = buy_logic_reasons
-                    trading_history['sell_logic_reasons'] = sell_logic_reasons
-                    trading_history['take_profit_hit'] = take_profit_hit
-                    trading_history['stop_loss_hit'] = stop_loss_hit
-                    trading_history['realized_pnl'] = realized_pnl
-                    trading_history['realized_roi'] = realized_roi
-                    trading_history['unrealized_pnl'] = unrealized_pnl
-                    trading_history['unrealized_roi'] = unrealized_roi
-                    trading_history['krw_balance'] = global_state['krw_balance']
-                    trading_history['total_quantity'] = holding['total_quantity']
+                    trading_history = self._create_trading_history(
+                        symbol=symbol,
+                        stock_name=holding['stock_name'],
+                        fee=fee,
+                        tax=tax,
+                        revenue=revenue,
+                        timestamp=current_date,
+                        timestamp_str=timestamp_str,
+                        reason=reason,
+                        trade_type='SELL',
+                        trade_quantity=trade_quantity,
+                        avg_price=holding['avg_price'],
+                        buy_logic_reasons=buy_logic_reasons,
+                        sell_logic_reasons=sell_logic_reasons,
+                        take_profit_hit=take_profit_hit,
+                        stop_loss_hit=stop_loss_hit,
+                        realized_pnl=realized_pnl,
+                        realized_roi=realized_roi,
+                        unrealized_pnl=unrealized_pnl,
+                        unrealized_roi=unrealized_roi,
+                        krw_balance=global_state['krw_balance'],
+                        total_quantity=holding['total_quantity'],
+                        total_buy_cost=holding['total_buy_cost'],
+                        close_price=close_price
+                    )
 
                     holding['trading_histories'].append(trading_history)
 
                     sell_yn = True
 
-                    results.append(trading_history)
+                    simulation_histories.append(trading_history)
 
                 # 손절 조건
                 elif use_stop_loss and current_roi <= -stop_loss_ratio:
@@ -482,33 +461,37 @@ class AutoTradingBot:
                     stop_loss_hit = True
                     reason = f"손절 조건 충족 ({current_roi:.2f}%)"
 
-                    trading_history = {}
-                    trading_history['symbol'] = symbol
-                    trading_history['stock_name'] = holding['stock_name']
-                    trading_history['fee'] = fee
-                    trading_history['tax'] = tax
-                    trading_history['revenue'] = revenue
-                    trading_history['timestamp'] = timestamp_str
-                    trading_history['reason'] = reason
-                    trading_history['trade_type'] = 'SELL'
-                    trading_history['trade_quantity'] = trade_quantity
-                    trading_history['avg_price'] = holding['avg_price']
-                    trading_history['buy_logic_reasons'] = buy_logic_reasons
-                    trading_history['sell_logic_reasons'] = sell_logic_reasons
-                    trading_history['take_profit_hit'] = take_profit_hit
-                    trading_history['stop_loss_hit'] = stop_loss_hit
-                    trading_history['realized_pnl'] = realized_pnl
-                    trading_history['realized_roi'] = realized_roi
-                    trading_history['unrealized_pnl'] = unrealized_pnl
-                    trading_history['unrealized_roi'] = unrealized_roi
-                    trading_history['krw_balance'] = global_state['krw_balance']
-                    trading_history['total_quantity'] = holding['total_quantity']
+                    trading_history = self._create_trading_history(
+                        symbol=symbol,
+                        stock_name=holding['stock_name'],
+                        fee=fee,
+                        tax=tax,
+                        revenue=revenue,
+                        timestamp=current_date,
+                        timestamp_str=timestamp_str,
+                        reason=reason,
+                        trade_type='SELL',
+                        trade_quantity=trade_quantity,
+                        avg_price=holding['avg_price'],
+                        buy_logic_reasons=buy_logic_reasons,
+                        sell_logic_reasons=sell_logic_reasons,
+                        take_profit_hit=take_profit_hit,
+                        stop_loss_hit=stop_loss_hit,
+                        realized_pnl=realized_pnl,
+                        realized_roi=realized_roi,
+                        unrealized_pnl=unrealized_pnl,
+                        unrealized_roi=unrealized_roi,
+                        krw_balance=global_state['krw_balance'],
+                        total_quantity=holding['total_quantity'],
+                        total_buy_cost=holding['total_buy_cost'],
+                        close_price=close_price
+                    )
 
                     holding['trading_histories'].append(trading_history)
 
                     sell_yn = True
 
-                    results.append(trading_history)
+                    simulation_histories.append(trading_history)
 
             # ✅ 매도 조건 (익절/손절 먼저 처리됨, 이 블럭은 전략 로직 기반 매도)
             sell_logic_reasons = self._get_trading_logic_reasons(
@@ -542,33 +525,37 @@ class AutoTradingBot:
 
                 reason = ""
 
-                trading_history = {}
-                trading_history['symbol'] = symbol
-                trading_history['stock_name'] = holding['stock_name']
-                trading_history['fee'] = fee
-                trading_history['tax'] = tax
-                trading_history['revenue'] = revenue
-                trading_history['timestamp'] = timestamp_str
-                trading_history['reason'] = reason
-                trading_history['trade_type'] = 'SELL'
-                trading_history['trade_quantity'] = trade_quantity
-                trading_history['avg_price'] = holding['avg_price']
-                trading_history['buy_logic_reasons'] = buy_logic_reasons
-                trading_history['sell_logic_reasons'] = sell_logic_reasons
-                trading_history['take_profit_hit'] = take_profit_hit
-                trading_history['stop_loss_hit'] = stop_loss_hit
-                trading_history['realized_pnl'] = realized_pnl
-                trading_history['realized_roi'] = realized_roi
-                trading_history['unrealized_pnl'] = unrealized_pnl
-                trading_history['unrealized_roi'] = unrealized_roi
-                trading_history['krw_balance'] = global_state['krw_balance']
-                trading_history['total_quantity'] = holding['total_quantity']
+                trading_history = self._create_trading_history(
+                    symbol=symbol,
+                    stock_name=holding['stock_name'],
+                    fee=fee,
+                    tax=tax,
+                    revenue=revenue,
+                    timestamp=current_date,
+                    timestamp_str=timestamp_str,
+                    reason=reason,
+                    trade_type='SELL',
+                    trade_quantity=trade_quantity,
+                    avg_price=holding['avg_price'],
+                    buy_logic_reasons=buy_logic_reasons,
+                    sell_logic_reasons=sell_logic_reasons,
+                    take_profit_hit=take_profit_hit,
+                    stop_loss_hit=stop_loss_hit,
+                    realized_pnl=realized_pnl,
+                    realized_roi=realized_roi,
+                    unrealized_pnl=unrealized_pnl,
+                    unrealized_roi=unrealized_roi,
+                    krw_balance=global_state['krw_balance'],
+                    total_quantity=holding['total_quantity'],
+                    total_buy_cost=holding['total_buy_cost'],
+                    close_price=close_price
+                )
 
                 holding['trading_histories'].append(trading_history)
 
                 sell_yn = True
 
-                results.append(trading_history)
+                simulation_histories.append(trading_history)
                             
             # ✅ 매수 조건
             buy_logic_reasons = self._get_trading_logic_reasons(
@@ -587,8 +574,15 @@ class AutoTradingBot:
                 trade_amount = min(target_trade_value_krw, global_state['krw_balance'])
             else:
                 trade_ratio = trade_ratio if trade_ratio is not None else 100
-                # trade_amount = portfolio_value_fixed * (trade_ratio / 100)
-                trade_amount = target_trade_value_krw # 임시
+                
+                # 현재 총 자산을 구하기 위한 로직 
+                total_unrealized_pnl = 0
+                for holding in global_state['account_holdings']:
+                    unrealized_pnl = (holding['close_price'] - holding['avg_price']) * holding['total_quantity']
+                    total_unrealized_pnl += unrealized_pnl
+
+                total_balance = global_state['krw_balance'] + total_unrealized_pnl
+                trade_amount = min(total_balance * (trade_ratio / 100), global_state['krw_balance'])
 
             # ✅ 매수 실행
             if len(buy_logic_reasons) > 0:
@@ -616,66 +610,71 @@ class AutoTradingBot:
 
                     reason = ""
 
-                    trading_history = {}
-                    trading_history['symbol'] = symbol
-                    trading_history['stock_name'] = holding['stock_name']
-                    trading_history['fee'] = fee
-                    trading_history['tax'] = tax
-                    trading_history['revenue'] = revenue
-                    trading_history['timestamp'] = timestamp_str
-                    trading_history['reason'] = reason
-                    trading_history['trade_type'] = 'BUY'
-                    trading_history['trade_quantity'] = trade_quantity
-                    trading_history['avg_price'] = holding['avg_price']
-                    trading_history['buy_logic_reasons'] = buy_logic_reasons
-                    trading_history['sell_logic_reasons'] = sell_logic_reasons
-                    trading_history['take_profit_hit'] = take_profit_hit
-                    trading_history['stop_loss_hit'] = stop_loss_hit
-                    trading_history['realized_pnl'] = realized_pnl
-                    trading_history['realized_roi'] = realized_roi
-                    trading_history['unrealized_pnl'] = unrealized_pnl
-                    trading_history['unrealized_roi'] = unrealized_roi
-                    trading_history['krw_balance'] = global_state['krw_balance']
-                    trading_history['total_quantity'] = holding['total_quantity']
+                    trading_history = self._create_trading_history(
+                        symbol=symbol,
+                        stock_name=holding['stock_name'],
+                        fee=fee,
+                        tax=tax,
+                        revenue=revenue,
+                        timestamp=current_date,
+                        timestamp_str=timestamp_str,
+                        reason=reason,
+                        trade_type='BUY',
+                        trade_quantity=trade_quantity,
+                        avg_price=holding['avg_price'],
+                        buy_logic_reasons=buy_logic_reasons,
+                        sell_logic_reasons=sell_logic_reasons,
+                        take_profit_hit=take_profit_hit,
+                        stop_loss_hit=stop_loss_hit,
+                        realized_pnl=realized_pnl,
+                        realized_roi=realized_roi,
+                        unrealized_pnl=unrealized_pnl,
+                        unrealized_roi=unrealized_roi,
+                        krw_balance=global_state['krw_balance'],
+                        total_quantity=holding['total_quantity'],
+                        total_buy_cost=holding['total_buy_cost'],
+                        close_price=close_price
+                    )
 
                     holding['trading_histories'].append(trading_history)
 
                     buy_yn = True
 
-                    results.append(trading_history)
+                    simulation_histories.append(trading_history)
             
             # 매매가 이루어지지 않은 경우
             if sell_yn is False and buy_yn is False:
 
                 unrealized_pnl = (close_price - holding['avg_price']) * holding['total_quantity']
                 unrealized_roi = (unrealized_pnl / holding['total_buy_cost']) * 100 if holding['total_buy_cost'] > 0 else 0
-                reason = ""
-                trade_type = None
 
-                simulation_history = {
-                    "symbol": symbol,
-                    "stock_name": stock_name,
-                    "timestamp": timestamp_str,
-                    'reason': reason,
-                    'trade_type': trade_type,
-                    'trade_quantity': 0,
-                    'realized_pnl': 0,
-                    'realized_roi': 0,
-                    'unrealized_pnl': unrealized_pnl,
-                    'unrealized_roi': unrealized_roi,
-                    'avg_price': holding['avg_price'],
-                    'total_quantity': holding['total_quantity'],
-                    'buy_logic_reasons': buy_logic_reasons,
-                    'sell_logic_reasons': sell_logic_reasons,
-                    'take_profit_hit': take_profit_hit,
-                    'stop_loss_hit': stop_loss_hit,
-                    'fee': 0,
-                    'tax': 0,
-                    "total_buy_cost": holding['total_buy_cost'],
-                    'krw_balance': global_state['krw_balance']
-                }
+                simulation_history = self._create_trading_history(
+                    symbol=symbol,
+                    stock_name=stock_name,
+                    fee=0,
+                    tax=0,
+                    revenue=0,
+                    timestamp=current_date,
+                    timestamp_str=timestamp_str,
+                    reason="",
+                    trade_type=None,
+                    trade_quantity=0,
+                    avg_price=holding['avg_price'],
+                    buy_logic_reasons=buy_logic_reasons,
+                    sell_logic_reasons=sell_logic_reasons,
+                    take_profit_hit=take_profit_hit,
+                    stop_loss_hit=stop_loss_hit,
+                    realized_pnl=0,
+                    realized_roi=0,
+                    unrealized_pnl=unrealized_pnl,
+                    unrealized_roi=unrealized_roi,
+                    krw_balance=global_state['krw_balance'],
+                    total_quantity=holding['total_quantity'],
+                    total_buy_cost=holding['total_buy_cost'],
+                    close_price=close_price
+                )
 
-                results.append(simulation_history)
+                simulation_histories.append(simulation_history)
             
         # for i in range(len(df)):
         #     timestamp = df.index[i]
@@ -905,15 +904,7 @@ class AutoTradingBot:
         #     ])
 
         # start_date 이후 필터링
-        filtered_ohlc_data = [
-            c for c in simulation_ohlc_data
-            if pd.Timestamp(c.time).tz_localize(None) >= pd.Timestamp(start_date).tz_localize(None)
-        ]
         filtered_df = simulation_df[simulation_df.index >= pd.Timestamp(start_date)]
-        filtered_timestamps = [c.time for c in filtered_ohlc_data]
-
-        buy_signals = []
-        sell_signals = []
 
         filtered_df['Buy_Signal'] = np.nan
         filtered_df['Sell_Signal'] = np.nan
@@ -921,16 +912,10 @@ class AutoTradingBot:
         # buy_signals.append((timestamp, close_price))
         # buy_signals.append((timestamp, close_price))
 
-        # for i in range(len(timestamps)):
-        #     ts = timestamps[i]
-        #     if ts >= start_date:
-        #         filtered_timestamps.append(ts)
-        #         filtered_ohlc.append(ohlc[i])
-
         # 캔들 차트 데이터프레임 생성
         # result_data = self._draw_chart(filtered_ohlc_data, filtered_timestamps, buy_signals, sell_signals)
         
-        return filtered_df, trading_history, logic.trade_reasons
+        return filtered_df, global_state, simulation_histories
 
 
     def _convert_float(self, value):
@@ -979,20 +964,18 @@ class AutoTradingBot:
         simulation_settings["selected_symbols"] = valid_symbols
 
         symbols = valid_symbols
-        trade_ratio = simulation_settings.get("target_trade_value_ratio", 100)  # None 이면 직접 입력 방식
+        trade_ratio = simulation_settings.get("target_trade_value_ratio", 100)
         target_trade_value_krw = simulation_settings.get("target_trade_value_krw")
+
+        account_holdings = []
+        simulation_histories = []
 
         # account
         global_state = {
             'initial_capital': simulation_settings["initial_capital"],
             'krw_balance': simulation_settings["initial_capital"],
-            'realized_pnl': 0,
-            'buy_dates': [],
-            'sell_dates': [],
+            'account_holdings': account_holdings
         }
-
-        account_holdings = []
-        results = []
         
         start_date = pd.Timestamp(simulation_settings["start_date"]).normalize()
         # 공통된 모든 날짜 모으기
@@ -1005,6 +988,8 @@ class AutoTradingBot:
             holding = {
                 'symbol': symbol['symbol'],
                 'stock_name': symbol['stock_name'],
+                'timestamp_str': "",
+                'close_price': 0,
                 'total_quantity': 0,
                 'avg_price': 0,
                 'total_buy_cost': 0,
@@ -1072,14 +1057,6 @@ class AutoTradingBot:
                 
                 timestamp_str = current_date.date().isoformat()
                 
-                # ✅ 상태 초기화
-                #trading_history = global_state.copy() if global_state else {}
-                trading_history = global_state if global_state is not None else {}
-                trading_history.setdefault('initial_capital', global_state["initial_capital"])
-                trading_history.setdefault('realized_pnl', 0)
-                trading_history.setdefault('buy_dates', [])
-                trading_history.setdefault('sell_dates', [])
-
                 print(f"💰 시뮬 중: {symbol} / 날짜: {timestamp_str} / 사용가능한 예수금: {global_state['krw_balance']:,}")
 
                 trade_quantity = 0
@@ -1099,6 +1076,10 @@ class AutoTradingBot:
                 buy_logic_reasons = []
                 sell_logic_reasons = []
                 
+                # 데이터 최신화
+                holding['timstamp_str'] = timestamp_str
+                holding['close_price'] = close_price
+
                 # ✅ 익절/손절 조건 우선 적용
                 if holding['total_quantity'] > 0:
                     current_roi = ((close_price - holding['avg_price']) / holding['avg_price']) * 100
@@ -1125,33 +1106,37 @@ class AutoTradingBot:
                         take_profit_hit = True
                         reason = f"익절 조건 충족 (+{current_roi:.2f}%)"
 
-                        trading_history = {}
-                        trading_history['symbol'] = symbol
-                        trading_history['stock_name'] = holding['stock_name']
-                        trading_history['fee'] = fee
-                        trading_history['tax'] = tax
-                        trading_history['revenue'] = revenue
-                        trading_history['timestamp'] = timestamp_str
-                        trading_history['reason'] = reason
-                        trading_history['trade_type'] = 'SELL'
-                        trading_history['trade_quantity'] = trade_quantity
-                        trading_history['avg_price'] = holding['avg_price']
-                        trading_history['buy_logic_reasons'] = buy_logic_reasons
-                        trading_history['sell_logic_reasons'] = sell_logic_reasons
-                        trading_history['take_profit_hit'] = take_profit_hit
-                        trading_history['stop_loss_hit'] = stop_loss_hit
-                        trading_history['realized_pnl'] = realized_pnl
-                        trading_history['realized_roi'] = realized_roi
-                        trading_history['unrealized_pnl'] = unrealized_pnl
-                        trading_history['unrealized_roi'] = unrealized_roi
-                        trading_history['krw_balance'] = global_state['krw_balance']
-                        trading_history['total_quantity'] = holding['total_quantity']
+                        trading_history = self._create_trading_history(
+                            symbol=symbol,
+                            stock_name=holding['stock_name'],
+                            fee=fee,
+                            tax=tax,
+                            revenue=revenue,
+                            timestamp=current_date,
+                            timestamp_str=timestamp_str,
+                            reason=reason,
+                            trade_type='SELL',
+                            trade_quantity=trade_quantity,
+                            avg_price=holding['avg_price'],
+                            buy_logic_reasons=buy_logic_reasons,
+                            sell_logic_reasons=sell_logic_reasons,
+                            take_profit_hit=take_profit_hit,
+                            stop_loss_hit=stop_loss_hit,
+                            realized_pnl=realized_pnl,
+                            realized_roi=realized_roi,
+                            unrealized_pnl=unrealized_pnl,
+                            unrealized_roi=unrealized_roi,
+                            krw_balance=global_state['krw_balance'],
+                            total_quantity=holding['total_quantity'],
+                            total_buy_cost=holding['total_buy_cost'],
+                            close_price=close_price
+                        )
 
                         holding['trading_histories'].append(trading_history)
 
                         sell_yn = True
 
-                        results.append(trading_history)
+                        simulation_histories.append(trading_history)
 
                     # 손절 조건
                     elif simulation_settings["use_stop_loss"] and current_roi <= -simulation_settings["stop_loss_ratio"]:
@@ -1175,33 +1160,37 @@ class AutoTradingBot:
                         stop_loss_hit = True
                         reason = f"손절 조건 충족 ({current_roi:.2f}%)"
 
-                        trading_history = {}
-                        trading_history['symbol'] = symbol
-                        trading_history['stock_name'] = holding['stock_name']
-                        trading_history['fee'] = fee
-                        trading_history['tax'] = tax
-                        trading_history['revenue'] = revenue
-                        trading_history['timestamp'] = timestamp_str
-                        trading_history['reason'] = reason
-                        trading_history['trade_type'] = 'SELL'
-                        trading_history['trade_quantity'] = trade_quantity
-                        trading_history['avg_price'] = holding['avg_price']
-                        trading_history['buy_logic_reasons'] = buy_logic_reasons
-                        trading_history['sell_logic_reasons'] = sell_logic_reasons
-                        trading_history['take_profit_hit'] = take_profit_hit
-                        trading_history['stop_loss_hit'] = stop_loss_hit
-                        trading_history['realized_pnl'] = realized_pnl
-                        trading_history['realized_roi'] = realized_roi
-                        trading_history['unrealized_pnl'] = unrealized_pnl
-                        trading_history['unrealized_roi'] = unrealized_roi
-                        trading_history['krw_balance'] = global_state['krw_balance']
-                        trading_history['total_quantity'] = holding['total_quantity']
+                        trading_history = self._create_trading_history(
+                            symbol=symbol,
+                            stock_name=holding['stock_name'],
+                            fee=fee,
+                            tax=tax,
+                            revenue=revenue,
+                            timestamp=current_date,
+                            timestamp_str=timestamp_str,
+                            reason=reason,
+                            trade_type='SELL',
+                            trade_quantity=trade_quantity,
+                            avg_price=holding['avg_price'],
+                            buy_logic_reasons=buy_logic_reasons,
+                            sell_logic_reasons=sell_logic_reasons,
+                            take_profit_hit=take_profit_hit,
+                            stop_loss_hit=stop_loss_hit,
+                            realized_pnl=realized_pnl,
+                            realized_roi=realized_roi,
+                            unrealized_pnl=unrealized_pnl,
+                            unrealized_roi=unrealized_roi,
+                            krw_balance=global_state['krw_balance'],
+                            total_quantity=holding['total_quantity'],
+                            total_buy_cost=holding['total_buy_cost'],
+                            close_price=close_price
+                        )
 
                         holding['trading_histories'].append(trading_history)
 
                         sell_yn = True
 
-                        results.append(trading_history)
+                        simulation_histories.append(trading_history)
 
                 # ✅ 매도 조건 (익절/손절 먼저 처리됨, 이 블럭은 전략 로직 기반 매도)
                 sell_logic_reasons = self._get_trading_logic_reasons(
@@ -1235,33 +1224,37 @@ class AutoTradingBot:
 
                     reason = ""
 
-                    trading_history = {}
-                    trading_history['symbol'] = symbol
-                    trading_history['stock_name'] = holding['stock_name']
-                    trading_history['fee'] = fee
-                    trading_history['tax'] = tax
-                    trading_history['revenue'] = revenue
-                    trading_history['timestamp'] = timestamp_str
-                    trading_history['reason'] = reason
-                    trading_history['trade_type'] = 'SELL'
-                    trading_history['trade_quantity'] = trade_quantity
-                    trading_history['avg_price'] = holding['avg_price']
-                    trading_history['buy_logic_reasons'] = buy_logic_reasons
-                    trading_history['sell_logic_reasons'] = sell_logic_reasons
-                    trading_history['take_profit_hit'] = take_profit_hit
-                    trading_history['stop_loss_hit'] = stop_loss_hit
-                    trading_history['realized_pnl'] = realized_pnl
-                    trading_history['realized_roi'] = realized_roi
-                    trading_history['unrealized_pnl'] = unrealized_pnl
-                    trading_history['unrealized_roi'] = unrealized_roi
-                    trading_history['krw_balance'] = global_state['krw_balance']
-                    trading_history['total_quantity'] = holding['total_quantity']
+                    trading_history = self._create_trading_history(
+                        symbol=symbol,
+                        stock_name=holding['stock_name'],
+                        fee=fee,
+                        tax=tax,
+                        revenue=revenue,
+                        timestamp=current_date,
+                        timestamp_str=timestamp_str,
+                        reason=reason,
+                        trade_type='SELL',
+                        trade_quantity=trade_quantity,
+                        avg_price=holding['avg_price'],
+                        buy_logic_reasons=buy_logic_reasons,
+                        sell_logic_reasons=sell_logic_reasons,
+                        take_profit_hit=take_profit_hit,
+                        stop_loss_hit=stop_loss_hit,
+                        realized_pnl=realized_pnl,
+                        realized_roi=realized_roi,
+                        unrealized_pnl=unrealized_pnl,
+                        unrealized_roi=unrealized_roi,
+                        krw_balance=global_state['krw_balance'],
+                        total_quantity=holding['total_quantity'],
+                        total_buy_cost=holding['total_buy_cost'],
+                        close_price=close_price
+                    )
 
                     holding['trading_histories'].append(trading_history)
 
                     sell_yn = True
 
-                    results.append(trading_history)
+                    simulation_histories.append(trading_history)
                                 
                 # ✅ 매수 조건
                 buy_logic_reasons = self._get_trading_logic_reasons(
@@ -1280,8 +1273,15 @@ class AutoTradingBot:
                     trade_amount = min(target_trade_value_krw, global_state['krw_balance'])
                 else:
                     trade_ratio = trade_ratio if trade_ratio is not None else 100
-                    # trade_amount = portfolio_value_fixed * (trade_ratio / 100)
-                    trade_amount = target_trade_value_krw # 임시
+                    
+                    # 현재 총 자산을 구하기 위한 로직 
+                    total_unrealized_pnl = 0
+                    for h in global_state['account_holdings']:
+                        unrealized_pnl = (h['close_price'] - h['avg_price']) * h['total_quantity']
+                        total_unrealized_pnl += unrealized_pnl
+
+                    total_balance = global_state['krw_balance'] + total_unrealized_pnl
+                    trade_amount = min(total_balance * (trade_ratio / 100), global_state['krw_balance'])
 
                 # ✅ 매수 실행
                 if len(buy_logic_reasons) > 0:
@@ -1309,66 +1309,72 @@ class AutoTradingBot:
 
                         reason = ""
 
-                        trading_history = {}
-                        trading_history['symbol'] = symbol
-                        trading_history['stock_name'] = holding['stock_name']
-                        trading_history['fee'] = fee
-                        trading_history['tax'] = tax
-                        trading_history['revenue'] = revenue
-                        trading_history['timestamp'] = timestamp_str
-                        trading_history['reason'] = reason
-                        trading_history['trade_type'] = 'BUY'
-                        trading_history['trade_quantity'] = trade_quantity
-                        trading_history['avg_price'] = holding['avg_price']
-                        trading_history['buy_logic_reasons'] = buy_logic_reasons
-                        trading_history['sell_logic_reasons'] = sell_logic_reasons
-                        trading_history['take_profit_hit'] = take_profit_hit
-                        trading_history['stop_loss_hit'] = stop_loss_hit
-                        trading_history['realized_pnl'] = realized_pnl
-                        trading_history['realized_roi'] = realized_roi
-                        trading_history['unrealized_pnl'] = unrealized_pnl
-                        trading_history['unrealized_roi'] = unrealized_roi
-                        trading_history['krw_balance'] = global_state['krw_balance']
-                        trading_history['total_quantity'] = holding['total_quantity']
+                        trading_history = self._create_trading_history(
+                            symbol=symbol,
+                            stock_name=holding['stock_name'],
+                            fee=fee,
+                            tax=tax,
+                            revenue=revenue,
+                            timestamp=current_date,
+                            timestamp_str=timestamp_str,
+                            reason=reason,
+                            trade_type='BUY',
+                            trade_quantity=trade_quantity,
+                            avg_price=holding['avg_price'],
+                            buy_logic_reasons=buy_logic_reasons,
+                            sell_logic_reasons=sell_logic_reasons,
+                            take_profit_hit=take_profit_hit,
+                            stop_loss_hit=stop_loss_hit,
+                            realized_pnl=realized_pnl,
+                            realized_roi=realized_roi,
+                            unrealized_pnl=unrealized_pnl,
+                            unrealized_roi=unrealized_roi,
+                            krw_balance=global_state['krw_balance'],
+                            total_quantity=holding['total_quantity'],
+                            total_buy_cost=holding['total_buy_cost'],
+                            close_price=close_price
+                        )
 
                         holding['trading_histories'].append(trading_history)
 
                         buy_yn = True
 
-                        results.append(trading_history)
+                        simulation_histories.append(trading_history)
                 
                 # 매매가 이루어지지 않은 경우
                 if sell_yn is False and buy_yn is False:
 
                     unrealized_pnl = (close_price - holding['avg_price']) * holding['total_quantity']
                     unrealized_roi = (unrealized_pnl / holding['total_buy_cost']) * 100 if holding['total_buy_cost'] > 0 else 0
-                    reason = ""
-                    trade_type = None
 
-                    simulation_history = {
-                        "symbol": symbol,
-                        "stock_name": stock_name,
-                        "timestamp": timestamp_str,
-                        'reason': reason,
-                        'trade_type': trade_type,
-                        'trade_quantity': 0,
-                        'realized_pnl': 0,
-                        'realized_roi': 0,
-                        'unrealized_pnl': unrealized_pnl,
-                        'unrealized_roi': unrealized_roi,
-                        'avg_price': holding['avg_price'],
-                        'total_quantity': holding['total_quantity'],
-                        'buy_logic_reasons': buy_logic_reasons,
-                        'sell_logic_reasons': sell_logic_reasons,
-                        'take_profit_hit': take_profit_hit,
-                        'stop_loss_hit': stop_loss_hit,
-                        'fee': 0,
-                        'tax': 0,
-                        "total_buy_cost": holding['total_buy_cost'],
-                        'krw_balance': global_state['krw_balance']
-                    }
+                    # 아무런 매수 없이 히스토리만 생성
+                    simulation_history = self._create_trading_history(
+                        symbol=symbol,
+                        stock_name=stock_name,
+                        fee=0,
+                        tax=0,
+                        revenue=0,
+                        timestamp=current_date,
+                        timestamp_str=timestamp_str,
+                        reason="",
+                        trade_type=None,
+                        trade_quantity=0,
+                        avg_price=holding['avg_price'],
+                        buy_logic_reasons=buy_logic_reasons,
+                        sell_logic_reasons=sell_logic_reasons,
+                        take_profit_hit=take_profit_hit,
+                        stop_loss_hit=stop_loss_hit,
+                        realized_pnl=0,
+                        realized_roi=0,
+                        unrealized_pnl=unrealized_pnl,
+                        unrealized_roi=unrealized_roi,
+                        krw_balance=global_state['krw_balance'],
+                        total_quantity=holding['total_quantity'],
+                        total_buy_cost=holding['total_buy_cost'],
+                        close_price=close_price
+                    )
 
-                    results.append(simulation_history)
+                    simulation_histories.append(simulation_history)
         
             # completed_task_cnt 반영
             completed_task_cnt = completed_task_cnt + 1
@@ -1381,7 +1387,42 @@ class AutoTradingBot:
 
             result = dynamodb_executor.execute_update(data_model, pk_name)
     
-        return results, failed_stocks
+        return global_state, simulation_histories, failed_stocks
+
+
+    def _create_trading_history(
+        self, symbol, stock_name, fee, tax, revenue, timestamp, timestamp_str, reason, trade_type, trade_quantity,
+        avg_price, buy_logic_reasons, sell_logic_reasons, take_profit_hit, stop_loss_hit,
+        realized_pnl, realized_roi, unrealized_pnl, unrealized_roi, krw_balance, total_quantity, total_buy_cost, close_price
+    ):
+
+        trading_history = {}
+
+        trading_history['symbol'] = symbol
+        trading_history['stock_name'] = stock_name
+        trading_history['fee'] = fee
+        trading_history['tax'] = tax
+        trading_history['revenue'] = revenue
+        trading_history['timestamp'] = timestamp
+        trading_history['timestamp_str'] = timestamp_str
+        trading_history['reason'] = reason
+        trading_history['trade_type'] = trade_type
+        trading_history['trade_quantity'] = trade_quantity
+        trading_history['avg_price'] = avg_price
+        trading_history['buy_logic_reasons'] = buy_logic_reasons
+        trading_history['sell_logic_reasons'] = sell_logic_reasons
+        trading_history['take_profit_hit'] = take_profit_hit
+        trading_history['stop_loss_hit'] = stop_loss_hit
+        trading_history['realized_pnl'] = realized_pnl
+        trading_history['realized_roi'] = realized_roi
+        trading_history['unrealized_pnl'] = unrealized_pnl
+        trading_history['unrealized_roi'] = unrealized_roi
+        trading_history['krw_balance'] = krw_balance
+        trading_history['total_quantity'] = total_quantity
+        trading_history['total_buy_cost'] = total_buy_cost
+        trading_history['close_price'] = close_price
+
+        return trading_history
 
 
     def _create_ohlc_df(self, ohlc_data, rsi_period):
