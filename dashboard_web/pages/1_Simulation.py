@@ -933,7 +933,8 @@ def setup_simulation_tab():
     target_method = st.radio(
         "매수 금액을 어떻게 설정할까요?",
         ["직접 입력", "자본 비율 (%)"],
-        index=1
+        index=1,
+        horizontal=True,
     )
 
     if target_method == "직접 입력":
@@ -1888,6 +1889,7 @@ def main():
             "매수 금액을 어떻게 설정할까요?",
             ["직접 입력", "자본 비율 (%)"],
             index=1,
+            horizontal=True,
             key=f'target_method'
         )
 
@@ -2275,6 +2277,7 @@ def main():
             "📈 수익률 종류 선택",
             ("realized_roi", "unrealized_roi", "total_roi"),
             index=2,
+            horizontal=True,
             format_func=lambda x: {
                 "realized_roi": "실현 수익률",
                 "unrealized_roi": "미실현 수익률",

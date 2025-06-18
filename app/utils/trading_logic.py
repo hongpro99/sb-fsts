@@ -802,7 +802,7 @@ class TradingLogic:
         # 조건 2: EMA 기울기
         ema10_slope = last['EMA_10'] - prev['EMA_10']
         ema20_slope = last['EMA_20'] - prev['EMA_20']
-        ema50_slope = last['EMA_50'] - prev['EMA_50']
+        ema50_slope = last['EMA_55'] - prev['EMA_55']
         ema60_slope = last['EMA_60'] - prev['EMA_60']
         slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0 
 
@@ -1219,8 +1219,8 @@ class TradingLogic:
         #buy_signal = cross_up and slope_up and not_long_upper_shadow and slope_ma_up and not is_bearish and volume_up and prev_high_up
         buy_signal = all([cross_up, slope_up, not_long_upper_shadow, slope_ma_up, not is_bearish, volume_up, prev_high_up]) 
         
-        print(f"EMA_50_Slope_MA: {last['EMA_50_Slope_MA']}")
-        print(f"EMA_60_Slope_MA: {last['EMA_60_Slope_MA']}")
+        print(f"EMA_55_Slope_MA: {last['EMA_55_Slope_MA']}")
+        print(f"EMA_89_Slope_MA: {last['EMA_89_Slope_MA']}")
 
         return buy_signal, None
     
@@ -1586,7 +1586,7 @@ class TradingLogic:
         # 조건 3: EMA 기울기 양수
         ema10_slope = last['EMA_10'] - prev['EMA_10']
         ema20_slope = last['EMA_20'] - prev['EMA_20']
-        ema50_slope = last['EMA_50'] - prev['EMA_50']
+        ema50_slope = last['EMA_55'] - prev['EMA_55']
         ema60_slope = last['EMA_60'] - prev['EMA_60']
         
         slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
@@ -1594,7 +1594,7 @@ class TradingLogic:
         
             # ✅ 조건 3-1: EMA_50, EMA_60 기울기 평균도 양수여야 함
         slope_ma_up = (
-            last['EMA_50_Slope_MA'] > 0
+            last['EMA_55_Slope_MA'] > 0
             and last['EMA_60_Slope_MA'] > 0
         )
         
