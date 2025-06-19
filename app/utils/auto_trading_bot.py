@@ -272,25 +272,30 @@ class AutoTradingBot:
     def simulate_trading(
             self, symbol, stock_name, start_date, end_date, target_trade_value_krw, target_trade_value_ratio, buy_trading_logic=None, sell_trading_logic=None,
             interval='day', buy_percentage = None, ohlc_mode = 'default', initial_capital=None, rsi_period = 25, take_profit_logic=None, 
-            stop_loss_logic=None, completed_task_cnt=0, updated_at=None, updated_at_dt=None, pk_name=None
+            stop_loss_logic=None, indicators=None
         ):
 
         # 지표 계산을 위해 180일 이전부터 OHLC 데이터를 가져옵니다.        
         start_date_for_ohlc = start_date - timedelta(days=180)
 
-        # 익절, 손절 로직 다양화
-        take_profit_logic = take_profit_logic[0] if len(take_profit_logic) > 0 else None
-        stop_loss_logic = stop_loss_logic[0] if len(stop_loss_logic) > 0 else None
+        # 익절, 손절 로직 별 다양화
+        if take_profit_logic['name'] is None:
+            use_take_profit = False
+            take_profit_ratio = 0
+        else:
+            use_take_profit = True
+            take_profit_ratio = take_profit_logic['params']['ratio']
+
+        if stop_loss_logic['name'] is None:
+            use_stop_loss = False
+            stop_loss_ratio = 0
+        else:
+            use_stop_loss = True
+            stop_loss_ratio = stop_loss_logic['params']['ratio']
         
-        use_take_profit = take_profit_logic['use_yn']
-        take_profit_ratio = take_profit_logic['ratio']
-
-        use_stop_loss = stop_loss_logic['use_yn']
-        stop_loss_ratio = stop_loss_logic['ratio']
-
         # ✅ OHLC 데이터 가져오기
         simulation_ohlc_data = self._get_ohlc(symbol, start_date_for_ohlc, end_date, interval, ohlc_mode)    
-        simulation_df = self._create_ohlc_df(simulation_ohlc_data, rsi_period)
+        simulation_df = self._create_ohlc_df(simulation_ohlc_data, indicators, rsi_period)
                 
         if not simulation_ohlc_data:
             print(f"❌ No OHLC data: {symbol}")
@@ -582,7 +587,7 @@ class AutoTradingBot:
                     total_unrealized_pnl += unrealized_pnl
 
                 total_balance = global_state['krw_balance'] + total_unrealized_pnl
-                trade_amount = min(total_balance * (trade_ratio / 100), global_state['krw_balance'])
+                trade_amount = min(total_balance * (trade_ratio / 100), total_balance)
 
             # ✅ 매수 실행
             if len(buy_logic_reasons) > 0:
@@ -1281,7 +1286,7 @@ class AutoTradingBot:
                         total_unrealized_pnl += unrealized_pnl
 
                     total_balance = global_state['krw_balance'] + total_unrealized_pnl
-                    trade_amount = min(total_balance * (trade_ratio / 100), global_state['krw_balance'])
+                    trade_amount = min(total_balance * (trade_ratio / 100), total_balance)
 
                 # ✅ 매수 실행
                 if len(buy_logic_reasons) > 0:
@@ -1425,7 +1430,7 @@ class AutoTradingBot:
         return trading_history
 
 
-    def _create_ohlc_df(self, ohlc_data, rsi_period):
+    def _create_ohlc_df(self, ohlc_data, indicators=None, rsi_period=25):
 
         # ✅ OHLC → DataFrame 변환
         timestamps = [c.time for c in ohlc_data]
@@ -1439,6 +1444,11 @@ class AutoTradingBot:
         
         lookback_prev = 5
         lookback_next = 5
+
+        # 차트에 그리기 위한 지표 계산
+        for i in indicators:
+            if i['type'] == 'ema':
+                df = indicator.cal_ema_df(df, i['period'])
 
         # 지표 계산
         df = indicator.cal_ema_df(df, 10)
@@ -1480,49 +1490,16 @@ class AutoTradingBot:
         #buy_trading_logic, sell_trading_logic => list
         
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
-
-        # OHLC 데이터 전체를 기반으로 DataFrame 구성
-        timestamps = [candle.time for candle in ohlc_data]
-        ohlc = [
-            [candle.time, float(candle.open), float(candle.high), float(candle.low), float(candle.close), float(candle.volume)]
-            for candle in ohlc_data
-        ]
-
-        # 캔들 차트 데이터프레임 생성
-        df = pd.DataFrame(ohlc, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume'], index=pd.DatetimeIndex(timestamps))
-
-        # 지표 계산 (전체 df에 대해)
-        df = indicator.cal_ema_df(df, 10)
-        df = indicator.cal_ema_df(df, 13)
-        df = indicator.cal_ema_df(df, 20)
-        df = indicator.cal_ema_df(df, 21)
-        df = indicator.cal_ema_df(df, 55)
-        df = indicator.cal_ema_df(df, 60)
-        df = indicator.cal_ema_df(df, 89)
-        df = indicator.cal_ema_df(df, 5)
-        
-        df = indicator.cal_rsi_df(df)
-        df = indicator.cal_macd_df(df)
-        df = indicator.cal_stochastic_df(df)
-        df = indicator.cal_mfi_df(df)
-    
-        
-        df = indicator.cal_sma_df(df, 5)
-        df = indicator.cal_sma_df(df, 20)
-        df = indicator.cal_sma_df(df, 40)
-        df = indicator.cal_sma_df(df, 120)
-        df = indicator.cal_sma_df(df, 200)
-        df = indicator.cal_bollinger_band(df)
-        
-        df = indicator.cal_horizontal_levels_df(df)
+        rsi_period = 25  # 임시
+        df = self._create_ohlc_df(ohlc_data, rsi_period)
         
                 # 🔍 현재 row 위치
         current_idx = len(df) - 1
-
+        lookback_next = 5
         # ✅ 현재 시점까지 확정된 지지선만 사용
-        support = self.get_latest_confirmed_support(df, current_idx=current_idx)
-        resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx)
-        high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=current_idx)
+        support = self.get_latest_confirmed_support(df, current_idx=current_idx, lookback_next=lookback_next)
+        resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx, lookback_next=lookback_next)
+        high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=current_idx, lookback_next=lookback_next)
         
         # 볼린저 밴드 계산용 종가 리스트
         close_prices = df['Close'].tolist()

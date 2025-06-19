@@ -1329,7 +1329,7 @@ class TradingLogic:
                 # 조건 3: EMA 기울기 양수
         ema10_slope = last['EMA_10'] - prev['EMA_10']
         ema20_slope = last['EMA_20'] - prev['EMA_20']
-        ema50_slope = last['EMA_50'] - prev['EMA_50']
+        ema50_slope = last['EMA_55'] - prev['EMA_55']
         slope_up = ema10_slope <= 0 and ema20_slope <= 0 and ema50_slope <= 0
 
         sell_signal = dead_cross and slope_up
