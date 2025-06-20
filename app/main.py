@@ -74,7 +74,8 @@ async def simulate_single_trade(data: SimulationTradingModel):
         rsi_period= simulation_data['rsi_period'],
         initial_capital = simulation_data.get('initial_capital'),
         take_profit_logic=simulation_data.get("take_profit_logic"),
-        stop_loss_logic=simulation_data.get("stop_loss_logic")
+        stop_loss_logic=simulation_data.get("stop_loss_logic"),
+        indicators=simulation_data.get("indicators")
     )
 
     csv_url = save_df_to_s3(data_df, bucket_name="sb-fsts")

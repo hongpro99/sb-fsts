@@ -19,5 +19,6 @@ class SimulationTradingModel(BaseModel):
     rsi_sell_threshold: int
     rsi_period: int
     initial_capital: Optional[float]
-    take_profit_logic: Optional[List[dict]]
-    stop_loss_logic: Optional[List[dict]]
+    take_profit_logic: Optional[dict]
+    stop_loss_logic: Optional[dict]
+    indicators: Optional[List[dict]]

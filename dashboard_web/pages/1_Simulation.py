@@ -36,7 +36,7 @@ setup_env()
 
 backend_base_url = os.getenv('BACKEND_BASE_URL')
 
-def draw_lightweight_chart(data_df, assets, selected_indicators):
+def draw_lightweight_chart(data_df, assets, indicators):
 
     buy_signals = []
     sell_signals = []
@@ -67,11 +67,16 @@ def draw_lightweight_chart(data_df, assets, selected_indicators):
     bollinger_band_middle = json.loads(data_df.dropna(subset=['bb_middle']).rename(columns={"bb_middle": "value",}).to_json(orient = "records"))
     bollinger_band_lower = json.loads(data_df.dropna(subset=['bb_lower']).rename(columns={"bb_lower": "value",}).to_json(orient = "records"))
 
-    ema_89 = json.loads(data_df.dropna(subset=['ema_89']).rename(columns={"ema_89": "value"}).to_json(orient="records"))
-    ema_13 = json.loads(data_df.dropna(subset=['ema_13']).rename(columns={"ema_13": "value"}).to_json(orient="records"))
-    ema_21 = json.loads(data_df.dropna(subset=['ema_21']).rename(columns={"ema_21": "value"}).to_json(orient="records"))
-    ema_55 = json.loads(data_df.dropna(subset=['ema_55']).rename(columns={"ema_55": "value"}).to_json(orient="records"))
-    ema_5 = json.loads(data_df.dropna(subset=['ema_5']).rename(columns={"ema_5": "value"}).to_json(orient="records"))
+    # 차트 표시용 ema 데이터 추가
+    for i in indicators:
+        if i['type'] == 'ema':
+            i['data'] = json.loads(data_df.dropna(subset=[i['name']]).rename(columns={i['name']: "value"}).to_json(orient="records"))
+
+    # ema_89 = json.loads(data_df.dropna(subset=['ema_89']).rename(columns={"ema_89": "value"}).to_json(orient="records"))
+    # ema_13 = json.loads(data_df.dropna(subset=['ema_13']).rename(columns={"ema_13": "value"}).to_json(orient="records"))
+    # ema_21 = json.loads(data_df.dropna(subset=['ema_21']).rename(columns={"ema_21": "value"}).to_json(orient="records"))
+    # ema_55 = json.loads(data_df.dropna(subset=['ema_55']).rename(columns={"ema_55": "value"}).to_json(orient="records"))
+    # ema_5 = json.loads(data_df.dropna(subset=['ema_5']).rename(columns={"ema_5": "value"}).to_json(orient="records"))
     
     sma_5 = json.loads(data_df.dropna(subset=['sma_5']).rename(columns={"sma_5": "value"}).to_json(orient="records"))
     sma_20 = json.loads(data_df.dropna(subset=['sma_20']).rename(columns={"sma_20": "value"}).to_json(orient="records"))
@@ -323,218 +328,242 @@ def draw_lightweight_chart(data_df, assets, selected_indicators):
         },
     ]
     
-    # Bollinger Band
-    if "bollinger" in selected_indicators:
-        seriesCandlestickChart.extend([
-            {
+    def convert_color_hex_to_rgba(hex_color: str, alpha: float = 1.0) -> str:
+        """
+        "#RRGGBB" 형식의 HEX 색상을 "rgba(R, G, B, A)" 문자열로 변환합니다.
+        
+        Args:
+            hex_color (str): "#000000" 등 7자리 hex 색상
+            alpha (float): 0.0 ~ 1.0 사이의 투명도 값
+
+        Returns:
+            str: rgba 문자열
+        """
+
+        hex_color = hex_color.lstrip("#")
+        if len(hex_color) != 6:
+            raise ValueError("HEX 색상은 6자리여야 합니다. 예: #FF0000")
+        
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        return f"rgba({r}, {g}, {b}, {alpha})"
+
+    # indicator 그리기
+    for indicator in indicators:
+        # Bollinger Band
+        color = convert_color_hex_to_rgba(indicator['color_hex'])
+        if "bollinger" in indicator['name']:
+            seriesCandlestickChart.extend([
+                {
+                    "type": 'Line',
+                    "data": bollinger_band_upper,
+                    "options": {
+                        "color": color,
+                        "lineWidth": 0.5,
+                        "priceScaleId": "right",
+                        "lastValueVisible": False,
+                        "priceLineVisible": False,
+                    },
+                },
+                {
                 "type": 'Line',
-                "data": bollinger_band_upper,
+                "data": bollinger_band_middle,  # 중단 밴드 데이터
                 "options": {
-                    "color": 'rgba(0, 0, 0, 1)',
+                    "color": color,  # 노란색
                     "lineWidth": 0.5,
                     "priceScaleId": "right",
-                    "lastValueVisible": False,
-                    "priceLineVisible": False,
+                    "lastValueVisible": False, # 가격 레이블 숨기기
+                    "priceLineVisible": False, # 가격 라인 숨기기
+                    },
                 },
-            },
-            {
-            "type": 'Line',
-            "data": bollinger_band_middle,  # 중단 밴드 데이터
-            "options": {
-                "color": 'rgba(0, 0, 0, 1)',  # 노란색
-                "lineWidth": 0.5,
-                "priceScaleId": "right",
-                "lastValueVisible": False, # 가격 레이블 숨기기
-                "priceLineVisible": False, # 가격 라인 숨기기
+                {
+                    "type": 'Line',
+                    "data": bollinger_band_lower,
+                    "options": {
+                        "color": color,
+                        "lineWidth": 0.5,
+                        "priceScaleId": "right",
+                        "lastValueVisible": False,
+                        "priceLineVisible": False,
+                    },
                 },
-            },
-            {
-                "type": 'Line',
-                "data": bollinger_band_lower,
-                "options": {
-                    "color": 'rgba(0, 0, 0, 1)',
-                    "lineWidth": 0.5,
-                    "priceScaleId": "right",
-                    "lastValueVisible": False,
-                    "priceLineVisible": False,
-                },
-            },
-        ])
-        
-                # EMA 5
-    if "ema_5" in selected_indicators:
-        seriesCandlestickChart.append({
-            "type": 'Line',
-            "data": ema_5,
-            "options": {
-                "color": 'black', #검은색
-                "lineWidth": 2,
-                "priceScaleId": "right",
-                "lastValueVisible": False,
-                "priceLineVisible": False,
-            },
-        })
-        
-        # EMA 10
-    if "ema_13" in selected_indicators:
-        seriesCandlestickChart.append({
-            "type": 'Line',
-            "data": ema_13,
-            "options": {
-                "color": 'rgba(255, 0, 0, 1)', #빨간색
-                "lineWidth": 2,
-                "priceScaleId": "right",
-                "lastValueVisible": False,
-                "priceLineVisible": False,
-            },
-        })
-        
-                # EMA 20
-    if "ema_21" in selected_indicators:
-        seriesCandlestickChart.append({
-            "type": 'Line',
-            "data": ema_21,
-            "options": {
-                "color": 'rgba(0, 255, 0, 1)',  # 초록색
-                "lineWidth": 2,
-                "priceScaleId": "right",
-                "lastValueVisible": False,
-                "priceLineVisible": False,
-            },
-        })
-
-        # EMA 50
-    if "ema_55" in selected_indicators:
-        seriesCandlestickChart.append({
-            "type": 'Line',
-            "data": ema_55,
-            "options": {
-                "color": 'rgba(0, 0, 255, 1)',  # 파란색
-                "lineWidth": 2,
-                "priceScaleId": "right",
-                "lastValueVisible": False,
-                "priceLineVisible": False,
-            },
-        })
-        
-        # EMA 60
-    if "ema_89" in selected_indicators:
-        seriesCandlestickChart.append({
-            "type": 'Line',
-            "data": ema_89,
-            "options": {
-                "color": 'rgba(0, 170, 170, 1)', #청록색
-                "lineWidth": 2,
-                "priceScaleId": "right",
-                "lastValueVisible": False, # 가격 레이블 숨기기
-                "priceLineVisible": False, # 가격 라인 숨기기
-            },
-        })
-
-        # sma_5
-    if "sma_5" in selected_indicators:
-        seriesCandlestickChart.append({
-            "type": 'Line',
-            "data": sma_5,
-            "options": {
-                "color": 'purple', #청록색
-                "lineWidth": 1.5,
-                "priceScaleId": "right",
-                "lastValueVisible": False, # 가격 레이블 숨기기
-                "priceLineVisible": False, # 가격 라인 숨기기
-            },
-        })
-        
-        # sma_20
-    if "sma_20" in selected_indicators:
-        seriesCandlestickChart.append({
-            "type": 'Line',
-            "data": sma_20,
-            "options": {
-                "color": 'teal', #청록색
-                "lineWidth": 1,
-                "priceScaleId": "right",
-                "lastValueVisible": False, # 가격 레이블 숨기기
-                "priceLineVisible": False, # 가격 라인 숨기기
-            },
-        })
-        
-        # sma_40
-    if "sma_40" in selected_indicators:
-        seriesCandlestickChart.append({
-            "type": 'Line',
-            "data": sma_40,
-            "options": {
-                "color": 'orange', #청록색
-                "lineWidth": 1.5,
-                "priceScaleId": "right",
-                "lastValueVisible": False, # 가격 레이블 숨기기
-                "priceLineVisible": False, # 가격 라인 숨기기
-            },
-        })
-    if "sma_200" in selected_indicators:
-        seriesCandlestickChart.append({
-            "type": 'Line',
-            "data": sma_200,
-            "options": {
-                "color": 'orange', #청록색
-                "lineWidth": 1.5,
-                "priceScaleId": "right",
-                "lastValueVisible": False, # 가격 레이블 숨기기
-                "priceLineVisible": False, # 가격 라인 숨기기
-            },
-        })
-        
-    if "sma_120" in selected_indicators:
-        seriesCandlestickChart.append({
-            "type": 'Line',
-            "data": sma_120,
-            "options": {
-                "color": 'purple', #청록색
-                "lineWidth": 1.5,
-                "priceScaleId": "right",
-                "lastValueVisible": False, # 가격 레이블 숨기기
-                "priceLineVisible": False, # 가격 라인 숨기기
-            },
-        })
-        
-        # 📌 추세선 파라미터 입력
-    lookback_prev = 7
-    lookback_next = 7
-
-    # 1. 고점/저점 수평선 추출
-    high_lines, low_lines = find_horizontal_lines(data_df, lookback_prev, lookback_next)
-
-    # 2. 중복 제거
-    # high_lines = remove_similar_levels(high_lines, threshold=0.01)
-    # low_lines = remove_similar_levels(low_lines, threshold=0.01)
-
-    # # 3. 최근 기준으로 필터링
-    # recent_dates = set(data_df['time'][-60:])
-    # high_lines = [line for line in high_lines if line['time'] in recent_dates]
-    # low_lines = [line for line in low_lines if line['time'] in recent_dates]
-
-    # # 4. 상위 N개 선만 남김
-    # high_lines = sorted(high_lines, key=lambda x: -x['value'])[:5]
-    # low_lines = sorted(low_lines, key=lambda x: x['value'])[:5]
-
-    # 5. 추세선 생성
-    high_trendline = create_high_trendline(high_lines)
-    low_trendline = create_low_trendline(low_lines)
-
-    # 6. 시리즈에 추가
-    if "horizontal_high" in selected_indicators:
-        seriesCandlestickChart.extend(create_horizontal_line_segments(high_lines, candles))
-
-    if "horizontal_low" in selected_indicators:
-        seriesCandlestickChart.extend(create_horizontal_line_segments(low_lines, candles))
+            ])
             
-                # 조건에 따라 시리즈에 추가
-    if "high_trendline" in selected_indicators and high_trendline:
-        seriesCandlestickChart.append(high_trendline)
+        # EMA
+        if indicator['type'] == 'ema':
+            seriesCandlestickChart.append({
+                "type": 'Line',
+                "data": indicator['data'],
+                "options": {
+                    "color": color, #검은색
+                    "lineWidth": 2,
+                    "priceScaleId": "right",
+                    "lastValueVisible": False,
+                    "priceLineVisible": False,
+                },
+            })
+            
+        #     # EMA 10
+        # if "ema_13" in indicator['name']:
+        #     seriesCandlestickChart.append({
+        #         "type": 'Line',
+        #         "data": ema_13,
+        #         "options": {
+        #             "color": color, #빨간색
+        #             "lineWidth": 2,
+        #             "priceScaleId": "right",
+        #             "lastValueVisible": False,
+        #             "priceLineVisible": False,
+        #         },
+        #     })
+            
+        #             # EMA 20
+        # if "ema_21" in indicator['name']:
+        #     seriesCandlestickChart.append({
+        #         "type": 'Line',
+        #         "data": ema_21,
+        #         "options": {
+        #             "color": color,  # 초록색
+        #             "lineWidth": 2,
+        #             "priceScaleId": "right",
+        #             "lastValueVisible": False,
+        #             "priceLineVisible": False,
+        #         },
+        #     })
 
-    if "low_trendline" in selected_indicators and low_trendline:
-        seriesCandlestickChart.append(low_trendline)
+        #     # EMA 50
+        # if "ema_55" in indicator['name']:
+        #     seriesCandlestickChart.append({
+        #         "type": 'Line',
+        #         "data": ema_55,
+        #         "options": {
+        #             "color": color,  # 파란색
+        #             "lineWidth": 2,
+        #             "priceScaleId": "right",
+        #             "lastValueVisible": False,
+        #             "priceLineVisible": False,
+        #         },
+        #     })
+            
+        #     # EMA 60
+        # if "ema_89" in indicator['name']:
+        #     seriesCandlestickChart.append({
+        #         "type": 'Line',
+        #         "data": ema_89,
+        #         "options": {
+        #             "color": color, #청록색
+        #             "lineWidth": 2,
+        #             "priceScaleId": "right",
+        #             "lastValueVisible": False, # 가격 레이블 숨기기
+        #             "priceLineVisible": False, # 가격 라인 숨기기
+        #         },
+        #     })
+
+            # sma_5
+        if "sma_5" in indicator['name']:
+            seriesCandlestickChart.append({
+                "type": 'Line',
+                "data": sma_5,
+                "options": {
+                    "color": color, #청록색
+                    "lineWidth": 1.5,
+                    "priceScaleId": "right",
+                    "lastValueVisible": False, # 가격 레이블 숨기기
+                    "priceLineVisible": False, # 가격 라인 숨기기
+                },
+            })
+            
+            # sma_20
+        if "sma_20" in indicator['name']:
+            seriesCandlestickChart.append({
+                "type": 'Line',
+                "data": sma_20,
+                "options": {
+                    "color": color, #청록색
+                    "lineWidth": 1,
+                    "priceScaleId": "right",
+                    "lastValueVisible": False, # 가격 레이블 숨기기
+                    "priceLineVisible": False, # 가격 라인 숨기기
+                },
+            })
+            
+            # sma_40
+        if "sma_40" in indicator['name']:
+            seriesCandlestickChart.append({
+                "type": 'Line',
+                "data": sma_40,
+                "options": {
+                    "color": color, #청록색
+                    "lineWidth": 1.5,
+                    "priceScaleId": "right",
+                    "lastValueVisible": False, # 가격 레이블 숨기기
+                    "priceLineVisible": False, # 가격 라인 숨기기
+                },
+            })
+        if "sma_200" in indicator['name']:
+            seriesCandlestickChart.append({
+                "type": 'Line',
+                "data": sma_200,
+                "options": {
+                    "color": color, #청록색
+                    "lineWidth": 1.5,
+                    "priceScaleId": "right",
+                    "lastValueVisible": False, # 가격 레이블 숨기기
+                    "priceLineVisible": False, # 가격 라인 숨기기
+                },
+            })
+            
+        if "sma_120" in indicator['name']:
+            seriesCandlestickChart.append({
+                "type": 'Line',
+                "data": sma_120,
+                "options": {
+                    "color": color, #청록색
+                    "lineWidth": 1.5,
+                    "priceScaleId": "right",
+                    "lastValueVisible": False, # 가격 레이블 숨기기
+                    "priceLineVisible": False, # 가격 라인 숨기기
+                },
+            })
+            
+            # 📌 추세선 파라미터 입력
+        lookback_prev = 7
+        lookback_next = 7
+
+        # 1. 고점/저점 수평선 추출
+        high_lines, low_lines = find_horizontal_lines(data_df, lookback_prev, lookback_next)
+
+        # 2. 중복 제거
+        # high_lines = remove_similar_levels(high_lines, threshold=0.01)
+        # low_lines = remove_similar_levels(low_lines, threshold=0.01)
+
+        # # 3. 최근 기준으로 필터링
+        # recent_dates = set(data_df['time'][-60:])
+        # high_lines = [line for line in high_lines if line['time'] in recent_dates]
+        # low_lines = [line for line in low_lines if line['time'] in recent_dates]
+
+        # # 4. 상위 N개 선만 남김
+        # high_lines = sorted(high_lines, key=lambda x: -x['value'])[:5]
+        # low_lines = sorted(low_lines, key=lambda x: x['value'])[:5]
+
+        # 5. 추세선 생성
+        high_trendline = create_high_trendline(high_lines)
+        low_trendline = create_low_trendline(low_lines)
+
+        # 6. 시리즈에 추가
+        if "horizontal_high" in indicator['name']:
+            seriesCandlestickChart.extend(create_horizontal_line_segments(high_lines, candles))
+
+        if "horizontal_low" in indicator['name']:
+            seriesCandlestickChart.extend(create_horizontal_line_segments(low_lines, candles))
+                
+                    # 조건에 따라 시리즈에 추가
+        if "high_trendline" in indicator['name'] and high_trendline:
+            seriesCandlestickChart.append(high_trendline)
+
+        if "low_trendline" in indicator['name'] and low_trendline:
+            seriesCandlestickChart.append(low_trendline)
                                     
     seriesVolumeChart = [
         {
@@ -953,10 +982,10 @@ def setup_simulation_tab():
     ))
     
     type_order = {
-    'kospi200': 1,
-    'NASDAQ': 2,
-    'kosdaq150': 0,
-    'etf': 3
+        'kospi200': 1,
+        'NASDAQ': 2,
+        'kosdaq150': 0,
+        'etf': 3
     }#type 순서
 
     #종목을 type 순서로 정렬한 후 이름순으로 정렬
@@ -1017,8 +1046,14 @@ def setup_simulation_tab():
     selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic] if selected_buy_logic else []
     selected_sellTrading_logic = [available_sell_logic[logic] for logic in selected_sell_logic] if selected_sell_logic else []
     
-    take_profit_logic = []
-    stop_loss_logic = []
+    take_profit_logic = {
+        'name': None,
+        'params': {}
+    }
+    stop_loss_logic = {
+        'name': None,
+        'params': {}
+    }
 
     #mode
     ohlc_mode_checkbox = st.checkbox("차트 연결 모드")  # True / False 반환
@@ -1031,22 +1066,16 @@ def setup_simulation_tab():
         selected_take_profit_logic = st.selectbox("익절 방식 선택", ['절대 비율'])
         take_profit_ratio = st.number_input("익절 기준 (%)", value=5.0, min_value=0.0)
         
-        logic = {}
-        logic['name'] = selected_take_profit_logic
-        logic['ratio'] = take_profit_ratio
-        logic['use_yn'] = True
-        take_profit_logic.append(logic)
+        take_profit_logic['name'] = selected_take_profit_logic
+        take_profit_logic['params']['ratio'] = take_profit_ratio
 
     use_stop_loss = st.checkbox("손절 조건 사용", value=True)
     if use_stop_loss:
         selected_stop_loss_logic = st.selectbox("손절 방식 선택", ['절대 비율'])
         stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0) 
 
-        logic = {}
-        logic['name'] = selected_stop_loss_logic
-        logic['ratio'] = stop_loss_ratio
-        logic['use_yn'] = True
-        stop_loss_logic.append(logic)
+        stop_loss_logic['name'] = selected_stop_loss_logic
+        stop_loss_logic['params']['ratio'] = stop_loss_ratio
         
     #✅ rsi 조건값 입력
     rsi_buy_threshold = st.number_input("📉 RSI 매수 임계값", min_value=0, max_value=100, value=35, step=1)
@@ -1055,38 +1084,144 @@ def setup_simulation_tab():
     
     # 📌 Streamlit 체크박스 입력
     st.subheader("📊 차트 지표 선택")
-    # 체크박스로 사용자 선택 받기
-    selected_indicators = []
-    if st.checkbox("EMA 5(검)", value=True):
-        selected_indicators.append("ema_5")
-    if st.checkbox("EMA 13(빨)", value=True):
-        selected_indicators.append("ema_13")
-    if st.checkbox("EMA 21(초)", value=True):
-        selected_indicators.append("ema_21")
-    if st.checkbox("EMA 55(파)", value=True):
-        selected_indicators.append("ema_55")        
-    if st.checkbox("EMA 89(청록)", value=True):
-        selected_indicators.append("ema_89")
+
+    colors = {
+        "빨강": "#FF0000",
+        "초록": "#00FF00",
+        "파랑": "#0000FF",
+        "노랑": "#FFFF00",
+        "검정": "#000000",
+        "흰색": "#FFFFFF",
+        "주황": "#FFA500",
+        "보라": "#800080",
+        "연두": "#ADFF2F",
+        "남색": "#000080",
+        "하늘색": "#87CEEB",
+        "회색": "#808080",
+        "갈색": "#A52A2A",
+        "분홍": "#FFC0CB",
+        "청록": "#008080",
+        "올리브": "#808000",
+        "라임": "#00FF7F",
+        "살구": "#FFB07C",
+        "연보라": "#D8BFD8",
+        "민트": "#AAF0D1",
+    }
+    indicators = [
+        {
+            "type": "ema",
+            "period": 5,
+            "draw_yn": True,
+            "color": "빨강"
+        },
+        {
+            "type": "ema",
+            "period": 13,
+            "draw_yn": True,
+            "color": "초록"
+        },
+        {
+            "type": "ema",
+            "period": 21,
+            "draw_yn": True,
+            "color": "파랑"
+        },
+        {
+            "type": "ema",
+            "period": 55,
+            "draw_yn": True,
+            "color": "노랑"
+        },
+        {
+            "type": "ema",
+            "period": 89,
+            "draw_yn": True,
+            "color": "검정"
+        },
+    ]
+
+    st.write("##### EMA")
+    for idx, indicator in enumerate(indicators):
+        with st.container():
+            # 3개의 열로 나누기
+            col0, col1, col2, col3 = st.columns([1, 2, 2, 10])
+            with col0:
+                indicator['draw_yn'] = st.checkbox(f"선택_{idx}", value=indicator['draw_yn'], label_visibility="collapsed")
+            # 두 번째 열: 숫자 입력
+            with col1:
+                indicator['period'] = st.number_input("수량", min_value=0, value=indicator['period'], step=1, key=f"ema_period_{idx}", label_visibility="collapsed")
+                indicator['name'] = f"ema_{indicator['period']}"
+            # 세 번째 열: 라디오 버튼
+            with col2:
+                colors_options = list(colors.keys())
+
+                def format_color_label(name):
+                    return f"{name}"
+
+                indicator['color'] = st.selectbox("색상 선택", options=colors_options, index=colors_options.index(indicator['color']), format_func=format_color_label, key=f"color_selectbox_{idx}", label_visibility="collapsed")
+                indicator['color_hex'] = colors[indicator['color']]
+            with col3:
+                st.markdown(
+                    f"<div style='width:40px;height:40px;background:{indicator['color_hex']};border:0px solid black; margin-top:0px; margin-bottom:0px;'></div>",
+                    unsafe_allow_html=True
+                )
+
     if st.checkbox("SMA 5", value=False):
-        selected_indicators.append("sma_5")
+        indicators.append({
+            'name': "sma_5",
+            'color': colors["검정"],
+            'period': 5
+        })
     if st.checkbox("SMA 20", value=False):
-        selected_indicators.append("sma_20")
+        indicators.append({
+            'name': "sma_20",
+            'color': colors["검정"],
+            'period': 20
+        })
     if st.checkbox("SMA 40", value=False):
-        selected_indicators.append("sma_40")
+        indicators.append({
+            'name': "sma_40",
+            'color': colors["검정"],
+            'period': 40
+        })
     if st.checkbox("SMA 200", value=False):
-        selected_indicators.append("sma_200")
+        indicators.append({
+            'name': "sma_200",
+            'color': colors["검정"],
+            'period': 200
+        })
     if st.checkbox("SMA 120", value=False):
-        selected_indicators.append("sma_120")                 
+        indicators.append({
+            'name': "sma_120",
+            'color': colors["검정"],
+            'period': 120
+        })               
     if st.checkbox("bollinger band", value=False):
-        selected_indicators.append("bollinger")
+        indicators.append({
+            'type': "bollinger_band",
+            'name': "bollinger band",
+            'color_hex': "#000000",
+        })
     if st.checkbox("horizontal_high", value=False):
-        selected_indicators.append("horizontal_high")
+        indicators.append({
+            'name': "horizontal_high",
+            'color': "#000000",
+        })
     if st.checkbox("horizontal_low", value=False):
-        selected_indicators.append("horizontal_low")
+        indicators.append({
+            'name': "horizontal_low",
+            'color': "#000000",
+        })
     if st.checkbox("high_trendline", value=False):
-        selected_indicators.append("high_trendline")
+        indicators.append({
+            'name': "high_trendline",
+            'color': "#000000",
+        })
     if st.checkbox("low_trendline", value=False):
-        selected_indicators.append("low_trendline")         
+        indicators.append({
+            'name': "low_trendline",
+            'color': "#000000",
+        })        
         
     # ✅ 설정 값을 딕셔너리 형태로 반환
     return {
@@ -1107,7 +1242,7 @@ def setup_simulation_tab():
         "rsi_buy_threshold" : rsi_buy_threshold,
         "rsi_sell_threshold" : rsi_sell_threshold,
         "rsi_period" : rsi_period,
-        "selected_indicators" : selected_indicators,
+        "indicators" : indicators,
         "initial_capital" : initial_capital,
         "take_profit_logic" : take_profit_logic,
         "stop_loss_logic": stop_loss_logic,
@@ -1343,114 +1478,6 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
         resizable=True, # 크기 조절 가능
         theme='streamlit',   # 테마 변경 가능 ('light', 'dark', 'blue', 등)
     )
-
-    #     if signal_logs:
-    #         df_signals = pd.DataFrame(signal_logs)
-    #         df_signals["sim_date"] = pd.to_datetime(df_signals["sim_date"])
-    #         df_signals = df_signals.sort_values(by=["sim_date", "symbol"]).reset_index(drop=True)
-    #         df_signals["sim_date"] = df_signals["sim_date"].dt.strftime("%Y-%m-%d")
-
-    #         st.subheader("📌 매매 신호가 발생한 날짜 (거래 여부와 무관)")
-    #         st.dataframe(df_signals, use_container_width=True)
-
-    #     # ✅ 실제 거래 발생 테이블 (추가)
-    #     df_trades = results_df.copy()
-
-    #     if not df_trades.empty:
-    #         df_trades["trade_pnl"] = df_trades["realized_pnl"].apply(
-    #             lambda x: f"{x:,.0f} KRW" if pd.notnull(x) and x != 0 else "-"
-    #         )
-
-    #         df_trades["total_costs"] = df_trades["total_costs"].apply(
-    #                 lambda x: f"{x:,.0f} KRW" if pd.notnull(x) and x != 0 else "-"
-    #             )
-
-    #         df_trades["fee_buy"] = df_trades["fee_buy"].apply(lambda x: f"{x:,.0f} KRW" if x > 0 else "-")
-    #         df_trades["fee_sell"] = df_trades["fee_sell"].apply(lambda x: f"{x:,.0f} KRW" if x > 0 else "-")
-    #         df_trades["tax"] = df_trades["tax"].apply(lambda x: f"{x:,.0f} KRW" if x > 0 else "-")
-
-    #         # 익절/손절 텍스트
-    #         if "take_profit_hit" in df_trades.columns:
-    #             df_trades["take_profit_hit"] = df_trades["take_profit_hit"].apply(
-    #                 lambda x: "✅ 익절" if x else ""
-    #             )
-    #         if "stop_loss_hit" in df_trades.columns:
-    #             df_trades["stop_loss_hit"] = df_trades["stop_loss_hit"].apply(
-    #                 lambda x: "⚠️ 손절" if x else ""
-    #             )
-
-    #         # ✅ 사유 컬럼 만들기 (존재할 때만 처리)
-    #         if "signal_reasons" in df_trades.columns:
-    #             def format_reasons(x):
-    #                 if isinstance(x, str):
-    #                     return x
-    #                 elif isinstance(x, list):
-    #                     if x and isinstance(x[0], list):
-    #                         # flatten 후 문자열 join
-    #                         flat = [item for sublist in x for item in sublist]
-    #                         return ", ".join(map(str, flat))
-    #                     else:
-    #                         return ", ".join(map(str, x))
-    #                 else:
-    #                     return ""
-
-    #             df_trades["reason"] = df_trades["signal_reasons"].apply(format_reasons)
-    #         else:
-    #             df_trades["reason"] = "-"
-
-    #         # for i, row in df_trades.iterrows():
-    #         #     history = row.get("history", [])
-    #         #     sim_date = row["sim_date_dt"].date()
-                
-    #         columns_to_show = [
-    #             "sim_date", "symbol", "quantity",
-    #             "trade_pnl", 'fee_buy', "fee_sell", "tax", "total_costs", "reason"
-    #         ]
-
-    #         # ✅ 컬럼이 존재할 경우에만 추가
-    #         if "take_profit_hit" in df_trades.columns:
-    #             columns_to_show.append("take_profit_hit")
-    #         if "stop_loss_hit" in df_trades.columns:
-    #             columns_to_show.append("stop_loss_hit")
-                    
-    #         st.subheader("📅 실제 거래 발생 요약 (날짜별)")
-    #         st.dataframe(df_trades[columns_to_show], use_container_width=True)
-
-    #     if not df_trades.empty and "reason" in df_trades.columns and "realized_pnl" in df_trades.columns:
-    #         # 문자열 기준 첫 번째 이유 추출
-    #         df_trades["sell_logic_name"] = df_trades["reason"].apply(
-    #             lambda x: x.split(",")[0].strip() if isinstance(x, str) and x else "기타"
-    #         )
-
-    #         df_sell_summary = df_trades.copy()
-
-    #         logic_summary = df_sell_summary.groupby("sell_logic_name").agg(
-    #             거래수=("sell_count", "sum"),
-    #             총실현손익=("realized_pnl", "sum"),
-    #             평균손익=("realized_pnl", "mean")
-    #         ).fillna(0).reset_index()
-
-    #         logic_summary["총실현손익"] = logic_summary["총실현손익"].apply(lambda x: f"{x:,.0f} KRW")
-    #         logic_summary["평균손익"] = logic_summary["평균손익"].apply(lambda x: f"{x:,.0f} KRW")
-
-    #         st.markdown("---")
-    #         st.subheader("📉 매도 로직별 실현손익 요약")
-    #         st.dataframe(logic_summary, use_container_width=True)
-            
-    #     # ✅ 요약 통계
-    #     if not results_df.empty:
-    #         df_last_unrealized = results_df.sort_values("sim_date").groupby("symbol").last()
-
-    #         total_realized_pnl = results_df["realized_pnl"].sum()
-    #         total_unrealized_pnl = df_last_unrealized["unrealized_pnl"].sum()
-
-    #         initial_capital = simulation_settings["initial_capital"]
-    #         if initial_capital and initial_capital > 0:
-    #             avg_realized_roi_per_capital = (total_realized_pnl / initial_capital) * 100
-    #             avg_total_roi_per_capital = ((total_realized_pnl + total_unrealized_pnl) / initial_capital) * 100
-    #         else:
-    #             avg_realized_roi_per_capital = None
-    #             avg_total_roi_per_capital = None
 
     st.markdown("---")
     st.subheader("📊 전체 요약 통계")
@@ -1758,7 +1785,8 @@ def main():
                     "rsi_period": simulation_settings["rsi_period"],
                     "initial_capital": simulation_settings["initial_capital"],
                     "take_profit_logic": simulation_settings["take_profit_logic"],
-                    "stop_loss_logic": simulation_settings["stop_loss_logic"]
+                    "stop_loss_logic": simulation_settings["stop_loss_logic"],
+                    "indicators": simulation_settings['indicators'],
                 }
 
                 response = requests.post(url, json=payload).json()
@@ -1776,7 +1804,7 @@ def main():
                     "data_df": data_df,
                     "assets": assets,
                     "simulation_histories": simulation_histories,
-                    "selected_indicators": simulation_settings['selected_indicators'],
+                    "indicators": simulation_settings['indicators'],
                     "selected_stock": simulation_settings["selected_stock"]
                 }
 
@@ -1786,7 +1814,7 @@ def main():
             data_df = result["data_df"]
             assets = result["assets"]
             simulation_histories = result["simulation_histories"]
-            selected_indicators = result["selected_indicators"]
+            indicators = result["indicators"]
 
             # CSV 다운로드 버튼
             # st.subheader("📥 데이터 다운로드")
@@ -1827,52 +1855,10 @@ def main():
             # )
             
             # TradingView 차트 그리기
-            draw_lightweight_chart(data_df, assets, selected_indicators)
+            draw_lightweight_chart(data_df, assets, indicators)
             # 결과 result
             draw_bulk_simulation_result(assets, simulation_histories, simulation_settings)
 
-            # # -- Trading History 처리 --
-            # if not simulation_histories:
-            #     st.write("No trading history available.")
-            # else:
-            #     # 거래 내역을 DataFrame으로 변환
-            #     history_df = pd.DataFrame([simulation_histories])
-        
-            #     # 실현/미실현 수익률에 % 포맷 적용
-            #     for column in ["realized_roi", "unrealized_roi"]:
-            #         if column in history_df.columns:
-            #             history_df[column] = history_df[column].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else x)
-                        
-            #     # symbol 변수 설정 (예시; 필요시 수정)
-            #     history_df["symbol"] = simulation_settings['selected_stock']
-        
-            #     reorder_columns = [
-            #         "symbol", "average_price",
-            #         "realized_pnl", "unrealized_pnl", "realized_roi", "unrealized_roi", "total_cost",
-            #         "total_quantity", "history", "created_at"
-            #     ]
-            #     history_df = history_df[[col for col in reorder_columns if col in history_df.columns]]
-        
-            #     history_df_transposed = history_df.transpose().reset_index()
-            #     history_df_transposed.columns = ["Field", "Value"]
-        
-            #     st.subheader("📊 Trading History Summary")
-            #     st.dataframe(history_df_transposed, use_container_width=True)
-                
-            #     if "history" in simulation_histories and isinstance(simulation_histories["history"], list) and simulation_histories["history"]:
-            #         rename_tradingLogic(simulation_histories["history"])  # 필요 시 로직명 변환
-            #         trade_history_df = pd.DataFrame(simulation_histories["history"])
-                    
-            #                             # ✅ 실현 수익률 퍼센트 표시
-            #         if "realized_roi" in trade_history_df.columns:
-            #             trade_history_df["realized_roi (%)"] = trade_history_df["realized_roi"].apply(
-            #                 lambda x: f"{x * 100:.2f}%" if pd.notnull(x) else None
-            #             )
-                    
-            #         st.subheader("📋 Detailed Trade History")
-            #         st.dataframe(trade_history_df, use_container_width=True)
-            #     else:
-            #         st.write("No detailed trade history found.")
         else:
             st.info("먼저 시뮬레이션을 실행해주세요.")
             
