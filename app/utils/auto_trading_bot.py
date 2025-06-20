@@ -568,7 +568,8 @@ class AutoTradingBot:
                 resistance = resistance,
                 high_trendline = high_trendline
             )
-
+            print(f"buy_logic_reasons: {buy_logic_reasons}")
+            
             # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
             if target_trade_value_krw and target_trade_value_krw > 0:
                 trade_amount = min(target_trade_value_krw, global_state['krw_balance'])
@@ -1441,14 +1442,17 @@ class AutoTradingBot:
         lookback_next = 5
 
         # 지표 계산
+        df = indicator.cal_ema_df(df, 5)
         df = indicator.cal_ema_df(df, 10)
         df = indicator.cal_ema_df(df, 13)
         df = indicator.cal_ema_df(df, 20)
         df = indicator.cal_ema_df(df, 21)
+        df = indicator.cal_ema_df(df, 50)
         df = indicator.cal_ema_df(df, 55)
         df = indicator.cal_ema_df(df, 60)
         df = indicator.cal_ema_df(df, 89)
-        df = indicator.cal_ema_df(df, 5)
+        df = indicator.cal_ema_df(df, 120)
+        
         
         df = indicator.cal_sma_df(df, 5)
         df = indicator.cal_sma_df(df, 20)
@@ -1711,8 +1715,11 @@ class AutoTradingBot:
                     buy_yn, _ = logic.should_buy(ohlc_df, high_trendline, resistance)
                     
                 elif trading_logic == 'should_buy_break_high_trend':
-                    buy_yn, _ = logic.should_buy_break_high_trend(ohlc_df, high_trendline, resistance)                    
-                              
+                    buy_yn, _ = logic.should_buy_break_high_trend(ohlc_df, high_trendline, resistance)
+                    
+                elif trading_logic == 'weekly_trading':
+                    buy_yn, _ = logic.weekly_trading(ohlc_df)                    
+                
                 if buy_yn:
                     signal_reasons.append(trading_logic)
         else:

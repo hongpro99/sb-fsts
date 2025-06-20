@@ -1290,14 +1290,14 @@ class TradingLogic:
         prev_prev = df.iloc[-3]
         # ✅ 중장기 정배열 조건
         long_trend = (
-            last['EMA_13'] > last['EMA_21'] > last['EMA_55'] > last['EMA_89']
+            last['EMA_10'] > last['EMA_20'] > last['EMA_60'] > last['EMA_120']
         )
 
         # ✅ EMA_5가 전일 EMA_13 아래에 있다가 당일 상향 돌파
-        crossover = prev['EMA_5'] <= prev['EMA_13'] and last['EMA_5'] > last['EMA_13']
+        crossover = prev['EMA_5'] <= prev['EMA_10'] and last['EMA_5'] > last['EMA_10']
 
         # ✅ 종가가 EMA_5, EMA_13 위에 있어야 신뢰도 ↑
-        price_above = last['Close'] > last['EMA_5'] and last['Close'] > last['EMA_13']
+        price_above = last['Close'] > last['EMA_5'] and last['Close'] > last['EMA_10']
 
         # ✅ 거래량 조건 (5일 평균 이상 & 전일보다 증가)
         volume_ma5 = df['Volume'].rolling(5).mean().iloc[-1]
@@ -1307,9 +1307,9 @@ class TradingLogic:
         cond5  = upper_shadow_ratio <= 0.45  # 윗꼬리 80% 이상이면 제외
         cond6 = last['Close'] > last["Open"]
         
-        cond7 = prev_prev['EMA_5'] >= prev_prev['EMA_13'] and prev['EMA_5'] <= prev['EMA_13'] and last['EMA_5'] > last['EMA_13']
+        cond7 = prev_prev['EMA_5'] >= prev_prev['EMA_10'] and prev['EMA_5'] <= prev['EMA_10'] and last['EMA_5'] > last['EMA_10']
         # ✅ 최종 매수 조건
-        buy_signal = all([long_trend, crossover,cond5, cond6, not cond7])
+        buy_signal = all([long_trend, crossover, not cond7])
         
         return buy_signal, None
     
@@ -1466,7 +1466,7 @@ class TradingLogic:
         cond3 = last['Close'] > last['Open']
         cond4 = prev['Volume'] > prev_prev['Volume']
         cond5 = last["EMA_55_Slope_MA"] > 0.4
-        cond7 = last['EMA_13'] > last['EMA_21'] and prev['EMA_13'] <= prev['EMA_21']
+        cond7 = last['EMA_10'] > last['EMA_20'] and prev['EMA_10'] <= prev['EMA_20']
                 # 📌 정배열 조건
                 
         # if prev["Close"] < prev["EMA_89"]:
@@ -1474,20 +1474,20 @@ class TradingLogic:
         # else:
         #     cond6 = True
         
-        cond6 = prev["Close"] <= prev["EMA_89"] and last["Close"] > last["EMA_89"]
+        cond6 = prev["Close"] <= prev["EMA_60"] and last["Close"] > last["EMA_60"]
                 # ✅ EMA 배열이 역배열일 경우 매수 제외 (EMA_89 > EMA_55 > EMA_5 > EMA_13 > EMA_21)
         is_bad_arrangement = (
-            last["EMA_89"] > last["EMA_55"] > last['EMA_5'] >  last["EMA_13"] > last["EMA_21"]
+            last["EMA_60"] > last["EMA_50"] > last['EMA_5'] >  last["EMA_10"] > last["EMA_20"]
         )
         cond8 = not is_bad_arrangement
         
-        cond9 = last['EMA_89'] > last["EMA_55"] > last["EMA_13"] > last["EMA_21"]
+        cond9 = last['EMA_120'] > last["EMA_60"] > last["EMA_10"] > last["EMA_20"]
         #cond9 = last['EMA_89'] > last["EMA_55"] > last['EMA_5'] > last["EMA_13"] > last["EMA_21"]        
                 # 조건 3: EMA 기울기 양수
-        ema10_slope = last['EMA_13'] - prev['EMA_13']
-        ema20_slope = last['EMA_21'] - prev['EMA_21']
-        ema50_slope = last['EMA_55'] - prev['EMA_55']
-        ema60_slope = last['EMA_89'] - prev['EMA_89']
+        ema10_slope = last['EMA_10'] - prev['EMA_10']
+        ema20_slope = last['EMA_20'] - prev['EMA_20']
+        ema50_slope = last['EMA_50'] - prev['EMA_50']
+        ema60_slope = last['EMA_60'] - prev['EMA_60']
         cond10 = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0
         
         upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
@@ -1517,7 +1517,7 @@ class TradingLogic:
         else:
             crossed_up = True
     
-        buy_signal = all([cond3, cond7, cond11, cond6, cond9])
+        buy_signal = all([cond7, cond6, cond9])
         
         return buy_signal, None
 
@@ -1679,5 +1679,35 @@ class TradingLogic:
             return True, f"📉 저점 추세선 이탈 매도 (기준가: {trendline_price:.2f})"
 
         return False, None
-
     
+    def weekly_trading(self, df):
+        """
+        EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
+        
+        """
+        
+        if len(df) < 2:
+            return False, None  # 데이터 부족
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        prev_prev = df.iloc[-3]
+
+        cond7 = last['EMA_10'] > last['EMA_20'] and prev['EMA_10'] <= prev['EMA_20']
+        
+        cond6 = prev["Close"] <= prev["EMA_60"] and last["Close"] > last["EMA_60"]
+                # ✅ EMA 배열이 역배열일 경우 매수 제외 (EMA_89 > EMA_55 > EMA_5 > EMA_13 > EMA_21)
+        is_bad_arrangement = (
+            last["EMA_60"] > last["EMA_50"] > last['EMA_5'] >  last["EMA_10"] > last["EMA_20"]
+        )
+        cond8 = not is_bad_arrangement
+        
+        cond9 = last['EMA_120'] > last["EMA_60"] > last["EMA_10"] > last["EMA_20"]
+        
+        cond10 = last['Close'] > last['Open']
+        print(f"{last['Close']}, {last['Open']}")
+    
+        # 최종 조건
+        buy_signal = cond10
+
+        return buy_signal, None
+

@@ -890,6 +890,8 @@ def rename_tradingLogic(trade_history):
             entry['trading_logic'] =  'horizontal_low_sell'                         
         elif entry.get('trading_logic') == 'should_buy_break_high_trend':
             entry['trading_logic'] =  'should_buy_break_high_trend'
+        elif entry.get('trading_logic') == 'weekly_trading':
+            entry['trading_logic'] =  'weekly_trading'        
                         
 def login_page():
     """
@@ -1476,7 +1478,7 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
 
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("💰 총 자산", f"{(krw_balance+total_unrealized_pnl):,.0f} KRW")
+        st.metric("💰 총 자산", f"{(krw_balance+ total_realized_pnl + total_unrealized_pnl):,.0f} KRW")
         st.metric("💰 총 실현 손익", f"{total_realized_pnl:,.0f} KRW")
         st.metric("📈 총 미실현 손익", f"{total_unrealized_pnl:,.0f} KRW")
     with col2:

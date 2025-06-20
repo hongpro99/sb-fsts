@@ -15,7 +15,8 @@
         "반개미": "anti_retail_ema_entry",
         "고점 돌파": "trendline_breakout_trading",
         "should_buy": "should_buy",
-        "should_buy_break_high_trend": "should_buy_break_high_trend"
+        "should_buy_break_high_trend": "should_buy_break_high_trend",
+        "weekly_trading": "weekly_trading"
         
     },
     "available_sell_logic": {
