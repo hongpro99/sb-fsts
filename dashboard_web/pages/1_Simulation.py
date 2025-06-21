@@ -38,7 +38,7 @@ backend_base_url = os.getenv('BACKEND_BASE_URL')
 
 def draw_lightweight_chart(data_df, assets, indicators):
 
-    buy_signals = []
+    buy_signals = []    
     sell_signals = []
 
     holding = assets['account_holdings'][0]
@@ -1297,9 +1297,18 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
     
     results_df = pd.DataFrame(results)
 
-    results_df["timestamp"] = pd.to_datetime(results_df["timestamp"])
-    results_df = results_df.sort_values(by=["timestamp", "symbol"]).reset_index(drop=True)
-    results_df["timestamp"] = results_df["timestamp"].dt.strftime("%Y-%m-%d")
+    print(results_df.columns)
+    
+    if "timestamp" in results_df.columns:
+        results_df["timestamp"] = pd.to_datetime(results_df["timestamp"])
+        results_df = results_df.sort_values(by=["timestamp", "symbol"]).reset_index(drop=True)
+        results_df["timestamp"] = results_df["timestamp"].dt.strftime("%Y-%m-%d")
+    else:
+        print("❌ 'timestamp' 컬럼이 없습니다. 사용 가능한 컬럼 목록:", results_df.columns)
+        # 또는 필요시 예외 처리
+    # results_df["timestamp"] = pd.to_datetime(results_df["timestamp"])
+    # results_df = results_df.sort_values(by=["timestamp", "symbol"]).reset_index(drop=True)
+    # results_df["timestamp"] = results_df["timestamp"].dt.strftime("%Y-%m-%d")
 
     reorder_columns = [
         "timestamp", "symbol", "initial_capital", "portfolio_value", "quantity",
@@ -1505,7 +1514,7 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
 
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("💰 총 자산", f"{(krw_balance+ total_realized_pnl + total_unrealized_pnl):,.0f} KRW")
+        st.metric("💰 총 자산", f"{(initial_capital + total_realized_pnl + total_unrealized_pnl):,.0f} KRW")
         st.metric("💰 총 실현 손익", f"{total_realized_pnl:,.0f} KRW")
         st.metric("📈 총 미실현 손익", f"{total_unrealized_pnl:,.0f} KRW")
     with col2:
@@ -1856,6 +1865,7 @@ def main():
             
             # TradingView 차트 그리기
             draw_lightweight_chart(data_df, assets, indicators)
+            
             # 결과 result
             draw_bulk_simulation_result(assets, simulation_histories, simulation_settings)
 
