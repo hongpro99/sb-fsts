@@ -295,7 +295,7 @@ class AutoTradingBot:
         
         # ✅ OHLC 데이터 가져오기
         simulation_ohlc_data = self._get_ohlc(symbol, start_date_for_ohlc, end_date, interval, ohlc_mode)    
-        simulation_df = self._create_ohlc_df(simulation_ohlc_data, indicators, rsi_period)
+        simulation_df = self._create_ohlc_df(ohlc_data=simulation_ohlc_data, indicators=indicators, rsi_period=rsi_period)
                 
         if not simulation_ohlc_data:
             print(f"❌ No OHLC data: {symbol}")
@@ -581,12 +581,13 @@ class AutoTradingBot:
                 trade_ratio = trade_ratio if trade_ratio is not None else 100
                 
                 # 현재 총 자산을 구하기 위한 로직 
-                total_unrealized_pnl = 0
+                # 평가액
+                total_market_value = 0
                 for holding in global_state['account_holdings']:
-                    unrealized_pnl = (holding['close_price'] - holding['avg_price']) * holding['total_quantity']
-                    total_unrealized_pnl += unrealized_pnl
+                    market_value = holding['avg_price'] * holding['total_quantity']
+                    total_market_value += market_value
 
-                total_balance = global_state['krw_balance'] + total_unrealized_pnl
+                total_balance = global_state['krw_balance'] + total_market_value
                 trade_amount = min(total_balance * (trade_ratio / 100), total_balance)
 
             # ✅ 매수 실행
@@ -950,7 +951,7 @@ class AutoTradingBot:
                 ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
                 rsi_period = simulation_settings['rsi_period']
                 
-                df = self._create_ohlc_df(ohlc_data, rsi_period)
+                df = self._create_ohlc_df(ohlc_data=ohlc_data, rsi_period=rsi_period)
                 
                 # 유효한 종목만 저장
                 valid_symbol['symbol'] = symbol
@@ -1280,12 +1281,12 @@ class AutoTradingBot:
                     trade_ratio = trade_ratio if trade_ratio is not None else 100
                     
                     # 현재 총 자산을 구하기 위한 로직 
-                    total_unrealized_pnl = 0
-                    for h in global_state['account_holdings']:
-                        unrealized_pnl = (h['close_price'] - h['avg_price']) * h['total_quantity']
-                        total_unrealized_pnl += unrealized_pnl
+                    total_market_value = 0
+                    for holding in global_state['account_holdings']:
+                        market_value = holding['avg_price'] * holding['total_quantity']
+                        total_market_value += market_value
 
-                    total_balance = global_state['krw_balance'] + total_unrealized_pnl
+                    total_balance = global_state['krw_balance'] + total_market_value
                     trade_amount = min(total_balance * (trade_ratio / 100), total_balance)
 
                 # ✅ 매수 실행
@@ -1430,7 +1431,7 @@ class AutoTradingBot:
         return trading_history
 
 
-    def _create_ohlc_df(self, ohlc_data, indicators=None, rsi_period=25):
+    def _create_ohlc_df(self, ohlc_data, indicators=[], rsi_period=25):
 
         # ✅ OHLC → DataFrame 변환
         timestamps = [c.time for c in ohlc_data]
@@ -1447,7 +1448,7 @@ class AutoTradingBot:
 
         # 차트에 그리기 위한 지표 계산
         for i in indicators:
-            if i['type'] == 'ema':
+            if i['type'] == 'ema' and i['draw_yn'] is True:
                 df = indicator.cal_ema_df(df, i['period'])
 
         # 지표 계산
@@ -1491,7 +1492,7 @@ class AutoTradingBot:
         
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
         rsi_period = 25  # 임시
-        df = self._create_ohlc_df(ohlc_data, rsi_period)
+        df = self._create_ohlc_df(ohlc_data=ohlc_data, rsi_period=rsi_period)
         
                 # 🔍 현재 row 위치
         current_idx = len(df) - 1

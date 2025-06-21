@@ -69,7 +69,7 @@ def draw_lightweight_chart(data_df, assets, indicators):
 
     # 차트 표시용 ema 데이터 추가
     for i in indicators:
-        if i['type'] == 'ema':
+        if i['type'] == 'ema' and i['draw_yn'] is True:
             i['data'] = json.loads(data_df.dropna(subset=[i['name']]).rename(columns={i['name']: "value"}).to_json(orient="records"))
 
     # ema_89 = json.loads(data_df.dropna(subset=['ema_89']).rename(columns={"ema_89": "value"}).to_json(orient="records"))
@@ -391,7 +391,7 @@ def draw_lightweight_chart(data_df, assets, indicators):
             ])
             
         # EMA
-        if indicator['type'] == 'ema':
+        if indicator['type'] == 'ema' and indicator['draw_yn'] is True:
             seriesCandlestickChart.append({
                 "type": 'Line',
                 "data": indicator['data'],
@@ -404,62 +404,6 @@ def draw_lightweight_chart(data_df, assets, indicators):
                 },
             })
             
-        #     # EMA 10
-        # if "ema_13" in indicator['name']:
-        #     seriesCandlestickChart.append({
-        #         "type": 'Line',
-        #         "data": ema_13,
-        #         "options": {
-        #             "color": color, #빨간색
-        #             "lineWidth": 2,
-        #             "priceScaleId": "right",
-        #             "lastValueVisible": False,
-        #             "priceLineVisible": False,
-        #         },
-        #     })
-            
-        #             # EMA 20
-        # if "ema_21" in indicator['name']:
-        #     seriesCandlestickChart.append({
-        #         "type": 'Line',
-        #         "data": ema_21,
-        #         "options": {
-        #             "color": color,  # 초록색
-        #             "lineWidth": 2,
-        #             "priceScaleId": "right",
-        #             "lastValueVisible": False,
-        #             "priceLineVisible": False,
-        #         },
-        #     })
-
-        #     # EMA 50
-        # if "ema_55" in indicator['name']:
-        #     seriesCandlestickChart.append({
-        #         "type": 'Line',
-        #         "data": ema_55,
-        #         "options": {
-        #             "color": color,  # 파란색
-        #             "lineWidth": 2,
-        #             "priceScaleId": "right",
-        #             "lastValueVisible": False,
-        #             "priceLineVisible": False,
-        #         },
-        #     })
-            
-        #     # EMA 60
-        # if "ema_89" in indicator['name']:
-        #     seriesCandlestickChart.append({
-        #         "type": 'Line',
-        #         "data": ema_89,
-        #         "options": {
-        #             "color": color, #청록색
-        #             "lineWidth": 2,
-        #             "priceScaleId": "right",
-        #             "lastValueVisible": False, # 가격 레이블 숨기기
-        #             "priceLineVisible": False, # 가격 라인 숨기기
-        #         },
-        #     })
-
             # sma_5
         if "sma_5" in indicator['name']:
             seriesCandlestickChart.append({
@@ -1202,23 +1146,27 @@ def setup_simulation_tab():
         })
     if st.checkbox("horizontal_high", value=False):
         indicators.append({
+            'type': "horizontal_high",
             'name': "horizontal_high",
-            'color': "#000000",
+            'color_hex': "#000000",
         })
     if st.checkbox("horizontal_low", value=False):
         indicators.append({
+            'type': "horizontal_low",
             'name': "horizontal_low",
-            'color': "#000000",
+            'color_hex': "#000000",
         })
     if st.checkbox("high_trendline", value=False):
         indicators.append({
+            'type': "high_trendline",
             'name': "high_trendline",
-            'color': "#000000",
+            'color_hex': "#000000",
         })
     if st.checkbox("low_trendline", value=False):
         indicators.append({
+            'type': "low_trendline",
             'name': "low_trendline",
-            'color': "#000000",
+            'color_hex': "#000000",
         })        
         
     # ✅ 설정 값을 딕셔너리 형태로 반환
@@ -1295,7 +1243,7 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
     
     results_df = pd.DataFrame(results)
 
-    results_df["timestamp"] = pd.to_datetime(results_df["timestamp"])
+    results_df["timestamp"] = pd.to_datetime(results_df["timestamp_str"])
     results_df = results_df.sort_values(by=["timestamp", "symbol"]).reset_index(drop=True)
     results_df["timestamp"] = results_df["timestamp"].dt.strftime("%Y-%m-%d")
 
@@ -1485,13 +1433,20 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
 
     # unrealized_pnl 연산 (종목 합)
     total_unrealized_pnl = 0
+    total_market_value = 0
     
     for holding in assets['account_holdings']:
         unrealized_pnl = (holding['close_price'] - holding['avg_price']) * holding['total_quantity']
         total_unrealized_pnl += unrealized_pnl
 
+        market_value = holding['avg_price'] * holding['total_quantity']
+        total_market_value += market_value
+
     total_buy_count = (results_df["trade_type"] == "BUY").sum()
     total_sell_count = (results_df["trade_type"] == "SELL").sum()
+
+    total_buy_signal_count = results_df["buy_logic_reasons"].apply(lambda x: bool(x) and x != "[]").sum()
+    total_sell_signal_count = results_df["sell_logic_reasons"].apply(lambda x: bool(x) and x != "[]").sum()
 
     initial_capital = assets["initial_capital"]
     if initial_capital and initial_capital > 0:
@@ -1503,7 +1458,7 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
 
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("💰 총 자산", f"{(krw_balance+total_unrealized_pnl):,.0f} KRW")
+        st.metric("💰 총 자산", f"{(krw_balance+total_market_value):,.0f} KRW")
         st.metric("💰 총 실현 손익", f"{total_realized_pnl:,.0f} KRW")
         st.metric("📈 총 미실현 손익", f"{total_unrealized_pnl:,.0f} KRW")
     with col2:
@@ -1538,6 +1493,8 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
         st.metric("🔴 총 매도 횟수", f"{total_sell_count}")
         st.metric("✅ 익절 횟수", f"{total_take_profit}")
         st.metric("⚠️ 손절 횟수", f"{total_stop_loss}")
+        st.metric("🟢 총 매수 신호 횟수", f"{total_buy_signal_count}")
+        st.metric("🔴 총 매도 신호 횟수", f"{total_sell_signal_count}")
 
     with col2:
         st.metric("💸 익절로 인한 손익", f"{tp_pnl:,.0f} KRW")
@@ -1545,12 +1502,8 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
         st.metric("🔄 로직 매도로 인한 손익", f"{logic_sell_pnl:,.0f} KRW")
         st.metric("🔄 총 매수 금액 대비 수익률", f"{roi_per_total_buy_cost:.2f}%")
         st.metric("💸 매도 횟수 대비 익절률", f"{total_take_profit_per_total_sell_count:.2f}%")
-    col3, col4 = st.columns(2)
-    with col3:
         st.metric("🧾 총 수수료", f"{total_fee:,.0f} KRW")
         st.metric("📜 총 거래세", f"{total_tax:,.0f} KRW")
-    # with col4:
-    #     st.metric("💰 총 수수료 비용 합계", f"{total_costs:,.0f} KRW")
 
     # ✅ 거래 여부와 무관한 신호 발생 통계 요약
     if signal_logs:
