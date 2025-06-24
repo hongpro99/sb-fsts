@@ -145,46 +145,6 @@ class AutoTradingBot:
             
         return klines
 
-    def _draw_chart(self, df, ohlc, timestamps, buy_signals, sell_signals):
-
-        # 매수 및 매도 시그널 표시를 위한 추가 데이터 (x와 y의 길이 맞추기 위해 NaN 사용)
-        df['Buy_Signal'] = np.nan
-        df['Sell_Signal'] = np.nan
-
-        for signal in buy_signals:
-            if signal[0] in df.index:  # signal[0]이 인덱스에 존재하는 경우만 처리
-                df.at[signal[0], 'Buy_Signal'] = signal[1]
-        for signal in sell_signals:
-            if signal[0] in df.index:  # signal[0]이 인덱스에 존재하는 경우만 처리
-                df.at[signal[0], 'Sell_Signal'] = signal[1]
-
-        # 그래프 그리기
-        add_plot = [
-            mpf.make_addplot(df['Upper'], color='blue', linestyle='-', label='Upper Band'),
-            mpf.make_addplot(df['Lower'], color='blue', linestyle='-', label='Lower Band'),
-            mpf.make_addplot(df['Middle'], color='blue', linestyle='-', label='Middle Band'),
-            mpf.make_addplot(df['SMA_5'], color='black', linestyle='-', label='SMA 5'),
-        ]
-
-        # # MA 를 그릴 수 있는 경우에만
-        # if df['SMA_60'].notna().any():
-        #     add_plot.append(mpf.make_addplot(df['SMA_60'], color='red', linestyle='-', label='SMA 60'))
-        # if df['SMA_120'].notna().any():
-        #     add_plot.append(mpf.make_addplot(df['SMA_120'], color='purple', linestyle='-', label='SMA 120'))
-        # if df['SMA_200'].notna().any():
-        #     add_plot.append(mpf.make_addplot(df['SMA_200'], color='gray', linestyle='-', label='SMA 200'))
-
-        # signal이 존재할 때만 가능
-        if len(buy_signals) > 0:
-            add_plot.append(mpf.make_addplot(df['Buy_Signal'], type='scatter', markersize=60, marker='^', color='black', label='BUY'))
-        if len(sell_signals) > 0:
-            add_plot.append(mpf.make_addplot(df['Sell_Signal'], type='scatter', markersize=60, marker='v', color='black', label='SELL'))
-
-        #simulation_plot = mpf.plot(df, type='candle', style='charles', title=f'{symbol}', addplot=add_plot, volume=True, ylabel_lower='Volume', ylabel='Price(KRW)', figsize=(20, 9), returnfig=True)
-
-        return df
-
-
     def calculate_pnl(self, trading_history, current_price, trade_amount):
         """Parameters:
         - trading_history: dict, 거래 내역 및 계산 결과 저장
@@ -329,7 +289,7 @@ class AutoTradingBot:
             'trading_histories': []
         }
 
-        account_holdings.append(holding)
+        global_state['account_holdings'].append(holding)
 
         date_range = sorted(list(all_dates))  # 날짜 정렬
 
@@ -337,7 +297,7 @@ class AutoTradingBot:
         for idx, current_date in enumerate(date_range): # ✅ 하루 기준 고정 portfolio_value 계산 (종목별 보유 상태 반영)            
 
             # 알맞은 종목 찾기
-            holding = next((h for h in account_holdings if h['symbol'] == symbol), None)
+            holding = next((h for h in global_state['account_holdings'] if h['symbol'] == symbol), None)
 
             if not any(pd.Timestamp(c.time).tz_localize(None).normalize() == current_date for c in simulation_ohlc_data):
                 continue
@@ -383,7 +343,7 @@ class AutoTradingBot:
             sell_logic_reasons = []
             
             # 데이터 최신화
-            holding['timstamp_str'] = timestamp_str
+            holding['timestamp_str'] = timestamp_str
             holding['close_price'] = close_price
             
             # ✅ 익절/손절 조건 우선 적용
@@ -583,8 +543,8 @@ class AutoTradingBot:
                 # 현재 총 자산을 구하기 위한 로직 
                 # 평가액
                 total_market_value = 0
-                for holding in global_state['account_holdings']:
-                    market_value = holding['avg_price'] * holding['total_quantity']
+                for h in global_state['account_holdings']:
+                    market_value = h['avg_price'] * h['total_quantity']
                     total_market_value += market_value
 
                 total_balance = global_state['krw_balance'] + total_market_value
@@ -917,9 +877,6 @@ class AutoTradingBot:
 
         # buy_signals.append((timestamp, close_price))
         # buy_signals.append((timestamp, close_price))
-
-        # 캔들 차트 데이터프레임 생성
-        # result_data = self._draw_chart(filtered_ohlc_data, filtered_timestamps, buy_signals, sell_signals)
         
         return filtered_df, global_state, simulation_histories
 
@@ -1002,7 +959,7 @@ class AutoTradingBot:
                 'trading_histories': []
             }
 
-            account_holdings.append(holding)
+            global_state['account_holdings'].append(holding)
 
         date_range = sorted(list(all_dates))  # 날짜 정렬
 
@@ -1037,7 +994,7 @@ class AutoTradingBot:
                 stock_name = s['stock_name']
 
                 # 알맞은 종목 찾기
-                holding = next((h for h in account_holdings if h['symbol'] == symbol), None)
+                holding = next((h for h in global_state['account_holdings'] if h['symbol'] == symbol), None)
 
                 if not any(pd.Timestamp(c.time).tz_localize(None).normalize() == current_date for c in ohlc_data):
                     continue
@@ -1049,8 +1006,8 @@ class AutoTradingBot:
 
                 lookback_next = 5
                 # ✅ 현재 시점까지 확정된 지지선만 사용
-                support = self.get_latest_confirmed_support(df, current_idx=current_idx, lookback_next = lookback_next)
-                resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx, lookback_next = lookback_next)
+                support = self.get_latest_confirmed_support(df, current_idx=current_idx, lookback_next=lookback_next)
+                resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx, lookback_next=lookback_next)
                 high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=current_idx)
                 
                 # ✅ 아무 데이터도 없으면 조용히 빠져나가기
@@ -1083,7 +1040,7 @@ class AutoTradingBot:
                 sell_logic_reasons = []
                 
                 # 데이터 최신화
-                holding['timstamp_str'] = timestamp_str
+                holding['timestamp_str'] = timestamp_str
                 holding['close_price'] = close_price
 
                 # ✅ 익절/손절 조건 우선 적용
@@ -1114,7 +1071,7 @@ class AutoTradingBot:
 
                         trading_history = self._create_trading_history(
                             symbol=symbol,
-                            stock_name=holding['stock_name'],
+                            stock_name=stock_name,
                             fee=fee,
                             tax=tax,
                             revenue=revenue,
@@ -1168,7 +1125,7 @@ class AutoTradingBot:
 
                         trading_history = self._create_trading_history(
                             symbol=symbol,
-                            stock_name=holding['stock_name'],
+                            stock_name=stock_name,
                             fee=fee,
                             tax=tax,
                             revenue=revenue,
@@ -1232,7 +1189,7 @@ class AutoTradingBot:
 
                     trading_history = self._create_trading_history(
                         symbol=symbol,
-                        stock_name=holding['stock_name'],
+                        stock_name=stock_name,
                         fee=fee,
                         tax=tax,
                         revenue=revenue,
@@ -1282,8 +1239,8 @@ class AutoTradingBot:
                     
                     # 현재 총 자산을 구하기 위한 로직 
                     total_market_value = 0
-                    for holding in global_state['account_holdings']:
-                        market_value = holding['avg_price'] * holding['total_quantity']
+                    for h in global_state['account_holdings']:
+                        market_value = h['avg_price'] * h['total_quantity']
                         total_market_value += market_value
 
                     total_balance = global_state['krw_balance'] + total_market_value
@@ -1317,7 +1274,7 @@ class AutoTradingBot:
 
                         trading_history = self._create_trading_history(
                             symbol=symbol,
-                            stock_name=holding['stock_name'],
+                            stock_name=stock_name,
                             fee=fee,
                             tax=tax,
                             revenue=revenue,

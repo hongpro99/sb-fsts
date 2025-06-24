@@ -45,10 +45,10 @@ def draw_lightweight_chart(data_df, assets, indicators):
     for trade in holding["trading_histories"]:
         if trade["trade_type"] == "BUY":
             # timestamp와 price(또는 avg_price 등)를 추출
-            buy_signals.append((trade["timestamp"], trade["close_price"]))
+            buy_signals.append((trade["timestamp_str"], trade["close_price"]))
         elif trade["trade_type"] == "SELL":
             # timestamp와 price(또는 avg_price 등)를 추출
-            sell_signals.append((trade["timestamp"], trade["close_price"]))
+            sell_signals.append((trade["timestamp_str"], trade["close_price"]))
     
     # 차트 color
     COLOR_BULL = 'rgba(236, 57, 72, 1)' # #26a69a
@@ -125,6 +125,8 @@ def draw_lightweight_chart(data_df, assets, indicators):
         markers.append(marker)
 
     markers.sort(key=lambda marker: marker['time'])
+
+    print('markers:', markers)
 
     chartMultipaneOptions = [
         {
@@ -1348,13 +1350,14 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
 
     # 표출하고 싶은 컬럼 필터
     columns_to_show = [
-        "timestamp_str", "stock_name", "avg_price", "total_quantity", "trade_type",
+        "timestamp_str", "stock_name", "close_price", "avg_price", "total_quantity", "trade_type",
         "reason", "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi", "krw_balance",
         "buy_logic_reasons", "sell_logic_reasons"
     ]
     columns_rename = {
         "timestamp_str": "날짜",
         "stock_name": "종목명",
+        "close_price": "종가",
         "avg_price": "평균단가",
         "total_quantity": "보유수량",
         "trade_type": "거래유형",
@@ -1373,7 +1376,7 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
 
     gb = GridOptionsBuilder.from_dataframe(results_df_display_ko)
 
-    int_columns = ["avg_price", "total_quantity", "realized_pnl", "unrealized_pnl", "krw_balance"]
+    int_columns = ["close_price", "avg_price", "total_quantity", "realized_pnl", "unrealized_pnl", "krw_balance"]
     float_columns = ["realized_roi", "unrealized_roi"]
 
     # 한글 컬럼명 리스트 생성
@@ -1439,7 +1442,7 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
         unrealized_pnl = (holding['close_price'] - holding['avg_price']) * holding['total_quantity']
         total_unrealized_pnl += unrealized_pnl
 
-        market_value = holding['avg_price'] * holding['total_quantity']
+        market_value = holding['close_price'] * holding['total_quantity']
         total_market_value += market_value
 
     total_buy_count = (results_df["trade_type"] == "BUY").sum()
