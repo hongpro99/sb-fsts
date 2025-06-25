@@ -45,10 +45,10 @@ def draw_lightweight_chart(data_df, assets, indicators):
     for trade in holding["trading_histories"]:
         if trade["trade_type"] == "BUY":
             # timestamp와 price(또는 avg_price 등)를 추출
-            buy_signals.append((trade["timestamp"], trade["close_price"]))
+            buy_signals.append((trade["timestamp_str"], trade["close_price"]))
         elif trade["trade_type"] == "SELL":
             # timestamp와 price(또는 avg_price 등)를 추출
-            sell_signals.append((trade["timestamp"], trade["close_price"]))
+            sell_signals.append((trade["timestamp_str"], trade["close_price"]))
     
     # 차트 color
     COLOR_BULL = 'rgba(236, 57, 72, 1)' # #26a69a
@@ -125,6 +125,8 @@ def draw_lightweight_chart(data_df, assets, indicators):
         markers.append(marker)
 
     markers.sort(key=lambda marker: marker['time'])
+
+    print('markers:', markers)
 
     chartMultipaneOptions = [
         {
@@ -905,6 +907,8 @@ def setup_simulation_tab():
 
     st.subheader("💰 매수 금액 설정 방식")
 
+    initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital_single")
+
     target_method = st.radio(
         "매수 금액을 어떻게 설정할까요?",
         ["직접 입력", "자본 비율 (%)"],
@@ -917,9 +921,8 @@ def setup_simulation_tab():
         target_trade_value_ratio = None
     else:
         target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio_single') #마우스 커서로 왔다갔다 하는 기능
+        min_trade_value = st.number_input("💰 최소 매수금액 (KRW)", min_value=0, value=10000000, step=1000000, key=f"min_trade_value_single")
         target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
-
-    initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital_single")
 
     result = list(StockSymbol.scan(
         filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'NASDAQ') | (StockSymbol.type == 'etf') )
@@ -1002,8 +1005,6 @@ def setup_simulation_tab():
     #mode
     ohlc_mode_checkbox = st.checkbox("차트 연결 모드")  # True / False 반환
     ohlc_mode = "continuous" if ohlc_mode_checkbox else "default"
-    
-    initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10000000, step=1000000)
         
     use_take_profit = st.checkbox("익절 조건 사용", value=True)
     if use_take_profit:
@@ -1350,13 +1351,14 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
 
     # 표출하고 싶은 컬럼 필터
     columns_to_show = [
-        "timestamp_str", "stock_name", "avg_price", "total_quantity", "trade_type",
+        "timestamp_str", "stock_name", "close_price", "avg_price", "total_quantity", "trade_type",
         "reason", "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi", "krw_balance",
         "buy_logic_reasons", "sell_logic_reasons"
     ]
     columns_rename = {
         "timestamp_str": "날짜",
         "stock_name": "종목명",
+        "close_price": "종가",
         "avg_price": "평균단가",
         "total_quantity": "보유수량",
         "trade_type": "거래유형",
@@ -1375,7 +1377,7 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
 
     gb = GridOptionsBuilder.from_dataframe(results_df_display_ko)
 
-    int_columns = ["avg_price", "total_quantity", "realized_pnl", "unrealized_pnl", "krw_balance"]
+    int_columns = ["close_price", "avg_price", "total_quantity", "realized_pnl", "unrealized_pnl", "krw_balance"]
     float_columns = ["realized_roi", "unrealized_roi"]
 
     # 한글 컬럼명 리스트 생성
@@ -1441,7 +1443,7 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
         unrealized_pnl = (holding['close_price'] - holding['avg_price']) * holding['total_quantity']
         total_unrealized_pnl += unrealized_pnl
 
-        market_value = holding['avg_price'] * holding['total_quantity']
+        market_value = holding['close_price'] * holding['total_quantity']
         total_market_value += market_value
 
     total_buy_count = (results_df["trade_type"] == "BUY").sum()
@@ -1827,6 +1829,8 @@ def main():
         
         st.subheader("💰 매수 금액 설정 방식")
 
+        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital")
+
         target_method = st.radio(
             "매수 금액을 어떻게 설정할까요?",
             ["직접 입력", "자본 비율 (%)"],
@@ -1840,10 +1844,9 @@ def main():
             target_trade_value_ratio = None
         else:
             target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio') #마우스 커서로 왔다갔다 하는 기능
+            min_trade_value = st.number_input("💰 최소 매수금액 (KRW)", min_value=0, value=10000000, step=1000000, key=f"min_trade_value")
             target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
-
-        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital")
-            
+    
         # ✅ DB에서 종목 리스트 가져오기
         result = list(StockSymbol.scan(
             filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
