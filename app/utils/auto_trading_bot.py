@@ -1244,7 +1244,8 @@ class AutoTradingBot:
                         total_market_value += market_value
 
                     total_balance = global_state['krw_balance'] + total_market_value
-                    trade_amount = min(total_balance * (trade_ratio / 100), total_balance)
+                    # 비율로 계산된 값이 예수금보다 크면 예수금으로 제한
+                    trade_amount = min(total_balance * (trade_ratio / 100), global_state['krw_balance'])
 
                 # ✅ 매수 실행
                 if len(buy_logic_reasons) > 0:
