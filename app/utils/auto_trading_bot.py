@@ -1412,6 +1412,7 @@ class AutoTradingBot:
                 df = indicator.cal_ema_df(df, i['period'])
 
         # 지표 계산
+        df = indicator.cal_ema_df(df, 5)
         df = indicator.cal_ema_df(df, 10)
         df = indicator.cal_ema_df(df, 13)
         df = indicator.cal_ema_df(df, 20)
@@ -1639,7 +1640,7 @@ class AutoTradingBot:
                     buy_yn, _ = logic.ema_breakout_trading3(ohlc_df)
                     
                 elif trading_logic == 'ema_crossover_trading':
-                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df)
+                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df, resistance)
                     
                 elif trading_logic == 'anti_retail_ema_entry':
                     buy_yn, _ = logic.anti_retail_ema_entry(ohlc_df)
