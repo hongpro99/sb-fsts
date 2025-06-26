@@ -1402,7 +1402,7 @@ class AutoTradingBot:
         df.index = df.index.tz_localize(None)
         indicator = TechnicalIndicator()
         
-        lookback_prev = 5
+        lookback_prev = 10
         lookback_next = 5
 
         # 차트에 그리기 위한 지표 계산
@@ -1459,6 +1459,7 @@ class AutoTradingBot:
                 # 🔍 현재 row 위치
         current_idx = len(df) - 1
         lookback_next = 5
+        
         # ✅ 현재 시점까지 확정된 지지선만 사용
         support = self.get_latest_confirmed_support(df, current_idx=current_idx, lookback_next=lookback_next)
         resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx, lookback_next=lookback_next)
@@ -1639,7 +1640,7 @@ class AutoTradingBot:
                     buy_yn, _ = logic.ema_breakout_trading3(ohlc_df)
                     
                 elif trading_logic == 'ema_crossover_trading':
-                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df)
+                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df, resistance)
                     
                 elif trading_logic == 'anti_retail_ema_entry':
                     buy_yn, _ = logic.anti_retail_ema_entry(ohlc_df)
@@ -1651,10 +1652,10 @@ class AutoTradingBot:
                     buy_yn, _ = logic.should_buy(ohlc_df, high_trendline, resistance)
                     
                 elif trading_logic == 'should_buy_break_high_trend':
-                    buy_yn, _ = logic.should_buy_break_high_trend(ohlc_df, high_trendline, resistance)
+                    buy_yn, _ = logic.should_buy_break_high_trend(ohlc_df)
                     
                 elif trading_logic == 'weekly_trading':
-                    buy_yn, _ = logic.weekly_trading(ohlc_df)                    
+                    buy_yn, _ = logic.weekly_trading(ohlc_df, resistance)                    
                 
                 if buy_yn:
                     signal_reasons.append(trading_logic)

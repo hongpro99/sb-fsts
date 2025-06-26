@@ -1061,27 +1061,27 @@ def setup_simulation_tab():
         },
         {
             "type": "ema",
-            "period": 13,
+            "period": 10,
             "draw_yn": True,
             "color": "초록"
         },
         {
             "type": "ema",
-            "period": 21,
+            "period": 20,
             "draw_yn": True,
             "color": "파랑"
         },
         {
             "type": "ema",
-            "period": 55,
+            "period": 60,
             "draw_yn": True,
             "color": "노랑"
         },
         {
             "type": "ema",
-            "period": 89,
+            "period": 120,
             "draw_yn": True,
-            "color": "검정"
+            "color": "주황"
         },
     ]
 
@@ -1829,7 +1829,7 @@ def main():
         
         st.subheader("💰 매수 금액 설정 방식")
 
-        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital")
+        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=100_000_000, key=f"initial_capital")
 
         target_method = st.radio(
             "매수 금액을 어떻게 설정할까요?",
