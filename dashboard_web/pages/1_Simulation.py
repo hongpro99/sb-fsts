@@ -1181,6 +1181,7 @@ def setup_simulation_tab():
         "end_date": end_date,
         "target_trade_value_krw": target_trade_value_krw,
         "target_trade_value_ratio": target_trade_value_ratio,
+        "min_trade_value": min_trade_value,
         "kospi200": symbol_options,
         "symbol": symbol,
         "selected_stock": selected_stock,
@@ -1984,6 +1985,7 @@ def main():
                 "end_date": end_date,
                 "target_trade_value_krw": target_trade_value_krw,
                 "target_trade_value_ratio": target_trade_value_ratio,
+                "min_trade_value": min_trade_value,
                 "selected_stocks": selected_stocks, #이름만
                 "selected_symbols": selected_symbols, #이름+코드(key,value)
                 "interval": interval,
