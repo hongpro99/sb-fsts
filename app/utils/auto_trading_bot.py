@@ -1402,7 +1402,7 @@ class AutoTradingBot:
         df.index = df.index.tz_localize(None)
         indicator = TechnicalIndicator()
         
-        lookback_prev = 10
+        lookback_prev = 5
         lookback_next = 5
 
         # 차트에 그리기 위한 지표 계산
@@ -1656,7 +1656,10 @@ class AutoTradingBot:
                     buy_yn, _ = logic.should_buy_break_high_trend(ohlc_df)
                     
                 elif trading_logic == 'weekly_trading':
-                    buy_yn, _ = logic.weekly_trading(ohlc_df, resistance)                    
+                    buy_yn, _ = logic.weekly_trading(ohlc_df, resistance)
+                    
+                elif trading_logic == 'new_trading':
+                    buy_yn, _ = logic.new_trading(ohlc_df)                    
                 
                 if buy_yn:
                     signal_reasons.append(trading_logic)

@@ -14,73 +14,52 @@ class TradingLogic:
 ### -------------------------------------------------------------매수로직-------------------------------------------------------------
     def ema_breakout_trading(self, df, symbol):
         """
-        EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록 + 볼린저밴드 돌파 조건 추가
+        EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
+
         """
 
         if df.shape[0] < 2:
-            print("❌ 데이터가 부족해서 ema_breakout_trading 조건 계산 불가")
+            print("❌ 데이터가 부족해서 trend_entry_trading 조건 계산 불가")
             return False, None
 
         if 'Volume_MA5' not in df.columns:
             df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
-
+        
         last = df.iloc[-1]
         prev = df.iloc[-2]
         trade_date = last.name.date()
-
+        
         close_price = float(last['Close'])
         volume = float(last['Volume'])
 
-        # 조건 1: EMA 상향 돌파
+        # 조건 1: 거래대금 계산(30억 이상)
+        trade_value = close_price * volume
+
+        # 조건 2: EMA_10이 EMA_20 상향 돌파
         cross_up = (
-            prev['EMA_10'] < prev['EMA_20'] and
-            last['EMA_10'] > last['EMA_20']
+            prev['SMA_10'] <= prev['SMA_20'] and
+            last['SMA_10'] > last['SMA_20']
         )
 
-        # 조건 2: EMA 기울기
-        ema10_slope = last['EMA_10'] - prev['EMA_10']
-        ema20_slope = last['EMA_20'] - prev['EMA_20']
-        ema50_slope = last['EMA_55'] - prev['EMA_55']
-        ema60_slope = last['EMA_60'] - prev['EMA_60']
-        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0 
+        # 조건 3: EMA 기울기 양수
+        ema10_slope = last['SMA_5'] - prev['SMA_5']
+        ema20_slope = last['SMA_10'] - prev['SMA_10']
+        ema50_slope = last['SMA_20'] - prev['SMA_20']
+        ema60_slope = last['SMA_60'] - prev['SMA_60']
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
 
-        # 조건 3: 거래량 증가
+        # 조건 4: 거래량 증가
         volume_up = last['Volume'] > last['Volume_MA5']
         volume_up2 = last['Volume'] > prev['Volume']
-
-        # 조건 4: 윗꼬리 음봉 제외
-        is_bearish = last['Close'] < last['Open']
-        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        not_long_upper_shadow = upper_shadow_ratio <= 0.8 #50% 이하만 매수
-        long_upper_shadow = is_bearish
-
-        # 조건 5: 전일 종가 대비 20% 이상 상승 제외
-        # price_increase_ratio = (close_price - float(prev['Close'])) / float(prev['Close'])
-        # price_up_limit = price_increase_ratio < 0.2
-
-        # #✅ 조건 6: 고가 대비 종가 차이 5% 미만
-        # close_near_high = last['Close'] >= last['High'] * 0.95
         
-        # ✅ 조건 7: 볼린저밴드 돌파 조건 (중단선 or 상단선 돌파만 허용)
-        if prev['Close'] < prev['BB_Middle']:
-            valid_bollinger_breakout = last['Close'] > last['BB_Middle']
-        elif prev['Close'] < prev['BB_Upper']:
-            valid_bollinger_breakout = last['Close'] > last['BB_Upper']
-        else:
-            valid_bollinger_breakout = True
-
-        # ✅ 조건 7: 몸통 비율 ≥ 30%
-        # body_length = abs(last['Close'] - last['Open'])
-        # candle_range = last['High'] - last['Low'] + 1e-6
-        # body_ratio = body_length / candle_range
-        # body_sufficient = body_ratio >= 0.3
+        # ❌ 조건 5: 당일 윗꼬리 음봉 제외, 윗꼬리 조건 추가
+        is_bearish = last['Close'] > last['Open']
+        
+        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.8  # 윗꼬리 80% 이상이면 제외
     
-        # ✅ 최종 조건
-        buy_signal = (
-            cross_up and slope_up and volume_up and volume_up2 and
-            not long_upper_shadow and not_long_upper_shadow and
-            valid_bollinger_breakout
-        )
+        # 최종 조건
+        buy_signal = cross_up and slope_up and volume_up and is_bearish and volume_up2 and not_long_upper_shadow
 
         return buy_signal, None
     
@@ -281,9 +260,12 @@ class TradingLogic:
         recent_close_high = df['High'].iloc[-6:-1].max()
         cond8 = last['Close'] > recent_close_high
         
+        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.7  # 윗꼬리 80% 이상이면 제외
+        
         cond9 = last['Close'] > last_resistance
         # ✅ 최종 매수 조건
-        buy_signal = all([long_trend, crossover, not cond7, cond6, slope_up, volume_good, cond5, cond9])
+        buy_signal = all([long_trend, crossover, not cond7, cond6, slope_up, volume_good, cond5, cond9, not_long_upper_shadow])
         
         return buy_signal, None
     
@@ -537,7 +519,8 @@ class TradingLogic:
         is_bearish = last['Close'] > last['Open'] and prev['Close'] > prev['Open']
         
         upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        not_long_upper_shadow  = upper_shadow_ratio <= 0.8  # 윗꼬리 80% 이상이면 제외
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.7  # 윗꼬리 80% 이상이면 제외
+        
         
         # 고점 돌파 (최근 20일 고점)
         recent_high = df['High'].iloc[-16:-1].max()
@@ -599,6 +582,68 @@ class TradingLogic:
         buy_signal = cross_up and slope_up and volume_up and is_bearish and volume_up2 and not_long_upper_shadow
 
         return buy_signal, None
+    
+    def new_trading(self, df):
+        """
+        EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
+
+        """
+
+        if df.shape[0] < 2:
+            print("❌ 데이터가 부족해서 trend_entry_trading 조건 계산 불가")
+            return False, None
+
+        if 'Volume_MA5' not in df.columns:
+            df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        trade_date = last.name.date()
+        
+        close_price = float(last['Close'])
+        volume = float(last['Volume'])
+
+        # 조건 1: 거래대금 계산(30억 이상)
+        trade_value = close_price * volume
+
+        # 조건 2: EMA_10이 EMA_20 상향 돌파
+        cross_up = (
+            prev['EMA_10'] <= prev['EMA_20'] and
+            last['EMA_10'] > last['EMA_20']
+        )
+
+        # 조건 3: EMA 기울기 양수
+        ema10_slope = last['EMA_5'] - prev['EMA_5']
+        ema20_slope = last['EMA_10'] - prev['EMA_10']
+        ema50_slope = last['EMA_20'] - prev['EMA_20']
+        ema60_slope = last['EMA_60'] - prev['EMA_60']
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
+
+        # 조건 4: 거래량 증가
+        volume_up = last['Volume'] > last['Volume_MA5']
+        volume_up2 = last['Volume'] > prev['Volume']
+        
+        # ❌ 조건 5: 당일 윗꼬리 음봉 제외, 윗꼬리 조건 추가
+        is_bearish = last['Close'] > last['Open']
+        
+        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.7  # 윗꼬리 80% 이상이면 제외
+
+        # 윗꼬리, 아랫꼬리 계산
+        upper_wick = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        lower_wick = (min(last['Open'], last['Close']) - last['Low']) / (last['High'] - last['Low'] + 1e-6)
+    
+        gap_threshold = 0.05
+        # 조건 1: 전일 대비 시초가 갭업
+        gap_up = last['Open'] > prev['Close'] * (1 + gap_threshold)
+        
+        wick_ratio_threshold =0.4
+        has_long_wick = lower_wick >= wick_ratio_threshold
+        # 최종 조건
+        buy_signal = cross_up and slope_up and volume_up and is_bearish and volume_up2 and not_long_upper_shadow and not gap_up
+
+        return buy_signal, None
+    
     
     
     

@@ -866,7 +866,9 @@ def rename_tradingLogic(trade_history):
         elif entry.get('trading_logic') == 'should_buy_break_high_trend':
             entry['trading_logic'] =  'should_buy_break_high_trend'
         elif entry.get('trading_logic') == 'weekly_trading':
-            entry['trading_logic'] =  'weekly_trading'        
+            entry['trading_logic'] =  'weekly_trading'
+        elif entry.get('trading_logic') == 'new_trading':
+            entry['trading_logic'] =  'new_trading'                    
                         
 def login_page():
     """
