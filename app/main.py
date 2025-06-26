@@ -39,7 +39,7 @@ scheduler = BackgroundScheduler(timezone=timezone('Asia/Seoul'))
 #scheduler.add_job(auto_trading_scheduler.scheduled_trading_bnuazz15bot_real_task, 'cron', day_of_week='mon-fri', hour='15', minute='15')# 월~금 3시 10분에 실행
 scheduler.add_job(auto_trading_scheduler.scheduled_trading_schedulerbot_task, 'cron', day_of_week='mon-fri', hour='15', minute='10')  # 월~금 3시 10분에 실행
 scheduler.add_job(auto_trading_scheduler.scheduled_trading_dreaminmindbot_task, 'cron', day_of_week='mon-fri', hour='15', minute='10')  # 월~금 3시 10분에 실행
-scheduler.add_job(auto_trading_scheduler.scheduled_trading_bnuazz15bot_task, 'cron', day_of_week='mon-fri', hour='15', minute='00') # 월~금 3시 10분에 실행
+scheduler.add_job(auto_trading_scheduler.scheduled_trading_bnuazz15bot_task, 'cron', day_of_week='mon-fri', hour='14', minute='40') # 월~금 3시 10분에 실행
 scheduler.add_job(auto_trading_scheduler.scheduled_trading_weeklybot_task, 'cron', day_of_week='mon-fri', hour='14', minute='30')# 금 3시 10분에 실행(주봉)
 
 

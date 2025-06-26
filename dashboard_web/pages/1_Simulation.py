@@ -38,7 +38,7 @@ backend_base_url = os.getenv('BACKEND_BASE_URL')
 
 def draw_lightweight_chart(data_df, assets, indicators):
 
-    buy_signals = []    
+    buy_signals = []
     sell_signals = []
 
     holding = assets['account_holdings'][0]
@@ -865,8 +865,6 @@ def rename_tradingLogic(trade_history):
             entry['trading_logic'] =  'horizontal_low_sell'                         
         elif entry.get('trading_logic') == 'should_buy_break_high_trend':
             entry['trading_logic'] =  'should_buy_break_high_trend'
-        elif entry.get('trading_logic') == 'weekly_trading':
-            entry['trading_logic'] =  'weekly_trading'        
                         
 def login_page():
     """
@@ -1061,27 +1059,27 @@ def setup_simulation_tab():
         },
         {
             "type": "ema",
-            "period": 10,
+            "period": 13,
             "draw_yn": True,
             "color": "초록"
         },
         {
             "type": "ema",
-            "period": 20,
+            "period": 21,
             "draw_yn": True,
             "color": "파랑"
         },
         {
             "type": "ema",
-            "period": 60,
+            "period": 55,
             "draw_yn": True,
             "color": "노랑"
         },
         {
             "type": "ema",
-            "period": 120,
+            "period": 89,
             "draw_yn": True,
-            "color": "주황"
+            "color": "검정"
         },
     ]
 
@@ -1811,7 +1809,6 @@ def main():
             
             # TradingView 차트 그리기
             draw_lightweight_chart(data_df, assets, indicators)
-            
             # 결과 result
             draw_bulk_simulation_result(assets, simulation_histories, simulation_settings)
 
@@ -1829,7 +1826,7 @@ def main():
         
         st.subheader("💰 매수 금액 설정 방식")
 
-        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=100_000_000, key=f"initial_capital")
+        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital")
 
         target_method = st.radio(
             "매수 금액을 어떻게 설정할까요?",
