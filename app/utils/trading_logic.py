@@ -542,7 +542,7 @@ class TradingLogic:
         # 고점 돌파 (최근 20일 고점)
         recent_high = df['High'].iloc[-16:-1].max()
         cond15 = last['Close'] > recent_high
-        print(f"last_resistance: {last_resistance}")
+
         cond16 = last['Close'] > last_resistance
         # 최종 조건
         buy_signal = all([cross_up, slope_up, is_bearish, not_long_upper_shadow, volume_up , volume_up2, cond16 ])
