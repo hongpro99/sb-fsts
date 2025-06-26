@@ -38,7 +38,7 @@ backend_base_url = os.getenv('BACKEND_BASE_URL')
 
 def draw_lightweight_chart(data_df, assets, indicators):
 
-    buy_signals = []
+    buy_signals = []    
     sell_signals = []
 
     holding = assets['account_holdings'][0]
@@ -865,6 +865,10 @@ def rename_tradingLogic(trade_history):
             entry['trading_logic'] =  'horizontal_low_sell'                         
         elif entry.get('trading_logic') == 'should_buy_break_high_trend':
             entry['trading_logic'] =  'should_buy_break_high_trend'
+        elif entry.get('trading_logic') == 'weekly_trading':
+            entry['trading_logic'] =  'weekly_trading'
+        elif entry.get('trading_logic') == 'new_trading':
+            entry['trading_logic'] =  'new_trading'                    
                         
 def login_page():
     """
@@ -919,8 +923,7 @@ def setup_simulation_tab():
         target_trade_value_ratio = None
     else:
         target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio_single') #마우스 커서로 왔다갔다 하는 기능
-        min_trade_value = st.number_input("💰 최소 매수 금액 (KRW)", min_value=0, value=500_000, step=100_000, key=f"min_trade_value_single")
-        
+        min_trade_value = st.number_input("💰 최소 매수금액 (KRW)", min_value=0, value=10000000, step=1000000, key=f"min_trade_value_single")
         target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
 
     result = list(StockSymbol.scan(
@@ -1060,27 +1063,27 @@ def setup_simulation_tab():
         },
         {
             "type": "ema",
-            "period": 13,
+            "period": 10,
             "draw_yn": True,
             "color": "초록"
         },
         {
             "type": "ema",
-            "period": 21,
+            "period": 20,
             "draw_yn": True,
             "color": "파랑"
         },
         {
             "type": "ema",
-            "period": 55,
+            "period": 60,
             "draw_yn": True,
             "color": "노랑"
         },
         {
             "type": "ema",
-            "period": 89,
+            "period": 120,
             "draw_yn": True,
-            "color": "검정"
+            "color": "주황"
         },
     ]
 
@@ -1178,7 +1181,6 @@ def setup_simulation_tab():
         "end_date": end_date,
         "target_trade_value_krw": target_trade_value_krw,
         "target_trade_value_ratio": target_trade_value_ratio,
-        "min_trade_value": min_trade_value,
         "kospi200": symbol_options,
         "symbol": symbol,
         "selected_stock": selected_stock,
@@ -1730,7 +1732,6 @@ def main():
                     "end_date": simulation_settings["end_date"].isoformat(),
                     "target_trade_value_krw": simulation_settings["target_trade_value_krw"],
                     "target_trade_value_ratio": simulation_settings['target_trade_value_ratio'],
-                    "min_trade_value": simulation_settings["min_trade_value"],
                     "buy_trading_logic": simulation_settings["buy_trading_logic"],
                     "sell_trading_logic": simulation_settings["sell_trading_logic"],
                     "interval": simulation_settings["interval"],
@@ -1812,6 +1813,7 @@ def main():
             
             # TradingView 차트 그리기
             draw_lightweight_chart(data_df, assets, indicators)
+            
             # 결과 result
             draw_bulk_simulation_result(assets, simulation_histories, simulation_settings)
 
@@ -1829,7 +1831,7 @@ def main():
         
         st.subheader("💰 매수 금액 설정 방식")
 
-        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital")
+        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=100_000_000, key=f"initial_capital")
 
         target_method = st.radio(
             "매수 금액을 어떻게 설정할까요?",
@@ -1844,10 +1846,9 @@ def main():
             target_trade_value_ratio = None
         else:
             target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio') #마우스 커서로 왔다갔다 하는 기능
-            min_trade_value = st.number_input("💰 최소 매수 금액 (KRW)", min_value=0, value=500_000, step=100_000, key=f"min_trade_value")
-
+            min_trade_value = st.number_input("💰 최소 매수금액 (KRW)", min_value=0, value=10000000, step=1000000, key=f"min_trade_value")
             target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
-
+    
         # ✅ DB에서 종목 리스트 가져오기
         result = list(StockSymbol.scan(
             filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
@@ -1982,7 +1983,6 @@ def main():
                 "end_date": end_date,
                 "target_trade_value_krw": target_trade_value_krw,
                 "target_trade_value_ratio": target_trade_value_ratio,
-                "min_trade_value": min_trade_value,
                 "selected_stocks": selected_stocks, #이름만
                 "selected_symbols": selected_symbols, #이름+코드(key,value)
                 "interval": interval,
@@ -2017,7 +2017,6 @@ def main():
                     "end_date": simulation_settings['end_date'].isoformat(),
                     "target_trade_value_krw": simulation_settings['target_trade_value_krw'],
                     "target_trade_value_ratio": simulation_settings['target_trade_value_ratio'],
-                    "min_trade_value": simulation_settings['min_trade_value'],
                     "selected_stocks": simulation_settings['selected_stocks'],
                     "selected_symbols": simulation_settings['selected_symbols'],
                     "interval": simulation_settings['interval'],

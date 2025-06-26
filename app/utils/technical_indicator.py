@@ -294,8 +294,7 @@ class TechnicalIndicator:
         for prev_idx in past_highs:
             prev_x = df.index.get_loc(prev_idx) 
             prev_y = float(df.at[prev_idx, 'horizontal_high'])
-            print(f"prev_y: {prev_y}")
-            print(f"latest_y: {latest_y}")
+
 
 
             if latest_x <= prev_x:
@@ -355,15 +354,15 @@ class TechnicalIndicator:
                 }
 
         if best_info:
-            print("📌 [최종 의미 있는 추세선]")
-            print(f"   • 시작점: {best_info['prev_idx'].date()} (x={best_info['x1']}, y={best_info['y1']})")
-            print(f"   • 끝점  : {best_info['latest_idx'].date()} (x={best_info['x2']}, y={best_info['y2']})")
-            print(f"   • 기울기: {best_info['slope']:.4f}")
-            print(f"   • 평균 편차: {best_info['avg_deviation']:.2f}")
-            print(f"   • 연장된 y({current_idx})값: {best_info['trend_y']:.2f}")
+            # print("📌 [최종 의미 있는 추세선]")
+            # print(f"   • 시작점: {best_info['prev_idx'].date()} (x={best_info['x1']}, y={best_info['y1']})")
+            # print(f"   • 끝점  : {best_info['latest_idx'].date()} (x={best_info['x2']}, y={best_info['y2']})")
+            # print(f"   • 기울기: {best_info['slope']:.4f}")
+            # print(f"   • 평균 편차: {best_info['avg_deviation']:.2f}")
+            # print(f"   • 연장된 y({current_idx})값: {best_info['trend_y']:.2f}")
             return best_info['trend_y']
         else:
-            print("⚠️ 의미 있는 하락 추세선 없음")
+            # print("⚠️ 의미 있는 하락 추세선 없음")
             return None
 
 

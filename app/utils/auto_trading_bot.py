@@ -1412,6 +1412,7 @@ class AutoTradingBot:
                 df = indicator.cal_ema_df(df, i['period'])
 
         # 지표 계산
+        df = indicator.cal_ema_df(df, 5)
         df = indicator.cal_ema_df(df, 10)
         df = indicator.cal_ema_df(df, 13)
         df = indicator.cal_ema_df(df, 20)
@@ -1419,11 +1420,13 @@ class AutoTradingBot:
         df = indicator.cal_ema_df(df, 55)
         df = indicator.cal_ema_df(df, 60)
         df = indicator.cal_ema_df(df, 89)
-        df = indicator.cal_ema_df(df, 5)
+        df = indicator.cal_ema_df(df, 120)
         
         df = indicator.cal_sma_df(df, 5)
+        df = indicator.cal_sma_df(df, 10)
         df = indicator.cal_sma_df(df, 20)
         df = indicator.cal_sma_df(df, 40)
+        df = indicator.cal_sma_df(df, 60)
         df = indicator.cal_sma_df(df, 120)
         df = indicator.cal_sma_df(df, 200)
 
@@ -1637,7 +1640,7 @@ class AutoTradingBot:
                     buy_yn, _ = logic.ema_breakout_trading3(ohlc_df)
                     
                 elif trading_logic == 'ema_crossover_trading':
-                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df)
+                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df, resistance)
                     
                 elif trading_logic == 'anti_retail_ema_entry':
                     buy_yn, _ = logic.anti_retail_ema_entry(ohlc_df)
@@ -1649,8 +1652,14 @@ class AutoTradingBot:
                     buy_yn, _ = logic.should_buy(ohlc_df, high_trendline, resistance)
                     
                 elif trading_logic == 'should_buy_break_high_trend':
-                    buy_yn, _ = logic.should_buy_break_high_trend(ohlc_df, high_trendline, resistance)                    
-                              
+                    buy_yn, _ = logic.should_buy_break_high_trend(ohlc_df)
+                    
+                elif trading_logic == 'weekly_trading':
+                    buy_yn, _ = logic.weekly_trading(ohlc_df, resistance)
+                    
+                elif trading_logic == 'new_trading':
+                    buy_yn, _ = logic.new_trading(ohlc_df)                    
+                
                 if buy_yn:
                     signal_reasons.append(trading_logic)
         else:
