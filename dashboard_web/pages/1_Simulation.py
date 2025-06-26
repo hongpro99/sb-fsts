@@ -905,6 +905,8 @@ def setup_simulation_tab():
 
     st.subheader("💰 매수 금액 설정 방식")
 
+    initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital_single")
+
     target_method = st.radio(
         "매수 금액을 어떻게 설정할까요?",
         ["직접 입력", "자본 비율 (%)"],
@@ -917,9 +919,9 @@ def setup_simulation_tab():
         target_trade_value_ratio = None
     else:
         target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio_single') #마우스 커서로 왔다갔다 하는 기능
+        min_trade_value = st.number_input("💰 최소 매수 금액 (KRW)", min_value=0, value=500_000, step=100_000, key=f"min_trade_value_single")
+        
         target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
-
-    initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital_single")
 
     result = list(StockSymbol.scan(
         filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150') | (StockSymbol.type == 'NASDAQ') | (StockSymbol.type == 'etf') )
@@ -1002,8 +1004,6 @@ def setup_simulation_tab():
     #mode
     ohlc_mode_checkbox = st.checkbox("차트 연결 모드")  # True / False 반환
     ohlc_mode = "continuous" if ohlc_mode_checkbox else "default"
-    
-    initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10000000, step=1000000)
         
     use_take_profit = st.checkbox("익절 조건 사용", value=True)
     if use_take_profit:
@@ -1178,6 +1178,7 @@ def setup_simulation_tab():
         "end_date": end_date,
         "target_trade_value_krw": target_trade_value_krw,
         "target_trade_value_ratio": target_trade_value_ratio,
+        "min_trade_value": min_trade_value,
         "kospi200": symbol_options,
         "symbol": symbol,
         "selected_stock": selected_stock,
@@ -1729,6 +1730,7 @@ def main():
                     "end_date": simulation_settings["end_date"].isoformat(),
                     "target_trade_value_krw": simulation_settings["target_trade_value_krw"],
                     "target_trade_value_ratio": simulation_settings['target_trade_value_ratio'],
+                    "min_trade_value": simulation_settings["min_trade_value"],
                     "buy_trading_logic": simulation_settings["buy_trading_logic"],
                     "sell_trading_logic": simulation_settings["sell_trading_logic"],
                     "interval": simulation_settings["interval"],
@@ -1827,6 +1829,8 @@ def main():
         
         st.subheader("💰 매수 금액 설정 방식")
 
+        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital")
+
         target_method = st.radio(
             "매수 금액을 어떻게 설정할까요?",
             ["직접 입력", "자본 비율 (%)"],
@@ -1840,10 +1844,10 @@ def main():
             target_trade_value_ratio = None
         else:
             target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio') #마우스 커서로 왔다갔다 하는 기능
+            min_trade_value = st.number_input("💰 최소 매수 금액 (KRW)", min_value=0, value=500_000, step=100_000, key=f"min_trade_value")
+
             target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
 
-        initial_capital = st.number_input("💰 초기 투자 자본 (KRW)", min_value=0, value=10_000_000, step=1_000_000, key=f"initial_capital")
-            
         # ✅ DB에서 종목 리스트 가져오기
         result = list(StockSymbol.scan(
             filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
@@ -1978,6 +1982,7 @@ def main():
                 "end_date": end_date,
                 "target_trade_value_krw": target_trade_value_krw,
                 "target_trade_value_ratio": target_trade_value_ratio,
+                "min_trade_value": min_trade_value,
                 "selected_stocks": selected_stocks, #이름만
                 "selected_symbols": selected_symbols, #이름+코드(key,value)
                 "interval": interval,
@@ -2012,6 +2017,7 @@ def main():
                     "end_date": simulation_settings['end_date'].isoformat(),
                     "target_trade_value_krw": simulation_settings['target_trade_value_krw'],
                     "target_trade_value_ratio": simulation_settings['target_trade_value_ratio'],
+                    "min_trade_value": simulation_settings['min_trade_value'],
                     "selected_stocks": simulation_settings['selected_stocks'],
                     "selected_symbols": simulation_settings['selected_symbols'],
                     "interval": simulation_settings['interval'],

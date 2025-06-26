@@ -8,6 +8,7 @@ class SimulationTradingBulkModel(BaseModel):
     end_date: str
     target_trade_value_krw: Optional[int]
     target_trade_value_ratio: Optional[float]
+    min_trade_value: Optional[int]
     selected_stocks: List[str]
     selected_symbols: Dict[str, str]
     interval: str

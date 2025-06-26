@@ -66,6 +66,7 @@ async def simulate_single_trade(data: SimulationTradingModel):
         end_date=end_date,
         target_trade_value_krw=simulation_data.get("target_trade_value_krw"),
         target_trade_value_ratio=simulation_data.get("target_trade_value_ratio"),
+        min_trade_value=simulation_data.get("min_trade_value"),
         buy_trading_logic=simulation_data["buy_trading_logic"],
         sell_trading_logic=simulation_data["sell_trading_logic"],
         interval=simulation_data["interval"],
