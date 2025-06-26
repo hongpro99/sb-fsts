@@ -549,7 +549,7 @@ class AutoTradingBot:
                     total_market_value += market_value
 
                 total_balance = global_state['krw_balance'] + total_market_value
-                trade_amount = min(total_balance * (trade_ratio / 100), total_balance)
+                trade_amount = min(total_balance * (trade_ratio / 100), global_state['krw_balance'])
 
             # ✅ 매수 실행
             if len(buy_logic_reasons) > 0 and min_trade_value <= trade_amount: # 최소 금액 이상일 때
@@ -931,7 +931,7 @@ class AutoTradingBot:
         trade_ratio = simulation_settings.get("target_trade_value_ratio", 100)
         target_trade_value_krw = simulation_settings.get("target_trade_value_krw")
         min_trade_value = simulation_settings.get("min_trade_value", 0)
-        
+
         account_holdings = []
         simulation_histories = []
 
@@ -1247,7 +1247,7 @@ class AutoTradingBot:
                         total_market_value += market_value
 
                     total_balance = global_state['krw_balance'] + total_market_value
-                    trade_amount = min(total_balance * (trade_ratio / 100), total_balance)
+                    trade_amount = min(total_balance * (trade_ratio / 100), global_state['krw_balance'])
 
                 # ✅ 매수 실행
                 if len(buy_logic_reasons) > 0 and min_trade_value <= trade_amount:
