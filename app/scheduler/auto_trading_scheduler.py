@@ -57,6 +57,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
     # ✅ 거래대금 기준 정렬 함수
     def get_estimated_trade_value(stock):
         try:
+            
             symbol = stock.symbol
 
             # OHLC 데이터 가져오기 (최신 종가용)

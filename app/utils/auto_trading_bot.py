@@ -230,7 +230,7 @@ class AutoTradingBot:
     
 
     def simulate_trading(
-            self, symbol, stock_name, start_date, end_date, target_trade_value_krw, target_trade_value_ratio, buy_trading_logic=None, sell_trading_logic=None,
+            self, symbol, stock_name, start_date, end_date, target_trade_value_krw, target_trade_value_ratio, min_trade_value, buy_trading_logic=None, sell_trading_logic=None,
             interval='day', buy_percentage = None, ohlc_mode = 'default', initial_capital=None, rsi_period = 25, take_profit_logic=None, 
             stop_loss_logic=None, indicators=None
         ):
@@ -533,11 +533,11 @@ class AutoTradingBot:
                 resistance = resistance,
                 high_trendline = high_trendline
             )
-            print(f"buy_logic_reasons: {buy_logic_reasons}")
-            
+
             # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
             if target_trade_value_krw and target_trade_value_krw > 0:
                 trade_amount = min(target_trade_value_krw, global_state['krw_balance'])
+                min_trade_value = 0 # 고정 금액의 경우 min_trade_value는 무시
             else:
                 trade_ratio = trade_ratio if trade_ratio is not None else 100
                 
@@ -552,7 +552,7 @@ class AutoTradingBot:
                 trade_amount = min(total_balance * (trade_ratio / 100), total_balance)
 
             # ✅ 매수 실행
-            if len(buy_logic_reasons) > 0:
+            if len(buy_logic_reasons) > 0 and min_trade_value <= trade_amount: # 최소 금액 이상일 때
                 buy_quantity = math.floor(trade_amount / close_price)
                 cost = buy_quantity * close_price
                 fee = cost * 0.00014
@@ -930,7 +930,8 @@ class AutoTradingBot:
         symbols = valid_symbols
         trade_ratio = simulation_settings.get("target_trade_value_ratio", 100)
         target_trade_value_krw = simulation_settings.get("target_trade_value_krw")
-
+        min_trade_value = simulation_settings.get("min_trade_value", 0)
+        
         account_holdings = []
         simulation_histories = []
 
@@ -1235,6 +1236,7 @@ class AutoTradingBot:
                 # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
                 if target_trade_value_krw and target_trade_value_krw > 0:
                     trade_amount = min(target_trade_value_krw, global_state['krw_balance'])
+                    min_trade_value = 0 # 고정 금액의 경우 min_trade_value는 무시
                 else:
                     trade_ratio = trade_ratio if trade_ratio is not None else 100
                     
@@ -1245,11 +1247,10 @@ class AutoTradingBot:
                         total_market_value += market_value
 
                     total_balance = global_state['krw_balance'] + total_market_value
-                    # 비율로 계산된 값이 예수금보다 크면 예수금으로 제한
-                    trade_amount = min(total_balance * (trade_ratio / 100), global_state['krw_balance'])
+                    trade_amount = min(total_balance * (trade_ratio / 100), total_balance)
 
                 # ✅ 매수 실행
-                if len(buy_logic_reasons) > 0:
+                if len(buy_logic_reasons) > 0 and min_trade_value <= trade_amount:
                     buy_quantity = math.floor(trade_amount / close_price)
                     cost = buy_quantity * close_price
                     fee = cost * 0.00014
@@ -1411,12 +1412,10 @@ class AutoTradingBot:
                 df = indicator.cal_ema_df(df, i['period'])
 
         # 지표 계산
-        df = indicator.cal_ema_df(df, 5)
         df = indicator.cal_ema_df(df, 10)
         df = indicator.cal_ema_df(df, 13)
         df = indicator.cal_ema_df(df, 20)
         df = indicator.cal_ema_df(df, 21)
-        df = indicator.cal_ema_df(df, 50)
         df = indicator.cal_ema_df(df, 55)
         df = indicator.cal_ema_df(df, 60)
         df = indicator.cal_ema_df(df, 89)
@@ -1460,7 +1459,6 @@ class AutoTradingBot:
                 # 🔍 현재 row 위치
         current_idx = len(df) - 1
         lookback_next = 5
-        
         # ✅ 현재 시점까지 확정된 지지선만 사용
         support = self.get_latest_confirmed_support(df, current_idx=current_idx, lookback_next=lookback_next)
         resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx, lookback_next=lookback_next)
@@ -1641,7 +1639,7 @@ class AutoTradingBot:
                     buy_yn, _ = logic.ema_breakout_trading3(ohlc_df)
                     
                 elif trading_logic == 'ema_crossover_trading':
-                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df, resistance)
+                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df)
                     
                 elif trading_logic == 'anti_retail_ema_entry':
                     buy_yn, _ = logic.anti_retail_ema_entry(ohlc_df)
