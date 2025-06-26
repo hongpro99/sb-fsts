@@ -923,7 +923,7 @@ def setup_simulation_tab():
         target_trade_value_ratio = None
     else:
         target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio_single') #마우스 커서로 왔다갔다 하는 기능
-        min_trade_value = st.number_input("💰 최소 매수금액 (KRW)", min_value=0, value=10000000, step=1000000, key=f"min_trade_value_single")
+        min_trade_value = st.number_input("💰 최소 매수금액 (KRW)", min_value=0, value=500000, step=1000000, key=f"min_trade_value_single")
         target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
 
     result = list(StockSymbol.scan(
@@ -1732,6 +1732,7 @@ def main():
                     "end_date": simulation_settings["end_date"].isoformat(),
                     "target_trade_value_krw": simulation_settings["target_trade_value_krw"],
                     "target_trade_value_ratio": simulation_settings['target_trade_value_ratio'],
+                    "min_trade_value": simulation_settings["min_trade_value"],
                     "buy_trading_logic": simulation_settings["buy_trading_logic"],
                     "sell_trading_logic": simulation_settings["sell_trading_logic"],
                     "interval": simulation_settings["interval"],
@@ -1846,7 +1847,7 @@ def main():
             target_trade_value_ratio = None
         else:
             target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio') #마우스 커서로 왔다갔다 하는 기능
-            min_trade_value = st.number_input("💰 최소 매수금액 (KRW)", min_value=0, value=10000000, step=1000000, key=f"min_trade_value")
+            min_trade_value = st.number_input("💰 최소 매수금액 (KRW)", min_value=0, value=500000, step=1000000, key=f"min_trade_value")
             target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
     
         # ✅ DB에서 종목 리스트 가져오기
@@ -2017,6 +2018,7 @@ def main():
                     "end_date": simulation_settings['end_date'].isoformat(),
                     "target_trade_value_krw": simulation_settings['target_trade_value_krw'],
                     "target_trade_value_ratio": simulation_settings['target_trade_value_ratio'],
+                    "min_trade_value": simulation_settings['min_trade_value'],
                     "selected_stocks": simulation_settings['selected_stocks'],
                     "selected_symbols": simulation_settings['selected_symbols'],
                     "interval": simulation_settings['interval'],
