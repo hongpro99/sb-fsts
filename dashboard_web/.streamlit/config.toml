@@ -1,8 +1,2 @@
 [theme]
 base = "dark"
-
-[server]
-runOnSave = false
-headless = true
-enableWebsocketCompression = false
-maxUploadSize = 100
