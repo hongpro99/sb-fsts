@@ -921,6 +921,7 @@ def setup_simulation_tab():
     if target_method == "직접 입력":
         target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000, key=f'target_trade_value_krw_single')
         target_trade_value_ratio = None
+        min_trade_value = 0
     else:
         target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio_single') #마우스 커서로 왔다갔다 하는 기능
         min_trade_value = st.number_input("💰 최소 매수금액 (KRW)", min_value=0, value=500000, step=1000000, key=f"min_trade_value_single")
@@ -973,6 +974,8 @@ def setup_simulation_tab():
     # 사용 예시
     available_buy_logic = trading_logic["available_buy_logic"]
     available_sell_logic = trading_logic["available_sell_logic"]
+    available_take_profit_logic = trading_logic["available_take_profit_logic"]
+    available_stop_loss_logic = trading_logic["available_stop_loss_logic"]
     
     selected_stock = st.selectbox("Select a Stock", list(symbol_options.keys()))
     selected_interval = st.selectbox("Select Chart Interval", list(interval_options.keys()))
@@ -1010,18 +1013,22 @@ def setup_simulation_tab():
         
     use_take_profit = st.checkbox("익절 조건 사용", value=True)
     if use_take_profit:
-        selected_take_profit_logic = st.selectbox("익절 방식 선택", ['절대 비율'])
+        selected_take_profit_logic = st.selectbox("익절 방식 선택", list(available_take_profit_logic.keys()))
         take_profit_ratio = st.number_input("익절 기준 (%)", value=5.0, min_value=0.0)
+
+        take_profit_logic_name = available_take_profit_logic[selected_take_profit_logic]
         
-        take_profit_logic['name'] = selected_take_profit_logic
+        take_profit_logic['name'] = take_profit_logic_name
         take_profit_logic['params']['ratio'] = take_profit_ratio
 
     use_stop_loss = st.checkbox("손절 조건 사용", value=True)
     if use_stop_loss:
-        selected_stop_loss_logic = st.selectbox("손절 방식 선택", ['절대 비율'])
-        stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0) 
+        selected_stop_loss_logic = st.selectbox("손절 방식 선택", list(available_stop_loss_logic.keys()))
+        stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0)
 
-        stop_loss_logic['name'] = selected_stop_loss_logic
+        stop_loss_logic_name = available_stop_loss_logic[selected_stop_loss_logic]
+
+        stop_loss_logic['name'] = stop_loss_logic_name
         stop_loss_logic['params']['ratio'] = stop_loss_ratio
         
     #✅ rsi 조건값 입력
@@ -1327,6 +1334,8 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
 
     buy_trading_logic = simulation_settings["buy_trading_logic"]
     sell_trading_logic = simulation_settings["sell_trading_logic"]
+    # take_profit_logic = simulation_settings["take_profit_logic"]
+    # stop_loss_logic = simulation_settings["stop_loss_logic"]
 
     # 코드 기준으로 필요한 항목만 필터링
     filtered_buy_logic = {
@@ -1649,14 +1658,6 @@ def main():
             st.rerun()  # 로그아웃 후 페이지 새로고침
             
     st.title("FSTS SIMULATION")
-    # 상단에 3등분 컬럼 만들기
-    # col1, col2, col3 = st.columns([6, 1, 1])
-
-    # with col3:
-    #     if st.button("LOGOUT"):
-    #         st.session_state["authenticated"] = False
-    #         st.query_params = {"page" : "login", "login": "false"}
-    #         st.rerun()  # 로그아웃 후 페이지 새로고침
     
     # 탭 생성
     tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "📊 Simulation Result", "📈Auto Trading Bot Balance", "🏆Ranking", "Setting"])
@@ -1846,6 +1847,7 @@ def main():
         if target_method == "직접 입력":
             target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000, key=f'target_trade_value_krw')
             target_trade_value_ratio = None
+            min_trade_value = 0
         else:
             target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio') #마우스 커서로 왔다갔다 하는 기능
             min_trade_value = st.number_input("💰 최소 매수금액 (KRW)", min_value=0, value=500000, step=1000000, key=f"min_trade_value")
@@ -1943,6 +1945,8 @@ def main():
 
         available_buy_logic = trading_logic["available_buy_logic"]
         available_sell_logic = trading_logic["available_sell_logic"]
+        available_take_profit_logic = trading_logic["available_take_profit_logic"]
+        available_stop_loss_logic = trading_logic["available_stop_loss_logic"]
 
         # ✅ 매수/매도 전략 선택
         selected_buy_logic = st.multiselect("📈 매수 로직 선택", list(available_buy_logic.keys()), key="selected_buy_logic")
@@ -1958,14 +1962,36 @@ def main():
         # ✅ 매수 퍼센트 입력
         if buy_condition_yn:
             buy_percentage = st.number_input("💵 퍼센트 (%) 입력", min_value=0.0, max_value=100.0, value=3.0, step=0.1, key="buy_percentage")
-            
+        
+        # 익절/손절 세팅
+        take_profit_logic = {
+            'name': None,
+            'params': {}
+        }
+        stop_loss_logic = {
+            'name': None,
+            'params': {}
+        }
+        
         use_take_profit = st.checkbox("익절 조건 사용", value=True, key="use_take_profit")
-        selected_take_profit_logic = st.selectbox("익절 방식 선택", ['절대 비율'], key="selected_take_profit_logic")
-        take_profit_ratio = st.number_input("익절 기준 (%)", value=5.0, min_value=0.0, key="take_profit_ratio")
+        if use_take_profit:
+            selected_take_profit_logic = st.selectbox("익절 방식 선택", list(available_take_profit_logic.keys()), key="selected_take_profit_logic")
+            take_profit_ratio = st.number_input("익절 기준 (%)", value=5.0, min_value=0.0, key="take_profit_ratio")
+
+            take_profit_logic_name = available_take_profit_logic[selected_take_profit_logic]
+            
+            take_profit_logic['name'] = take_profit_logic_name
+            take_profit_logic['params']['ratio'] = take_profit_ratio
 
         use_stop_loss = st.checkbox("손절 조건 사용", value=True, key="use_stop_loss")
-        selected_stop_loss_logic = st.selectbox("손절 방식 선택", ['절대 비율'], key="selected_stop_loss_logic")
-        stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0, key="stop_loss_ratio")        
+        if use_stop_loss:
+            selected_stop_loss_logic = st.selectbox("손절 방식 선택", list(available_stop_loss_logic.keys()), key="selected_stop_loss_logic")
+            stop_loss_ratio = st.number_input("손절 기준 (%)", value=5.0, min_value=0.0, key="stop_loss_ratio")
+
+            stop_loss_logic_name = available_stop_loss_logic[selected_stop_loss_logic]
+
+            stop_loss_logic['name'] = stop_loss_logic_name
+            stop_loss_logic['params']['ratio'] = stop_loss_ratio     
 
         #✅ rsi 조건값 입력
         st.subheader("🎯 RSI 조건값 설정")
@@ -1997,10 +2023,8 @@ def main():
                 "rsi_buy_threshold" : rsi_buy_threshold,
                 "rsi_sell_threshold" : rsi_sell_threshold,
                 "rsi_period" : rsi_period,
-                "use_take_profit": use_take_profit,
-                "take_profit_ratio": take_profit_ratio,
-                "use_stop_loss": use_stop_loss,
-                "stop_loss_ratio" : stop_loss_ratio 
+                "take_profit_logic": take_profit_logic,
+                "stop_loss_logic": stop_loss_logic,
             }
 
             # ✅ 저장된 설정 확인
@@ -2032,10 +2056,8 @@ def main():
                     "rsi_buy_threshold": simulation_settings['rsi_buy_threshold'],
                     "rsi_sell_threshold": simulation_settings['rsi_sell_threshold'],
                     "rsi_period": simulation_settings['rsi_period'],
-                    "use_take_profit": simulation_settings['use_take_profit'],
-                    "take_profit_ratio": simulation_settings['take_profit_ratio'],
-                    "use_stop_loss": simulation_settings['use_stop_loss'],
-                    "stop_loss_ratio": simulation_settings['stop_loss_ratio']
+                    "take_profit_logic": simulation_settings['take_profit_logic'],
+                    "stop_loss_logic": simulation_settings['stop_loss_logic'],
                 }
 
                 response = requests.post(url, json=payload).json()

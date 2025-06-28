@@ -33,5 +33,13 @@
         "볼린저밴드 이탈": "break_prev_low",
         "지지선": "sell_on_support_break",
         "horizontal_low_sell": "horizontal_low_sell"        
+    },
+    "available_take_profit_logic": {
+        "고정 비율": "fixed_ratio",
+        "트레일링": "trailing"
+    },
+    "available_stop_loss_logic": {
+        "고정 비율": "fixed_ratio",
+        "트레일링": "trailing"
     }
 }
