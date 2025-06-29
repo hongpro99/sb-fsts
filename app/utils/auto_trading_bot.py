@@ -1314,37 +1314,55 @@ class AutoTradingBot:
     
 
     # 실시간 매매 함수
-    def trade(self, trading_bot_name, buy_trading_logic, sell_trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw, interval='day', max_allocation = 0.01,  take_profit_threshold: float = 5.0,   # 퍼센트 단위
-    stop_loss_threshold: float = 1.0, use_take_profit: bool = True, use_stop_loss: bool = True):
-        #buy_trading_logic, sell_trading_logic => list
+    def trade(self, trading_bot_name, buy_trading_logic, sell_trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw, target_trade_value_ratio, interval='day', max_allocation = 0.01,  take_profit_logic=None, stop_loss_logic=None):
         
+        # 익절, 손절 로직 별 다양화
+        if take_profit_logic['name'] is None:
+            use_take_profit = False
+            take_profit_ratio = 0
+        else:
+            use_take_profit = True
+            take_profit_logic_name = take_profit_logic['name']
+            take_profit_ratio = take_profit_logic['params']['ratio']
+
+        if stop_loss_logic['name'] is None:
+            use_stop_loss = False
+            stop_loss_ratio = 0
+        else:
+            use_stop_loss = True
+            stop_loss_logic_name = stop_loss_logic['name']
+            stop_loss_ratio = stop_loss_logic['params']['ratio']
+
+        trade_ratio = target_trade_value_ratio  # None 이면 직접 입력 방식
+
         ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
         rsi_period = 25  # 임시
         df = self._create_ohlc_df(ohlc_data=ohlc_data, rsi_period=rsi_period)
         
-                # 🔍 현재 row 위치
+        # 🔍 현재 row 위치
         current_idx = len(df) - 1
+
         lookback_next = 5
         # ✅ 현재 시점까지 확정된 지지선만 사용
         support = self.get_latest_confirmed_support(df, current_idx=current_idx, lookback_next=lookback_next)
         resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx, lookback_next=lookback_next)
         high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=current_idx, lookback_next=lookback_next)
-        
-        # 볼린저 밴드 계산용 종가 리스트
-        close_prices = df['Close'].tolist()
-        
+            
         # 마지막 봉 기준 데이터 추출
         candle = ohlc_data[-1]
-        candle_time = candle.time
+        close_price = float(candle.close)
+
+        timestamp_str = candle.time.date().isoformat()
+
         last = df.iloc[-1]
         prev = df.iloc[-2]
 
-        close_price = float(last['Close'])
-        prev_price = float(prev['Close'])
-        close_open_price = float(last['Open'])
         volume = float(last['Volume'])
-        previous_closes = df['Close'].iloc[:-1].tolist()
 
+        #익절, 손절
+        take_profit_hit = False
+        stop_loss_hit = False
+        
         buy_logic_reasons = []
         sell_logic_reasons = []
 

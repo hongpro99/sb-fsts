@@ -504,7 +504,7 @@ def draw_lightweight_chart(data_df, assets, indicators):
         if "horizontal_low" in indicator['name']:
             seriesCandlestickChart.extend(create_horizontal_line_segments(low_lines, candles))
                 
-                    # 조건에 따라 시리즈에 추가
+        # 조건에 따라 시리즈에 추가
         if "high_trendline" in indicator['name'] and high_trendline:
             seriesCandlestickChart.append(high_trendline)
 
@@ -782,93 +782,6 @@ def remove_similar_levels(levels, threshold=0.01):
             filtered.append(level)
     return filtered
 
-
-def rename_tradingLogic(trade_history):
-    for entry in trade_history:
-        if entry.get('trading_logic') == 'rsi_trading':  # history에 있는 로직 이름 변경
-            entry['trading_logic'] = 'rsi 확인'
-        elif entry.get('trading_logic') == 'check_wick':
-            entry['trading_logic'] = '꼬리 확인'
-        elif entry.get('trading_logic') == 'penetrating':
-            entry['trading_logic'] = '관통형'
-        elif entry.get('trading_logic') == 'morning_star':
-            entry['trading_logic'] = '샛별형'
-        elif entry.get('trading_logic') == 'doji_star':
-            entry['trading_logic'] = '상승도지스타'
-        elif entry.get('trading_logic') == 'harami':
-            entry['trading_logic'] = '상승잉태형'
-        elif entry.get('trading_logic') == 'engulfing':
-            entry['trading_logic'] = '상승장악형'
-        elif entry.get('trading_logic') == 'engulfing2':
-            entry['trading_logic'] = '상승장악형2'
-        elif entry.get('trading_logic') == 'counterattack':
-            entry['trading_logic'] = '상승반격형'
-        elif entry.get('trading_logic') == 'down_engulfing':
-            entry['trading_logic'] = '하락장악형'
-        elif entry.get('trading_logic') == 'down_engulfing2':
-            entry['trading_logic'] = '하락장악형2'    
-        elif entry.get('trading_logic') == 'down_counterattack':
-            entry['trading_logic'] = '하락반격형'
-        elif entry.get('trading_logic') == 'down_harami':
-            entry['trading_logic'] = '하락잉태형'
-        elif entry.get('trading_logic') == 'down_doji_star':
-            entry['trading_logic'] = '하락도지스타'
-        elif entry.get('trading_logic') == 'evening_star':
-            entry['trading_logic'] = '석별형'
-        elif entry.get('trading_logic') == 'dark_cloud':
-            entry['trading_logic'] = '흑운형'
-        elif entry.get('trading_logic') == 'mfi_trading':
-            entry['trading_logic'] = 'mfi 확인'
-        elif entry.get('trading_logic') == 'stochastic_trading':
-            entry['trading_logic'] = '스토캐스틱'
-        elif entry.get('trading_logic') == 'macd_trading':
-            entry['trading_logic'] = 'macd 확인'
-        elif entry.get('trading_logic') == 'rsi+mfi':
-            entry['trading_logic'] = 'rsi+mfi'
-        elif entry.get('trading_logic') == 'ema_breakout_trading':
-            entry['trading_logic'] = '상승추세형2'
-        elif entry.get('trading_logic') == 'bollinger_band_trading':
-            entry['trading_logic'] = '볼린저밴드 매매'
-        elif entry.get('trading_logic') == 'bollinger+ema':
-            entry['trading_logic'] = '볼린저+지수이동평균선'
-        elif entry.get('trading_logic') == 'ema_breakout_trading2':
-            entry['trading_logic'] = '지수이동평균선 확인2'
-        elif entry.get('trading_logic') == 'trend_entry_trading':
-            entry['trading_logic'] = '상승추세형 매수'
-        elif entry.get('trading_logic') == 'bottom_rebound_trading':
-            entry['trading_logic'] =  '저점반등형 매수'
-        elif entry.get('trading_logic') == 'top_reversal_sell_trading':
-            entry['trading_logic'] =  '고점반락형 매도'
-        elif entry.get('trading_logic') == 'downtrend_sell_trading':
-            entry['trading_logic'] =  '하락추세형 매도'
-        elif entry.get('trading_logic') == 'sma_breakout_trading':
-            entry['trading_logic'] =  '단순이동평균'
-        elif entry.get('trading_logic') == 'ema_breakout_trading3':
-            entry['trading_logic'] =  '상승추세형3'
-        elif entry.get('trading_logic') == 'rsi_trading2':
-            entry['trading_logic'] =  'rsi2'
-        elif entry.get('trading_logic') == 'ema_crossover_trading':
-            entry['trading_logic'] =  '눌림'
-        elif entry.get('trading_logic') == 'should_sell':
-            entry['trading_logic'] =  '추세 손절'
-        elif entry.get('trading_logic') == 'break_prev_low':
-            entry['trading_logic'] =  '볼린저밴드 이탈'
-        elif entry.get('trading_logic') == 'sell_on_support_break':
-            entry['trading_logic'] =  '지지선'
-        elif entry.get('trading_logic') == 'anti_retail_ema_entry':
-            entry['trading_logic'] =  '반개미'                                                                                                                                                                            
-        elif entry.get('trading_logic') == 'trendline_breakout_trading':
-            entry['trading_logic'] =  '고점 돌파'
-        elif entry.get('trading_logic') == 'should_buy':
-            entry['trading_logic'] =  'should_buy'
-        elif entry.get('trading_logic') == 'horizontal_low_sell':
-            entry['trading_logic'] =  'horizontal_low_sell'                         
-        elif entry.get('trading_logic') == 'should_buy_break_high_trend':
-            entry['trading_logic'] =  'should_buy_break_high_trend'
-        elif entry.get('trading_logic') == 'weekly_trading':
-            entry['trading_logic'] =  'weekly_trading'
-        elif entry.get('trading_logic') == 'new_trading':
-            entry['trading_logic'] =  'new_trading'                    
                         
 def login_page():
     """
@@ -2115,6 +2028,7 @@ def main():
             "completed_task_cnt": [],
             "total_task_cnt": [],
             "trigger_type": [],
+            "trigger_user": [],
             "status": [],
             "description": []
         }
@@ -2132,6 +2046,7 @@ def main():
             data["completed_task_cnt"].append(row.completed_task_cnt)
             data["total_task_cnt"].append(row.total_task_cnt)
             data["trigger_type"].append(row.trigger_type)
+            data["trigger_user"].append(row.trigger_user)
             data["status"].append(row.status)
             data["description"].append(row.description)
 

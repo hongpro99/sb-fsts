@@ -1,6 +1,5 @@
 {
     "available_buy_logic": {
-        "rsi 확인": "rsi_trading",
         "꼬리 확인": "check_wick",
         "스토캐스틱" : "stochastic_trading",
         "macd 확인" : "macd_trading",
@@ -21,7 +20,6 @@
         
     },
     "available_sell_logic": {
-        "rsi 확인": "rsi_trading",
         "꼬리 확인": "check_wick",
         "스토캐스틱" : "stochastic_trading",
         "macd 확인" : "macd_trading",
