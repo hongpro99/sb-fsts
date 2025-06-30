@@ -205,14 +205,21 @@ async def post_price_change_selected(data: SymbolRequestModel):
     end_date = today
     print(start_date, end_date)
 
-    symbol_name_map = {}
-    for item in list(StockSymbol.scan()) + list(StockSymbol2.scan()):
-        symbol_name_map[item.symbol] = item.symbol_name
+    # ✅ symbol → name, type 매핑 준비
+    symbol_info_map = {}
 
+    for item in list(StockSymbol.scan()) + list(StockSymbol2.scan()):
+        symbol_info_map[item.symbol] = {
+            "name": item.symbol_name,
+            "type": getattr(item, "type", "unknown")
+        }
+        
     results = []
 
     for symbol in data.symbols:
-        name = symbol_name_map.get(symbol, "Unknown")
+        info = symbol_info_map.get(symbol, {"name": "Unknown", "type": "unknown"})
+        name = info["name"]
+        stock_type = info["type"]
         try:
             klines = auto_trading_stock._get_ohlc(symbol, start_date, end_date)
             if len(klines) >= 2:
@@ -222,8 +229,10 @@ async def post_price_change_selected(data: SymbolRequestModel):
                 results.append({
                     "symbol": symbol,
                     "name": name,
+                    "stock_type": stock_type,
                     "change_pct": pct,
-                    "current_close": curr_close
+                    "current_close": curr_close,
+                    
                 })
         except Exception as e:
             print(f"❌ {symbol} 오류: {e}")
