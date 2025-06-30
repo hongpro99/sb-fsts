@@ -2,6 +2,7 @@ import uuid
 from fastapi import FastAPI, HTTPException
 from typing import Optional
 from datetime import date, datetime, timedelta
+import datetime
 import pytz
 import asyncio
 import requests
@@ -13,10 +14,12 @@ import os
 from io import StringIO, BytesIO
 import boto3
 import json
+import pandas as pd
 from botocore.client import Config
 
 from app.model.simulation_trading_bulk_model import SimulationTradingBulkModel
 from app.model.simulation_trading_model import SimulationTradingModel
+from app.model.symbol_request_model import SymbolRequestModel
 from app.scheduler import auto_trading_scheduler
 from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.database import get_db, get_db_session
@@ -25,6 +28,7 @@ from app.utils.dynamodb.model.simulation_history_model import SimulationHistory
 from ecs.run_ecs_task import run_ecs_task
 from app.utils.utils import setup_env
 from ecs.run_ecs_task_local import run_ecs_task_local
+from app.utils.dynamodb.model.stock_symbol_model import StockSymbol, StockSymbol2
 
 
 app = FastAPI() 
@@ -188,7 +192,49 @@ async def get_simulation_bulk(simulation_id: str):
 
     return response_dict
 
+@app.post("/stock/price-change/selected")
+async def post_price_change_selected(data: SymbolRequestModel):
+    
+    simulation_data = data.model_dump(exclude_none=True)
+    
+    auto_trading_stock = AutoTradingBot(id=simulation_data["user_id"], virtual=False)
+    
+    today = datetime.date.today()
+    print(today)
+    start_date = (today - datetime.timedelta(days=5))
+    end_date = today
+    print(start_date, end_date)
 
+    symbol_name_map = {}
+    for item in list(StockSymbol.scan()) + list(StockSymbol2.scan()):
+        symbol_name_map[item.symbol] = item.symbol_name
+
+    results = []
+
+    for symbol in data.symbols:
+        name = symbol_name_map.get(symbol, "Unknown")
+        try:
+            klines = auto_trading_stock._get_ohlc(symbol, start_date, end_date)
+            if len(klines) >= 2:
+                prev_close = klines[-2].close
+                curr_close = klines[-1].close
+                pct = round((curr_close - prev_close) / prev_close * 100, 2)
+                results.append({
+                    "symbol": symbol,
+                    "name": name,
+                    "change_pct": pct,
+                    "current_close": curr_close
+                })
+        except Exception as e:
+            print(f"❌ {symbol} 오류: {e}")
+
+    df = pd.DataFrame(results)
+    if df.empty:
+        return {"status": "no_data", "result_presigned_url": ""}
+
+    presigned_url = save_df_to_s3(df, bucket_name="sb-fsts", folder_prefix="price-change/")
+    return {"status": "success", "result_presigned_url": presigned_url}
+    
 @app.get("/health")
 async def health_check():
     print('health!!')

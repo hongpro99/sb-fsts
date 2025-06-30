@@ -31,6 +31,7 @@ from app.utils.dynamodb.model.auto_trading_balance_model import AutoTradingBalan
 from app.utils.utils import setup_env
 
 
+
 # env 파일 로드
 setup_env()
 
@@ -834,6 +835,7 @@ def setup_simulation_tab():
     if target_method == "직접 입력":
         target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000, key=f'target_trade_value_krw_single')
         target_trade_value_ratio = None
+        min_trade_value = 0
     else:
         target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio_single') #마우스 커서로 왔다갔다 하는 기능
         min_trade_value = st.number_input("💰 최소 매수 금액 (KRW)", min_value=0, value=500_000, step=100_000, key=f"min_trade_value_single")
@@ -1572,7 +1574,7 @@ def main():
     #         st.rerun()  # 로그아웃 후 페이지 새로고침
     
     # 탭 생성
-    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "📊 Simulation Result", "📈Auto Trading Bot Balance", "🏆Ranking", "Setting"])
+    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "📊 Simulation Result", "📈Auto Trading Bot Balance", "🏆Ranking", "Setting", "Today's UpDown"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
@@ -1758,6 +1760,7 @@ def main():
         if target_method == "직접 입력":
             target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=1000000, key=f'target_trade_value_krw')
             target_trade_value_ratio = None
+            min_trade_value = 0
         else:
             target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, 25, key=f'target_trade_value_ratio') #마우스 커서로 왔다갔다 하는 기능
             min_trade_value = st.number_input("💰 최소 매수 금액 (KRW)", min_value=0, value=500_000, step=100_000, key=f"min_trade_value")
@@ -2228,44 +2231,58 @@ def main():
         
     with tabs[7]:
         
-        st.header("Setting")
-        # 선택할 옵션 리스트
-        auto_trading_bots = list(UserInfo.scan())
-        print(f"AutoTrading BOTS: {auto_trading_bots}")
-        # 봇 이름 추출 및 중복 제거
-        bot_names = sorted({item.trading_bot_name for item in auto_trading_bots if item.trading_bot_name is not None})
-        # buy_trading_logics = {item.buy_trading_logic for item in auto_trading_bots if item.buy_trading_logic is not None}
-        selected_bot_name = st.selectbox("봇을 선택하세요.", bot_names)
+        st.title("📊 Today's UpDown")
 
-        # 선택된 봇에 해당하는 거래 내역 가져오기
-        if selected_bot_name:
-            st.write(f"선택한 봇: {selected_bot_name}")
-            selected_bot = [item for item in auto_trading_bots if item.trading_bot_name == selected_bot_name][0]
-            print(f"Selected Bot: {selected_bot.id}")
-            trading_bot = list(UserInfo.query(selected_bot.id))[0]
-            
-            selected_buy_trading_logics = st.multiselect(
-                "매수 로직 리스트",
-                options=trading_bot.buy_trading_logic,        # 전체 선택지
-                default=trading_bot.buy_trading_logic
-            )
+        user_id = 'id1' #임시 아이디 고정
+        # ✅ 종목 불러오기
+        kospi_kosdaq150 = list(StockSymbol.scan(
+            filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
+        ))
+        kosdaq_all = list(StockSymbol2.scan(
+            filter_condition=(StockSymbol2.type == 'kosdaq')
+        ))
+        all_symbols = kospi_kosdaq150 + kosdaq_all
 
-            # 출력 예시
-            st.write({
-                "날짜": trading_bot.stop_loss_threshold,
-                "매수로직": selected_buy_trading_logics,
-            })
+        # ✅ 선택 UI
+        symbol_map = {f"{s.symbol_name} ({s.symbol})": s.symbol for s in all_symbols}
+        selected_display_names = st.multiselect("분석할 종목 선택", list(symbol_map.keys()))
 
-        # selected_buy_trading_logics = st.selectbox("매수 로직 리스트", buy_trading_logics)
+        if st.button("📡 등락률 분석 요청"):
+            selected_symbols = [symbol_map[name] for name in selected_display_names]
 
-        # data_model = SimulationHistory(
-        #     simulation_id=simulation_id,
-        #     updated_at=updated_at,
-        #     updated_at_dt=updated_at_dt,
-        #     status=status
-        # )
+            if not selected_symbols:
+                st.warning("📌 최소 1개 이상의 종목을 선택하세요.")
+            else:
+                with st.spinner("서버에 요청 중..."):
+                    api_url = f"{backend_base_url}/stock/price-change/selected"
+                    payload = {
+                        "user_id": user_id,
+                        "symbols": selected_symbols
+                    }
 
-        # result = dynamodb_executor.execute_update(data_model, pk_name)
+                    response = requests.post(api_url, json=payload)
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data["status"] == "success":
+                            presigned_url = data["result_presigned_url"]
+                            df = pd.read_csv(presigned_url)
+
+                            st.success("✅ 분석 완료!")
+                            st.subheader("📈 상승 종목")
+                            st.metric("상승 종목 개수", f"{len(df[df['change_pct'] > 0])}")
+                            st.dataframe(df[df['change_pct'] > 0].sort_values(by='change_pct', ascending=False))
+
+                            st.subheader("📉 하락 종목")
+                            st.metric("하락 종목 개수",  f"{len(df[df['change_pct'] < 0])}")
+                            st.dataframe(df[df['change_pct'] < 0].sort_values(by='change_pct'))
+
+                            st.subheader("📋 전체 종목")
+                            st.dataframe(df)
+                        else:
+                            st.warning("⚠️ 분석 결과가 없습니다.")
+                    else:
+                        st.error("❌ 서버 요청 실패")
 
 
 if __name__ == "__main__":
