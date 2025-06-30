@@ -264,8 +264,9 @@ class TradingLogic:
         not_long_upper_shadow  = upper_shadow_ratio <= 0.7  # 윗꼬리 80% 이상이면 제외
         
         cond9 = last['Close'] > last_resistance
+        
         # ✅ 최종 매수 조건
-        buy_signal = all([long_trend, crossover, not cond7, cond6, slope_up, volume_good, cond5, cond9, not_long_upper_shadow])
+        buy_signal = all([long_trend, crossover, not cond7, cond6, slope_up, volume_good, cond5, not_long_upper_shadow])
         
         return buy_signal, None
     
