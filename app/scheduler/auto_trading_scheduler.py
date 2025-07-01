@@ -46,7 +46,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot', so
 
     # 당일로부터 1년전 기간으로 차트 분석
     end_date = date.today()
-    start_date = end_date - timedelta(days=180)
+    start_date = end_date
     interval = "day"
     
         # ✅ 코스닥150 종목 가져오기
@@ -91,9 +91,9 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot', so
             reverse=True
         )
     else:
-        sorted_result = result
+        sorted_symbols = result
 
-    print(f"sorted_result : {sorted_result}")
+    print(f"sorted_result : {sorted_symbols}")
     
     # 매수 목표 거래 금액
     trading_bot_name = trading_bot_name
@@ -104,107 +104,90 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot', so
     target_trade_value_krw = user_info.target_trade_value_krw
     max_allocation = user_info.max_allocation
     interval = user_info.interval
-    take_profit_threshold = user_info.take_profit_threshold
-    stop_loss_threshold = user_info.stop_loss_threshold
-    use_stop_loss = user_info.use_stop_loss
-    use_take_profit = user_info.use_take_profit
-        
+    min_trade_value = 0 # 최소 거래 금액은 0으로 설정 (필요시 수정 가능)
+    target_trade_value_ratio = 20 # 임시로 20%로 설정 (필요시 수정 가능)
+    take_profit_logics = user_info.take_profit_logic
+    stop_loss_logics = user_info.stop_loss_logic
+
+    take_profit_logic = next((logic.as_dict() for logic in take_profit_logics if logic['use_yn'] is True), None)
+    stop_loss_logic = next((logic.as_dict() for logic in stop_loss_logics if logic['use_yn'] is True), None)
+
     # ✅ scheduled_trading 시작 시 잔고 조회
     account = trading_bot.kis.account()
     balance: KisBalance = account.balance()
-
-    for i, holding in enumerate(balance.stocks):
-        symbol = holding.symbol
-        original_symbol_name = ""
-        symbol_name = f"[{i}]{original_symbol_name}"  # 종목명에 번호 붙이기
-        
-        # ✅ 매입금액 0인 경우 방어 처리
-        if holding.purchase_amount == 0:
-            print(f"🚫 {symbol} - 매입금액 0원: 손익률 계산 생략")
-            continue  # 그냥 이 종목은 패스
-
-        profit_rate = float(holding.profit_rate)
-
-        final_sell_yn = False
-        reason = None
-
-        if use_take_profit and profit_rate >= take_profit_threshold:
-            final_sell_yn = True
-            reason = "익절"
-        elif use_stop_loss and profit_rate <= -stop_loss_threshold:
-            final_sell_yn = True
-            reason = "손절"
-
-        if final_sell_yn :
-            try:
-                print(f"✅ {symbol} {reason} 조건 충족 -> 매도 실행 ")
-                trading_bot._trade_place_order(
-                    symbol=symbol,
-                    symbol_name=symbol_name,
-                    target_trade_value_krw=None,
-                    order_type="sell",
-                    max_allocation=1,
-                    trading_bot_name=trading_bot_name,
-                    
-                )
-            except Exception as e:
-                print(f"❌ {symbol} 매도 실패: {e}")
-                    
+     
     print(f'------ {trading_bot_name}의 계좌 익절/손절이 완료되었습니다. 이제부터 주식 자동 트레이딩을 시작합니다!')            
     webhook.send_discord_webhook(
     f'----------------------- {trading_bot_name}의 계좌 익절/손절이 완료되었습니다. 이제부터 주식 자동 트레이딩을 시작합니다!',
     "trading"
     )
+
+    trading_bot.trade(
+        trading_bot_name=trading_bot_name,
+        buy_trading_logic=buy_trading_logic,
+        sell_trading_logic=sell_trading_logic,
+        selected_symbols=sorted_symbols,
+        start_date=start_date,
+        end_date=end_date,
+        target_trade_value_krw=target_trade_value_krw,
+        target_trade_value_ratio=target_trade_value_ratio,
+        min_trade_value=min_trade_value,
+        interval=interval,
+        max_allocation = max_allocation,
+        rsi_period=25,
+        take_profit_logic=take_profit_logic,
+        stop_loss_logic=stop_loss_logic, 
+    )
+
     #✅ enumerate로 종목 번호 부여 (1부터 시작)
-    for i, stock in enumerate(sorted_result, start=1):
-        symbol = stock.symbol
-        original_symbol_name = stock.symbol_name
-        symbol_name = f"[{i}]{original_symbol_name}"  # 종목명에 번호 붙이기
+    # for i, stock in enumerate(sorted_symbols, start=1):
+    #     symbol = stock.symbol
+    #     symbol_name = stock.symbol_name
 
-        max_retries = 5
-        retries = 0
+    #     max_retries = 5
+    #     retries = 0
 
-        print(f'------ {trading_bot_name}의 {symbol_name} 주식 자동 트레이딩을 시작합니다. ------')
+    #     print(f'------ {trading_bot_name}의 {symbol_name} 주식 자동 트레이딩을 시작합니다. ------')
         
-        take_profit_logic = {
-            "name": "fixed_ratio",
-            "params": {
-                "ratio": 5
-            }
-        }
+    #     take_profit_logic = {
+    #         "name": "fixed_ratio",
+    #         "params": {
+    #             "ratio": 5
+    #         }
+    #     }
 
-        stop_loss_logic = {
-            "name": "fixed_ratio",
-            "params": {
-                "ratio": 5
-            }
-        }
+    #     stop_loss_logic = {
+    #         "name": "fixed_ratio",
+    #         "params": {
+    #             "ratio": 5
+    #         }
+    #     }
 
-        target_trade_value_ratio = 20 # 임시
+    #     target_trade_value_ratio = 20 # 임시
 
-        while retries < max_retries:
-            try:
-                trading_bot.trade(
-                    trading_bot_name=trading_bot_name,
-                    buy_trading_logic=buy_trading_logic,
-                    sell_trading_logic=sell_trading_logic,
-                    symbol=symbol,
-                    symbol_name=symbol_name,
-                    start_date=start_date,
-                    end_date=end_date,
-                    target_trade_value_krw=target_trade_value_krw,
-                    target_trade_value_ratio=target_trade_value_ratio,
-                    interval=interval,
-                    max_allocation = max_allocation,
-                    take_profit_logic=take_profit_logic,
-                    stop_loss_logic=stop_loss_logic, 
-                )
-                break
-            except Exception as e:
-                retries += 1
-                print(f"Error occurred while trading {symbol_name} (Attempt {retries}/{max_retries}): {e}")
-                if retries >= max_retries:
-                    print(f"Skipping {symbol_name} after {max_retries} failed attempts.")
+    #     while retries < max_retries:
+    #         try:
+    #             trading_bot.trade(
+    #                 trading_bot_name=trading_bot_name,
+    #                 buy_trading_logic=buy_trading_logic,
+    #                 sell_trading_logic=sell_trading_logic,
+    #                 symbol=symbol,
+    #                 symbol_name=symbol_name,
+    #                 start_date=start_date,
+    #                 end_date=end_date,
+    #                 target_trade_value_krw=target_trade_value_krw,
+    #                 target_trade_value_ratio=target_trade_value_ratio,
+    #                 interval=interval,
+    #                 max_allocation = max_allocation,
+    #                 take_profit_logic=take_profit_logic,
+    #                 stop_loss_logic=stop_loss_logic, 
+    #             )
+    #             break
+    #         except Exception as e:
+    #             retries += 1
+    #             print(f"Error occurred while trading {symbol_name} (Attempt {retries}/{max_retries}): {e}")
+    #             if retries >= max_retries:
+    #                 print(f"Skipping {symbol_name} after {max_retries} failed attempts.")
                     
     trading_bot._upsert_account_balance(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨
     trading_bot.update_roi(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨

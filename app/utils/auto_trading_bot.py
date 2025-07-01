@@ -7,7 +7,7 @@ import json
 import os
 import boto3
 
-from pykis import PyKis, KisChart, KisStock, KisQuote, KisAccessToken
+from pykis import PyKis, KisChart, KisStock, KisQuote, KisAccessToken, KisOrderableAmount
 from datetime import datetime, date, time, timedelta
 import mplfinance as mpf
 from pytz import timezone
@@ -1466,8 +1466,55 @@ class AutoTradingBot:
     
 
     # 실시간 매매 함수
-    def trade(self, trading_bot_name, buy_trading_logic, sell_trading_logic, symbol, symbol_name, start_date, end_date, target_trade_value_krw, target_trade_value_ratio, interval='day', max_allocation = 0.01,  take_profit_logic=None, stop_loss_logic=None):
+    def trade(self, trading_bot_name, buy_trading_logic, sell_trading_logic, selected_symbols, start_date, end_date, target_trade_value_krw, target_trade_value_ratio, min_trade_value, interval='day', max_allocation = 0.01, rsi_period=25, take_profit_logic=None, stop_loss_logic=None):
         
+        valid_symbols = []
+
+        start_date_for_ohlc = start_date - timedelta(days=180)  # OHLC 데이터는 180일 이전부터 가져옴
+        
+        failed_stocks = set()  # 중복 제거 자동 처리
+
+        # 사전에 계산된 OHLC 데이터와 DataFrame을 저장 (api 이슈)
+        for s in selected_symbols:
+            
+            # dynamodb 에서 가져오느라 그럼
+            symbol = s.symbol
+            stock_name = s.symbol_name
+
+            valid_symbol = {}
+            try:
+                # ✅ OHLC 데이터 가져오기
+                ohlc_data = self._get_ohlc(symbol, start_date_for_ohlc, end_date, interval)
+  
+                df = self._create_ohlc_df(ohlc_data=ohlc_data, rsi_period=rsi_period)
+                
+                # 유효한 종목만 저장
+                valid_symbol['symbol'] = symbol
+                valid_symbol['stock_name'] = stock_name
+                valid_symbol['ohlc_data'] = ohlc_data
+                valid_symbol['df'] = df
+
+                valid_symbols.append(valid_symbol)
+
+            except Exception as e:
+                # 지표 계산에 실패한 종목 리스트
+                print(f'{stock_name} 지표 계산 실패. 사유 : {str(e)}')
+                failed_stocks.add(stock_name)
+
+        symbols = valid_symbols
+        trade_ratio = target_trade_value_ratio
+        target_trade_value_krw = target_trade_value_krw
+
+        account_holdings = []
+        simulation_histories = []
+
+        # account
+        global_state = {
+            'initial_capital': 0,
+            'krw_balance': 0,
+            'account_holdings': account_holdings
+        }
+
         # 익절, 손절 로직 별 다양화
         if take_profit_logic['name'] is None:
             use_take_profit = False
@@ -1485,151 +1532,559 @@ class AutoTradingBot:
             stop_loss_logic_name = stop_loss_logic['name']
             stop_loss_ratio = stop_loss_logic['params']['ratio']
 
-        trade_ratio = target_trade_value_ratio  # None 이면 직접 입력 방식
+        start_date = pd.Timestamp(start_date).normalize()
 
-        ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
-        rsi_period = 25  # 임시
-        df = self._create_ohlc_df(ohlc_data=ohlc_data, rsi_period=rsi_period)
-        
-        # 🔍 현재 row 위치
-        current_idx = len(df) - 1
+        kis_account = self.kis.account()
+        kis_balance: KisBalance = kis_account.balance()
 
-        lookback_next = 5
-        # ✅ 현재 시점까지 확정된 지지선만 사용
-        support = self.get_latest_confirmed_support(df, current_idx=current_idx, lookback_next=lookback_next)
-        resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx, lookback_next=lookback_next)
-        high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=current_idx, lookback_next=lookback_next)
+        non_zero_stocks = [stock for stock in kis_balance.stocks if stock.qty != 0]
+        kis_balance.stocks = non_zero_stocks
+
+        # 공통된 모든 날짜 모으기
+        # all_dates = set()
+        all_dates = {start_date}
+
+        for holding in kis_balance.stocks:
             
-        # 마지막 봉 기준 데이터 추출
-        candle = ohlc_data[-1]
-        close_price = float(candle.close)
+            holding_dict = {
+                'symbol': holding.symbol,
+                'stock_name': stock_name,
+                'timestamp_str': "",
+                'close_price': 0,
+                'total_quantity': 0,
+                'avg_price': 0,
+                'total_buy_cost': 0,
+                'take_profit_logic': {
+                    'name': take_profit_logic_name,
+                    'ratio': take_profit_ratio,
+                    'max_close_price': 0  # trailing stop loss를 위한 최고가
+                },
+                'stop_loss_logic': {
+                    'name': stop_loss_logic_name,
+                    'ratio': stop_loss_ratio,
+                    'max_close_price': 0  # trailing stop loss를 위한 최고가
+                },
+                'trading_histories': []
+            }
 
-        timestamp_str = candle.time.date().isoformat()
-
-        last = df.iloc[-1]
-        prev = df.iloc[-2]
-
-        volume = float(last['Volume'])
-
-        #익절, 손절
-        take_profit_hit = False
-        stop_loss_hit = False
+            global_state['account_holdings'].append(holding_dict)
         
-        buy_logic_reasons = []
-        sell_logic_reasons = []
+        date_range = sorted(list(all_dates))  # 날짜 정렬
 
-        recent_20_days_volume = []
-        avg_volume_20_days = 0
+        # ✅ 매매 시작
+        for idx, current_date in enumerate(date_range): 
+            for holding in global_state['account_holdings']:
+                symbol = holding['symbol']
 
-        if len(ohlc_data) >= 21:
-            recent_20_days_volume = [float(c.volume) for c in ohlc_data[-20:]]
-            avg_volume_20_days = sum(recent_20_days_volume) / len(recent_20_days_volume)
-            
-        reason_str = ""  # 또는 None
+                # symbols 리스트에서 해당 symbol과 일치하는 s 찾기
+                s = next((s for s in symbols if s['symbol'] == symbol), None)
 
-        buy_logic_reasons = self._get_trading_logic_reasons(
-            trading_logics=buy_trading_logic,
-            symbol=symbol,
-            candle=candle,
-            ohlc_df=df,
-            trade_type='BUY',
-            support = support,
-            resistance = resistance,
-            high_trendline = high_trendline 
-        )
+                if s is None:
+                    print(f"❌ 해당 symbol 종목이 없습니다: {symbol}")
+                    continue  # 해당 symbol 종목이 없으면 건너뜀
 
-        buy_signal = len(buy_logic_reasons) > 0
+                df = s['df']
+                ohlc_data = s['ohlc_data']
+                stock_name = s['stock_name']
 
-        # ✅ 매수 확정 시 실행
-        if buy_signal:
-            reason_str = ", ".join(buy_logic_reasons)
-            webhook.send_discord_webhook(
-                f"[reason:{reason_str}], {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW",
-                "trading"
-            )
+                if not any(pd.Timestamp(c.time).tz_localize(None).normalize() == current_date for c in ohlc_data):
+                    continue
+                                    
+                df = df[df.index <= pd.Timestamp(current_date)]
+    
+                # 🔍 현재 row 위치
+                current_idx = len(df) - 1
 
-        # ✅ 매수 요청 실행
-        self._trade_kis(
-            buy_yn=buy_signal,
-            sell_yn=False,
-            volume=volume,
-            prev=prev,
-            avg_volume_20_days=avg_volume_20_days,
-            trading_logic=reason_str,
-            symbol=symbol,
-            symbol_name=symbol_name,
-            ohlc_data=ohlc_data,
-            trading_bot_name=trading_bot_name,
-            target_trade_value_krw=target_trade_value_krw,
-            max_allocation=max_allocation
-        )
-            
-        # # 🟡 trade 함수 상단
-        # account = self.kis.account()
-        # balance: KisBalance = account.balance()
-        reason_str = ""  # 또는 None
-        
-        # ✅ 전략 매도 로직 확인
-        sell_logic_reasons = self._get_trading_logic_reasons(
-            trading_logics=sell_trading_logic,
-            symbol=symbol,
-            candle=candle,
-            ohlc_df=df,
-            trade_type='SELL',
-            support = support,
-            resistance = resistance,
-            high_trendline = high_trendline 
-        )
+                lookback_next = 5
+                # ✅ 현재 시점까지 확정된 지지선만 사용
+                support = self.get_latest_confirmed_support(df, current_idx=current_idx, lookback_next=lookback_next)
+                resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx, lookback_next=lookback_next)
+                high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=current_idx)
+                
+                # ✅ 아무 데이터도 없으면 조용히 빠져나가기
+                if df.empty or len(df) < 2:
+                    continue
 
-        sell_signal = len(sell_logic_reasons) > 0
+                # candle_time = df.index[-1]
+                candle = next(c for c in ohlc_data if pd.Timestamp(c.time).tz_localize(None) == current_date)
+                close_price = float(candle.close)
+                
+                timestamp_str = current_date.date().isoformat()
+                
+                print(f"💰 시뮬 중: {symbol} / 날짜: {timestamp_str} / 사용가능한 예수금: {global_state['krw_balance']:,}")
 
-        # # ✅ 익절/손절 조건 확인
-        # take_profit_hit = False
-        # stop_loss_hit = False
+                trade_quantity = 0
+                realized_pnl = None
+                total_buy_cost = 0
+                
+                buy_fee = 0
+                sell_fee = 0
+                tax = 0
 
-        # holding = next((stock for stock in balance.stocks if stock.symbol == symbol), None)
+                #익절, 손절
+                take_profit_hit = False
+                stop_loss_hit = False
+                
+                buy_logic_reasons = []
+                sell_logic_reasons = []
+                
+                # 데이터 최신화
+                holding['timestamp_str'] = timestamp_str
+                holding['close_price'] = close_price
 
-        # if holding:
-        #     profit_rate = float(holding.profit_rate)
+                # ✅ 익절/손절 조건 우선 적용
+                if holding['total_quantity'] > 0:
+                    current_roi = ((close_price - holding['avg_price']) / holding['avg_price']) * 100
 
-        #     if use_take_profit and profit_rate >= take_profit_threshold:
-        #         take_profit_hit = True
-        #         final_sell_yn = True
-        #         reason = "익절"
+                    # 익절 조건 계산
+                    if take_profit_logic_name == 'fixed': # 고정 비율 익절
+                        target_roi = current_roi
+                    elif take_profit_logic_name == 'trailing': # 종가 최고점 기준으로 roi 계산
+                        if holding['stop_loss_logic']['max_close_price'] > 0:
+                            target_roi = ((close_price - holding['stop_loss_logic']['max_close_price'] ) / holding['stop_loss_logic']['max_close_price'] ) * 100
+                    else:
+                        target_roi = current_roi
 
-        #     elif use_stop_loss and profit_rate <= -stop_loss_threshold:
-        #         stop_loss_hit = True
-        #         final_sell_yn = True
-        #         reason = "손절"
+                    # 익절 조건
+                    if use_take_profit and target_roi >= take_profit_ratio:
 
-        # ✅ 매도 실행
-        if sell_signal:
-            reason_str = ", ".join(sell_logic_reasons)
-            webhook.send_discord_webhook(
-                f"[reason:{reason_str}], {symbol_name} 매도가 완료되었습니다. 매도금액 : {int(ohlc_data[-1].close)}KRW",
-                "trading"
-            )
+                        trade_quantity = holding['total_quantity']
 
-        # ✅ 매도 실행 요청
-        self._trade_kis(
-            buy_yn=False,
-            sell_yn=sell_signal,
-            volume=volume,
-            prev=prev,
-            avg_volume_20_days=avg_volume_20_days,
-            trading_logic=reason_str,
-            symbol=symbol,
-            symbol_name=symbol_name,
-            ohlc_data=ohlc_data,
-            trading_bot_name=trading_bot_name,
-            target_trade_value_krw=target_trade_value_krw,
-            max_allocation=max_allocation
-        )
+                        holding['total_quantity'] = 0
+                        holding['total_buy_cost'] = 0
+                        holding['avg_price'] = 0
+                        holding['stop_loss_logic']['max_close_price'] = 0 # 최고가 초기화
 
-        print(f' buy_signal : {buy_signal}, sell_signal : {sell_signal}')
+                        take_profit_hit = True
+                        reason = f"익절 조건 충족 target_roi : ({target_roi:.2f}%), roi : ({current_roi:.2f}%)"
+
+                        trading_history = self._create_trading_history(
+                            symbol=symbol,
+                            stock_name=stock_name,
+                            fee=fee,
+                            tax=tax,
+                            revenue=revenue,
+                            timestamp=current_date,
+                            timestamp_str=timestamp_str,
+                            reason=reason,
+                            trade_type='SELL',
+                            trade_quantity=trade_quantity,
+                            avg_price=holding['avg_price'],
+                            buy_logic_reasons=buy_logic_reasons,
+                            sell_logic_reasons=sell_logic_reasons,
+                            take_profit_hit=take_profit_hit,
+                            stop_loss_hit=stop_loss_hit,
+                            realized_pnl=realized_pnl,
+                            realized_roi=realized_roi,
+                            unrealized_pnl=unrealized_pnl,
+                            unrealized_roi=unrealized_roi,
+                            krw_balance=global_state['krw_balance'],
+                            total_quantity=holding['total_quantity'],
+                            total_buy_cost=holding['total_buy_cost'],
+                            close_price=close_price
+                        )
+
+                        holding['trading_histories'].append(trading_history)
+
+                        # 매도 실행
+                        self._trade_kis(
+                            trade_type="SELL",
+                            buy_logic_reasons=buy_logic_reasons,
+                            sell_logic_reasons=sell_logic_reasons,
+                            take_profit_hit=take_profit_hit,
+                            stop_loss_hit=stop_loss_hit,
+                            reason=reason,
+                            symbol=symbol,
+                            symbol_name=stock_name,
+                            ohlc_data=ohlc_data,
+                            trading_bot_name=trading_bot_name,
+                            target_trade_value_krw=target_trade_value_krw
+                        )
+
+                        simulation_histories.append(trading_history)
+
+                    # 손절 조건 계산
+                    if stop_loss_logic_name == 'fixed': # 고정 비율 익절
+                        target_roi = current_roi
+                    elif stop_loss_logic_name == 'trailing': # 최고가 기준으로 roi 계산
+                        if holding['stop_loss_logic']['max_close_price'] > 0:
+                            target_roi = ((close_price - holding['stop_loss_logic']['max_close_price'] ) / holding['stop_loss_logic']['max_close_price'] ) * 100 
+                    else:
+                        target_roi = current_roi
+
+                    # 손절 조건
+                    if use_stop_loss and target_roi <= -stop_loss_ratio:
+
+                        trade_quantity = holding['total_quantity']
+
+                        holding['total_quantity'] = 0
+                        holding['total_buy_cost'] = 0
+                        holding['avg_price'] = 0
+                        holding['stop_loss_logic']['max_close_price'] = 0 # 최고가 초기화
+
+                        stop_loss_hit = True
+                        reason = f"손절 조건 충족 target_roi : ({target_roi:.2f}%), roi : ({current_roi:.2f}%)"
+
+                        trading_history = self._create_trading_history(
+                            symbol=symbol,
+                            stock_name=stock_name,
+                            fee=fee,
+                            tax=tax,
+                            revenue=revenue,
+                            timestamp=current_date,
+                            timestamp_str=timestamp_str,
+                            reason=reason,
+                            trade_type='SELL',
+                            trade_quantity=trade_quantity,
+                            avg_price=holding['avg_price'],
+                            buy_logic_reasons=buy_logic_reasons,
+                            sell_logic_reasons=sell_logic_reasons,
+                            take_profit_hit=take_profit_hit,
+                            stop_loss_hit=stop_loss_hit,
+                            realized_pnl=realized_pnl,
+                            realized_roi=realized_roi,
+                            unrealized_pnl=unrealized_pnl,
+                            unrealized_roi=unrealized_roi,
+                            krw_balance=global_state['krw_balance'],
+                            total_quantity=holding['total_quantity'],
+                            total_buy_cost=holding['total_buy_cost'],
+                            close_price=close_price
+                        )
+
+                        holding['trading_histories'].append(trading_history)
+
+                        # 매도 실행
+                        self._trade_kis(
+                            trade_type="SELL",
+                            buy_logic_reasons=buy_logic_reasons,
+                            sell_logic_reasons=sell_logic_reasons,
+                            take_profit_hit=take_profit_hit,
+                            stop_loss_hit=stop_loss_hit,
+                            reason=reason,
+                            symbol=symbol,
+                            symbol_name=stock_name,
+                            ohlc_data=ohlc_data,
+                            trading_bot_name=trading_bot_name,
+                            target_trade_value_krw=target_trade_value_krw
+                        )
+
+                        simulation_histories.append(trading_history)
+
+                # ✅ 매도 조건 (익절/손절 먼저 처리됨, 이 블럭은 전략 로직 기반 매도)
+                sell_logic_reasons = self._get_trading_logic_reasons(
+                    trading_logics=sell_trading_logic,
+                    symbol=symbol,
+                    candle=candle,
+                    ohlc_df=df,
+                    trade_type='SELL',
+                    support = support,
+                    resistance = resistance,
+                    high_trendline = high_trendline
+                )
+
+                # ✅ 매도 실행
+                if len(sell_logic_reasons) > 0 and holding['total_quantity'] > 0:
+
+                    trade_quantity = holding['total_quantity']
+
+                    holding['total_quantity'] = 0
+                    holding['total_buy_cost'] = 0
+                    holding['avg_price'] = 0
+                    holding['stop_loss_logic']['max_close_price'] = 0 # 최고가 초기화
+
+                    reason = ""
+
+                    trading_history = self._create_trading_history(
+                        symbol=symbol,
+                        stock_name=stock_name,
+                        fee=fee,
+                        tax=tax,
+                        revenue=revenue,
+                        timestamp=current_date,
+                        timestamp_str=timestamp_str,
+                        reason=reason,
+                        trade_type='SELL',
+                        trade_quantity=trade_quantity,
+                        avg_price=holding['avg_price'],
+                        buy_logic_reasons=buy_logic_reasons,
+                        sell_logic_reasons=sell_logic_reasons,
+                        take_profit_hit=take_profit_hit,
+                        stop_loss_hit=stop_loss_hit,
+                        realized_pnl=realized_pnl,
+                        realized_roi=realized_roi,
+                        unrealized_pnl=unrealized_pnl,
+                        unrealized_roi=unrealized_roi,
+                        krw_balance=global_state['krw_balance'],
+                        total_quantity=holding['total_quantity'],
+                        total_buy_cost=holding['total_buy_cost'],
+                        close_price=close_price
+                    )
+
+                    holding['trading_histories'].append(trading_history)
+
+                    # 매도 실행
+                    self._trade_kis(
+                        trade_type="SELL",
+                        buy_logic_reasons=buy_logic_reasons,
+                        sell_logic_reasons=sell_logic_reasons,
+                        take_profit_hit=take_profit_hit,
+                        stop_loss_hit=stop_loss_hit,
+                        reason=reason,
+                        symbol=symbol,
+                        symbol_name=stock_name,
+                        ohlc_data=ohlc_data,
+                        trading_bot_name=trading_bot_name,
+                        target_trade_value_krw=target_trade_value_krw
+                    )
+
+                    simulation_histories.append(trading_history)
+
+            # 매수 로직만 확인                    
+            for s in symbols:
+                symbol = s['symbol']
+                df = s['df']
+                ohlc_data = s['ohlc_data']
+                stock_name = s['stock_name']
+
+                # 알맞은 종목 찾기
+                holding = next((h for h in global_state['account_holdings'] if h['symbol'] == symbol), None)
+
+                # holding이 없으면 새로 생성
+                if holding is None:
+                    holding = {
+                        'symbol': symbol,
+                        'stock_name': stock_name,
+                        'timestamp_str': "",
+                        'close_price': 0,
+                        'total_quantity': 0,
+                        'avg_price': 0,
+                        'total_buy_cost': 0,
+                        'take_profit_logic': {
+                            'name': take_profit_logic_name,
+                            'ratio': take_profit_ratio,
+                            'max_close_price': 0  # trailing stop loss를 위한 최고가
+                        },
+                        'stop_loss_logic': {
+                            'name': stop_loss_logic_name,
+                            'ratio': stop_loss_ratio,
+                            'max_close_price': 0  # trailing stop loss를 위한 최고가
+                        },
+                        'trading_histories': []
+                    }
+
+                    global_state['account_holdings'].append(holding)
+
+                if not any(pd.Timestamp(c.time).tz_localize(None).normalize() == current_date for c in ohlc_data):
+                    continue
+                                    
+                df = df[df.index <= pd.Timestamp(current_date)]
+    
+                # 🔍 현재 row 위치
+                current_idx = len(df) - 1
+
+                lookback_next = 5
+                # ✅ 현재 시점까지 확정된 지지선만 사용
+                support = self.get_latest_confirmed_support(df, current_idx=current_idx, lookback_next=lookback_next)
+                resistance = self.get_latest_confirmed_resistance(df, current_idx=current_idx, lookback_next=lookback_next)
+                high_trendline = indicator.get_latest_trendline_from_highs(df, current_idx=current_idx)
+                
+                # ✅ 아무 데이터도 없으면 조용히 빠져나가기
+                if df.empty or len(df) < 2:
+                    continue
+
+                # candle_time = df.index[-1]
+                candle = next(c for c in ohlc_data if pd.Timestamp(c.time).tz_localize(None) == current_date)
+                close_price = float(candle.close)
+                
+                timestamp_str = current_date.date().isoformat()
+                
+                # 예수금 조회
+                global_state['krw_balance'] = self._get_kis_krw_balance()
+
+                print(f"💰 시뮬 중: {symbol} / 날짜: {timestamp_str} / 사용가능한 예수금: {global_state['krw_balance']:,}")
+
+                trade_quantity = 0
+                realized_pnl = None
+                total_buy_cost = 0
+                
+                buy_fee = 0
+                sell_fee = 0
+                tax = 0
+
+                #익절, 손절
+                take_profit_hit = False
+                stop_loss_hit = False
+                
+                buy_logic_reasons = []
+                sell_logic_reasons = []
+                
+                # 데이터 최신화
+                holding['timestamp_str'] = timestamp_str
+                holding['close_price'] = close_price
+  
+                # ✅ 매수 조건
+                buy_logic_reasons = self._get_trading_logic_reasons(
+                    trading_logics=buy_trading_logic,
+                    symbol=symbol,
+                    candle=candle,
+                    ohlc_df=df,
+                    trade_type='BUY',
+                    support = support,
+                    resistance = resistance,
+                    high_trendline = high_trendline
+                )
+
+                # ✅ 직접 지정된 target_trade_value_krw가 있으면 사용, 없으면 비율로 계산
+                if target_trade_value_krw and target_trade_value_krw > 0:
+                    trade_amount = min(target_trade_value_krw, global_state['krw_balance'])
+                    min_trade_value = 0 # 고정 금액의 경우 min_trade_value는 무시
+                else:
+                    trade_ratio = trade_ratio if trade_ratio is not None else 100
+                    
+                    # 현재 총 자산을 구하기 위한 로직 
+                    total_market_value = 0
+                    for h in global_state['account_holdings']:
+                        market_value = h['avg_price'] * h['total_quantity']
+                        total_market_value += market_value
+
+                    total_balance = global_state['krw_balance'] + total_market_value
+                    trade_amount = min(total_balance * (trade_ratio / 100), global_state['krw_balance'])
+
+                # ✅ 매수 실행
+                if len(buy_logic_reasons) > 0 and min_trade_value <= trade_amount:
+                    buy_quantity = math.floor(trade_amount / close_price)
+                    cost = buy_quantity * close_price
+                    fee = cost * 0.00014
+                    tax = 0
+                    total_buy_cost = cost + fee
+                    
+                    # 매수 금액이 예수금보다 작거나 같을 때만 매수
+                    if buy_quantity > 0 and total_buy_cost <= global_state['krw_balance']:
+
+                        global_state['krw_balance'] -= total_buy_cost
+                        holding['total_buy_cost'] += total_buy_cost
+                        holding['total_quantity'] += buy_quantity
+                        holding['avg_price'] = holding['total_buy_cost'] / holding['total_quantity']
+
+                        if holding['stop_loss_logic']['max_close_price'] < close_price:
+                            holding['stop_loss_logic']['max_close_price'] = close_price # 최고가 업데이트
+
+                        revenue = 0
+                        realized_pnl = 0
+                        realized_roi = (realized_pnl / holding['total_buy_cost']) * 100 if holding['total_buy_cost'] > 0 else 0
+                        unrealized_pnl = (close_price - holding['avg_price']) * holding['total_quantity']
+                        unrealized_roi = (unrealized_pnl / holding['total_buy_cost']) * 100 if holding['total_buy_cost'] > 0 else 0
+
+                        trade_quantity = buy_quantity
+
+                        reason = ""
+
+                        trading_history = self._create_trading_history(
+                            symbol=symbol,
+                            stock_name=stock_name,
+                            fee=fee,
+                            tax=tax,
+                            revenue=revenue,
+                            timestamp=current_date,
+                            timestamp_str=timestamp_str,
+                            reason=reason,
+                            trade_type='BUY',
+                            trade_quantity=trade_quantity,
+                            avg_price=holding['avg_price'],
+                            buy_logic_reasons=buy_logic_reasons,
+                            sell_logic_reasons=sell_logic_reasons,
+                            take_profit_hit=take_profit_hit,
+                            stop_loss_hit=stop_loss_hit,
+                            realized_pnl=realized_pnl,
+                            realized_roi=realized_roi,
+                            unrealized_pnl=unrealized_pnl,
+                            unrealized_roi=unrealized_roi,
+                            krw_balance=global_state['krw_balance'],
+                            total_quantity=holding['total_quantity'],
+                            total_buy_cost=holding['total_buy_cost'],
+                            close_price=close_price
+                        )
+
+                        holding['trading_histories'].append(trading_history)
+
+                        # 매도 실행
+                        self._trade_kis(
+                            trade_type="BUY",
+                            buy_logic_reasons=buy_logic_reasons,
+                            sell_logic_reasons=sell_logic_reasons,
+                            take_profit_hit=take_profit_hit,
+                            stop_loss_hit=stop_loss_hit,
+                            reason=reason,
+                            symbol=symbol,
+                            symbol_name=stock_name,
+                            ohlc_data=ohlc_data,
+                            trading_bot_name=trading_bot_name,
+                            target_trade_value_krw=target_trade_value_krw
+                        )
+
+                        simulation_histories.append(trading_history)
+                
+                # holding['trading_histories'] 를 활용해서 이미 매매가 이루어진 경우를 확인
+                already_traded_yn = any(
+                    history['timestamp_str'] == timestamp_str and history['trade_type'] in ('BUY', 'SELL')
+                    for history in holding['trading_histories']
+                )
+
+                # 매매가 이루어지지 않은 경우
+                if already_traded_yn is False:
+
+                    unrealized_pnl = (close_price - holding['avg_price']) * holding['total_quantity']
+                    unrealized_roi = (unrealized_pnl / holding['total_buy_cost']) * 100 if holding['total_buy_cost'] > 0 else 0
+
+                    # 최고가 trailing 하고 있을 경우
+                    if holding['stop_loss_logic']['max_close_price'] > 0 and holding['stop_loss_logic']['max_close_price'] < close_price:
+                        holding['stop_loss_logic']['max_close_price'] = close_price # 최고가 업데이트
+                        
+                    # 아무런 매수 없이 히스토리만 생성
+                    simulation_history = self._create_trading_history(
+                        symbol=symbol,
+                        stock_name=stock_name,
+                        fee=0,
+                        tax=0,
+                        revenue=0,
+                        timestamp=current_date,
+                        timestamp_str=timestamp_str,
+                        reason="",
+                        trade_type=None,
+                        trade_quantity=0,
+                        avg_price=holding['avg_price'],
+                        buy_logic_reasons=buy_logic_reasons,
+                        sell_logic_reasons=sell_logic_reasons,
+                        take_profit_hit=take_profit_hit,
+                        stop_loss_hit=stop_loss_hit,
+                        realized_pnl=0,
+                        realized_roi=0,
+                        unrealized_pnl=unrealized_pnl,
+                        unrealized_roi=unrealized_roi,
+                        krw_balance=global_state['krw_balance'],
+                        total_quantity=holding['total_quantity'],
+                        total_buy_cost=holding['total_buy_cost'],
+                        close_price=close_price
+                    )
+
+                    simulation_histories.append(simulation_history)
+
+                    print(f"💰 시뮬 중: {symbol} / 날짜: {timestamp_str} / 사용가능한 예수금: {global_state['krw_balance']:,} / 거래 없음")
 
         return None
 
+
+    def _get_kis_krw_balance(self):
+        kis_account = self.kis.account()
+        # 주문 가능 금액 구하는 법 (우회)
+        # 매수가 1원으로 주문 가능 금액을 구함
+        orderable_amount: KisOrderableAmount = kis_account.orderable_amount(
+            market="KRX",
+            price=1,
+            symbol="039200"
+        )
+
+        return int(orderable_amount.qty)
 
     def _get_trading_logic_reasons(self, trading_logics, symbol, candle, ohlc_df, support, resistance, high_trendline, trade_type = 'BUY', rsi_buy_threshold = 30, rsi_sell_threshold = 70):
 
@@ -1746,36 +2201,49 @@ class AutoTradingBot:
         return signal_reasons
 
 
-    def _trade_kis(self, buy_yn, sell_yn, volume, prev, avg_volume_20_days, trading_logic, symbol, symbol_name, ohlc_data, trading_bot_name, target_trade_value_krw, max_allocation):
-
-        if buy_yn:
-            order_type = 'buy'
-            print(f"현재 종목: {symbol}, order type: {order_type}")
-            
-            # 매수 주문은 특정 로직에서만 실행
-            if 'trend_entry_trading' in trading_logic or 'ema_breakout_trading3' in trading_logic or 'sma_breakout_trading' in trading_logic:
-                self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
-
-            position = 'BUY'
-            quantity = 1  # 임시
-            
-            self._insert_trading_history(
-                trading_logic, position, trading_bot_name, ohlc_data[-1].close, 
-                quantity, symbol, symbol_name
-            )
+    def _trade_kis(self, trade_type, buy_logic_reasons, sell_logic_reasons, take_profit_hit, stop_loss_hit, reason, symbol, symbol_name, ohlc_data, trading_bot_name, target_trade_value_krw):
         
-        if sell_yn:
-            order_type = 'sell'
+        quantity = 1
+        reason_str = f"매수 로직 : {buy_logic_reasons}, 매도 로직 : {sell_logic_reasons}, 익절 : {take_profit_hit}, 손절 : {stop_loss_hit}, 이유 : {reason}"
+        # 매매 요청
+        self._trade_place_order(symbol, symbol_name, target_trade_value_krw, trade_type, trading_bot_name)
 
-            self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name)
+        # 결과 웹훅 전송
+        webhook.send_discord_webhook(
+            f"[reason:{reason_str}], {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW",
+            "trading"
+        )
+        
+        # 매매 기록 DB 저장
+        self._insert_trading_history(
+            reason_str, trade_type, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name
+        )
+        
+        # if trade_type == "BUY":
+   
+        #     self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, trading_bot_name)
+
+        #     # 매수 주문은 특정 로직에서만 실행
+        #     # if 'trend_entry_trading' in trading_logic or 'ema_breakout_trading3' in trading_logic or 'sma_breakout_trading' in trading_logic:
+        #     #     self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, trading_bot_name)
+ 
+        #     self._insert_trading_history(
+        #         trading_logic, trade_type, trading_bot_name, ohlc_data[-1].close, 
+        #         quantity, symbol, symbol_name
+        #     )
+        
+        # if sell_yn:
+        #     order_type = 'sell'
+
+        #     self._trade_place_order(symbol, symbol_name, target_trade_value_krw, order_type, trading_bot_name)
             
-            # trade history 에 추가
-            position = 'SELL'
-            quantity = 1 # 임시
+        #     # trade history 에 추가
+        #     position = 'SELL'
+        #     quantity = 1 # 임시
 
-            self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close,
-                quantity, symbol, symbol_name
-            )
+        #     self._insert_trading_history(trading_logic, position, trading_bot_name, ohlc_data[-1].close,
+        #         quantity, symbol, symbol_name
+        #     )
 
 
     def _insert_trading_history(self, trading_logic, position, trading_bot_name, price, quantity, symbol, symbol_name, data_type='test'):
@@ -1918,7 +2386,7 @@ class AutoTradingBot:
         return quote
 
 
-    def _trade_place_order(self, symbol, symbol_name, target_trade_value_krw, order_type, max_allocation, trading_bot_name):
+    def _trade_place_order(self, symbol, symbol_name, target_trade_value_krw, order_type, trading_bot_name):
         quote = self._get_quote(symbol=symbol)
         buy_price = None  # 시장가 매수
         sell_price = None # 시장가 매도

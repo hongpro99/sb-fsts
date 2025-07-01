@@ -4,3 +4,5 @@ __pycache__/
 secret.json
 token.json
 virtual_secret.json
+test.ipynb
+stock.ipynb

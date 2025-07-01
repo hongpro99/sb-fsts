@@ -1,7 +1,17 @@
 from pynamodb.models import Model
-from pynamodb.attributes import UnicodeAttribute, NumberAttribute, ListAttribute, BooleanAttribute
+from pynamodb.attributes import UnicodeAttribute, NumberAttribute, ListAttribute, BooleanAttribute, MapAttribute
 import time
 import uuid
+
+
+class StopLossLogicParams(MapAttribute):
+    ratio = NumberAttribute()
+
+
+class StopLossLogic(MapAttribute):
+    name = UnicodeAttribute()
+    params = StopLossLogicParams()
+    use_yn = BooleanAttribute()
 
 
 class UserInfo(Model):
@@ -27,8 +37,6 @@ class UserInfo(Model):
     target_trade_value_krw = NumberAttribute()
     max_allocation = NumberAttribute()
     interval = UnicodeAttribute()
-    take_profit_threshold = NumberAttribute(null=True)  # 예: 0.05
-    stop_loss_threshold = NumberAttribute(null=True)    # 예: -0.05
-    use_take_profit = BooleanAttribute(null=True)       # 예: True
-    use_stop_loss = BooleanAttribute(null=True)         # 예: True
+    take_profit_logic = ListAttribute(of=StopLossLogic)
+    stop_loss_logic = ListAttribute(of=StopLossLogic)
     trading_bot_name = UnicodeAttribute(null=True)
