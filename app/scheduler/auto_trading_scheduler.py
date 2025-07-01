@@ -37,7 +37,7 @@ def scheduled_trading_bnuazz15bot_real_task():
     scheduled_trading(id='bnuazz15bot_real', virtual = False, trading_bot_name = 'bnuazz15bot_real')
 
 
-def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
+def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot', sorting = 'trade_volume'):
     
     # TO-DO
     # 잔고 조회 여기에 추가
@@ -83,39 +83,31 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
             print(f"❌ {stock.symbol} 거래대금 계산 실패: {e}")
             return -1
 
-    # ✅ 거래대금 기준 내림차순 정렬
-    sorted_result = sorted(
-        result,
-        key=lambda stock: get_estimated_trade_value(stock),
-        reverse=True
-    )
+    if sorting == 'trade_volume':
+        # ✅ 거래대금 기준 내림차순 정렬
+        sorted_result = sorted(
+            result,
+            key=lambda stock: get_estimated_trade_value(stock),
+            reverse=True
+        )
+    else:
+        sorted_result = result
 
     print(f"sorted_result : {sorted_result}")
-    print(f"개수 : {len(sorted_result)}")
-    
-    #target_trade_value_krw = 100000
     
     # 매수 목표 거래 금액
     trading_bot_name = trading_bot_name
-    #interval = 'day'
+    user_info = list(UserInfo.query(id))[0]
 
-    # 특정 trading_bot_name의 데이터 조회, 임시로
-    history = UserInfo.query(id) # schedulerbot은 왜 id 대신 직접 schedulerbot을 넣어야 하는가?
-
-
-    for trade in history:
-        print(f"- buy_trading_logic: {trade.buy_trading_logic}, sell_trading_logic : {trade.sell_trading_logic}")
-
-        buy_trading_logic = trade.buy_trading_logic
-        sell_trading_logic = trade.sell_trading_logic
-        target_trade_value_krw = trade.target_trade_value_krw
-        max_allocation = trade.max_allocation
-        interval = trade.interval
-        take_profit_threshold = trade.take_profit_threshold
-        stop_loss_threshold = trade.stop_loss_threshold
-        use_stop_loss = trade.use_stop_loss
-        use_take_profit = trade.use_take_profit
-        
+    buy_trading_logic = user_info.buy_trading_logic
+    sell_trading_logic = user_info.sell_trading_logic
+    target_trade_value_krw = user_info.target_trade_value_krw
+    max_allocation = user_info.max_allocation
+    interval = user_info.interval
+    take_profit_threshold = user_info.take_profit_threshold
+    stop_loss_threshold = user_info.stop_loss_threshold
+    use_stop_loss = user_info.use_stop_loss
+    use_take_profit = user_info.use_take_profit
         
     # ✅ scheduled_trading 시작 시 잔고 조회
     account = trading_bot.kis.account()
@@ -173,6 +165,22 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
         retries = 0
 
         print(f'------ {trading_bot_name}의 {symbol_name} 주식 자동 트레이딩을 시작합니다. ------')
+        
+        take_profit_logic = {
+            "name": "fixed_ratio",
+            "params": {
+                "ratio": 5
+            }
+        }
+
+        stop_loss_logic = {
+            "name": "fixed_ratio",
+            "params": {
+                "ratio": 5
+            }
+        }
+
+        target_trade_value_ratio = 20 # 임시
 
         while retries < max_retries:
             try:
@@ -185,12 +193,11 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot'):
                     start_date=start_date,
                     end_date=end_date,
                     target_trade_value_krw=target_trade_value_krw,
+                    target_trade_value_ratio=target_trade_value_ratio,
                     interval=interval,
                     max_allocation = max_allocation,
-                    take_profit_threshold = take_profit_threshold,
-                    stop_loss_threshold = stop_loss_threshold,
-                    use_stop_loss = use_stop_loss,
-                    use_take_profit= use_take_profit
+                    take_profit_logic=take_profit_logic,
+                    stop_loss_logic=stop_loss_logic, 
                 )
                 break
             except Exception as e:
