@@ -2,7 +2,7 @@ import uuid
 from fastapi import FastAPI, HTTPException
 from typing import Optional
 from datetime import date, datetime, timedelta
-import datetime
+
 import pytz
 import asyncio
 import requests
@@ -199,6 +199,7 @@ async def post_price_change_selected(data: SymbolRequestModel):
     
     auto_trading_stock = AutoTradingBot(id=simulation_data["user_id"], virtual=False)
     
+    import datetime
     today = datetime.date.today()
     print(today)
     start_date = (today - datetime.timedelta(days=5))
@@ -208,18 +209,33 @@ async def post_price_change_selected(data: SymbolRequestModel):
     # ✅ symbol → name, type 매핑 준비
     symbol_info_map = {}
 
-    for item in list(StockSymbol.scan()) + list(StockSymbol2.scan()):
+    # ✅ 먼저 StockSymbol (우선순위 높음)
+    for item in list(StockSymbol.scan()):
         symbol_info_map[item.symbol] = {
             "name": item.symbol_name,
-            "type": getattr(item, "type", "unknown")
+            "type": getattr(item, "type", "unknown"),
+            "industry": getattr(item, "industry", "unknown"),
+            "theme": getattr(item, "theme", "unknown")
         }
+
+    # ✅ 그 다음 StockSymbol2 → 기존에 없는 symbol만 추가
+    for item in list(StockSymbol2.scan()):
+        if item.symbol not in symbol_info_map:
+            symbol_info_map[item.symbol] = {
+                "name": item.symbol_name,
+                "type": getattr(item, "type", "unknown"),
+                "industry": getattr(item, "industry", "unknown"),
+                "theme": getattr(item, "theme", "unknown")
+            }
         
     results = []
 
     for symbol in data.symbols:
-        info = symbol_info_map.get(symbol, {"name": "Unknown", "type": "unknown"})
+        info = symbol_info_map.get(symbol, {"name": "Unknown", "type": "unknown","industry": "unknown", "theme": "unknown"})
         name = info["name"]
         stock_type = info["type"]
+        industry= info["industry"]
+        theme = info["industry"]
         try:
             klines = auto_trading_stock._get_ohlc(symbol, start_date, end_date)
             if len(klines) >= 2:
@@ -230,6 +246,8 @@ async def post_price_change_selected(data: SymbolRequestModel):
                     "symbol": symbol,
                     "name": name,
                     "stock_type": stock_type,
+                    "industry": industry,
+                    "theme": theme,
                     "change_pct": pct,
                     "current_close": curr_close,
                     

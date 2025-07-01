@@ -15,6 +15,9 @@ class StockSymbol(Model):
     symbol_name = UnicodeAttribute()
     type = UnicodeAttribute() #kospi, kosdaq
     market_cap = NumberAttribute(null=True)
+    industry = UnicodeAttribute(null=True)
+    theme = UnicodeAttribute(null=True)
+    
     
 class StockSymbol2(Model):
     class Meta:
@@ -27,6 +30,8 @@ class StockSymbol2(Model):
     symbol_name = UnicodeAttribute()
     type = UnicodeAttribute() #kospi, kosdaq
     market_cap = NumberAttribute(null=True)
+    industry = UnicodeAttribute(null=True)
+    theme = UnicodeAttribute(null=True)
         
 #         # ✅ 테이블 생성
 # if not StockSymbol2.exists():
