@@ -2235,7 +2235,6 @@ def main():
 
             # 출력 예시
             st.write({
-                "날짜": trading_bot.stop_loss_threshold,
                 "매수로직": selected_buy_trading_logics,
             })
 
