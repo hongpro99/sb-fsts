@@ -14,9 +14,12 @@ from io import StringIO, BytesIO
 import boto3
 import json
 from botocore.client import Config
+import pandas as pd
 
 from app.model.simulation_trading_bulk_model import SimulationTradingBulkModel
 from app.model.simulation_trading_model import SimulationTradingModel
+from app.model.symbol_reqeust_model import SymbolRequestModel
+from app.utils.dynamodb.model.stock_symbol_model import StockSymbol, StockSymbol2
 from app.scheduler import auto_trading_scheduler
 from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.database import get_db, get_db_session
@@ -188,7 +191,76 @@ async def get_simulation_bulk(simulation_id: str):
 
     return response_dict
 
+@app.post("/stock/price-change/selected")
+async def post_price_change_selected(data: SymbolRequestModel):
+    
+    simulation_data = data.model_dump(exclude_none=True)
+    
+    auto_trading_stock = AutoTradingBot(id=simulation_data["user_id"], virtual=False)
+    
+    import datetime
+    today = datetime.date.today()
+    print(today)
+    start_date = (today - datetime.timedelta(days=5))
+    end_date = today
+    print(start_date, end_date)
 
+    # ✅ symbol → name, type 매핑 준비
+    symbol_info_map = {}
+
+    # ✅ 먼저 StockSymbol (우선순위 높음)
+    for item in list(StockSymbol.scan()):
+        symbol_info_map[item.symbol] = {
+            "name": item.symbol_name,
+            "type": getattr(item, "type", "unknown"),
+            "industry": getattr(item, "industry", "unknown"),
+            "theme": getattr(item, "theme", "unknown")
+        }
+
+    # ✅ 그 다음 StockSymbol2 → 기존에 없는 symbol만 추가
+    for item in list(StockSymbol2.scan()):
+        if item.symbol not in symbol_info_map:
+            symbol_info_map[item.symbol] = {
+                "name": item.symbol_name,
+                "type": getattr(item, "type", "unknown"),
+                "industry": getattr(item, "industry", "unknown"),
+                "theme": getattr(item, "theme", "unknown")
+            }
+        
+    results = []
+
+    for symbol in data.symbols:
+        info = symbol_info_map.get(symbol, {"name": "Unknown", "type": "unknown","industry": "unknown", "theme": "unknown"})
+        name = info["name"]
+        stock_type = info["type"]
+        industry= info["industry"]
+        theme = info["theme"]
+        try:
+            klines = auto_trading_stock._get_ohlc(symbol, start_date, end_date)
+            if len(klines) >= 2:
+                prev_close = klines[-2].close
+                curr_close = klines[-1].close
+                pct = round((curr_close - prev_close) / prev_close * 100, 2)
+                results.append({
+                    "symbol": symbol,
+                    "name": name,
+                    "stock_type": stock_type,
+                    "industry": industry,
+                    "theme": theme,
+                    "change_pct": pct,
+                    "current_close": curr_close,
+                    
+                })
+        except Exception as e:
+            print(f"❌ {symbol} 오류: {e}")
+
+    df = pd.DataFrame(results)
+    if df.empty:
+        return {"status": "no_data", "result_presigned_url": ""}
+
+    presigned_url = save_df_to_s3(df, bucket_name="sb-fsts", folder_prefix="price-change/")
+    return {"status": "success", "result_presigned_url": presigned_url}
+    
 @app.get("/health")
 async def health_check():
     print('health!!')
