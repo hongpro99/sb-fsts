@@ -2249,6 +2249,142 @@ def main():
         # )
 
         # result = dynamodb_executor.execute_update(data_model, pk_name)
+        
+    with tabs[7]:
+        
+        st.title("📊 Today's UpDown!")
+
+        user_id = 'id1' #임시 아이디 고정
+        
+        # ✅ 종목 불러오기
+        kospi_kosdaq150 = list(StockSymbol.scan(
+            filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
+        ))
+        kosdaq_all_result = list(StockSymbol2.scan(
+            filter_condition=(StockSymbol2.type == 'kosdaq')
+        ))
+        sorted_items = sorted(
+            kospi_kosdaq150,
+            key=lambda x: ({'kospi200': 1, 'kosdaq150': 2}.get(getattr(x, 'type', ''), 99), getattr(x, 'symbol_name', ''))
+        )
+
+        # ✅ 종목 분류
+        kospi200_items = [row for row in sorted_items if getattr(row, 'type', '') == 'kospi200']
+        kosdaq150_items = [row for row in sorted_items if getattr(row, 'type', '') == 'kosdaq150']
+        kosdaq_items = [row for row in kosdaq_all_result if getattr(row, 'type', '') == 'kosdaq']
+
+        kospi200_names = [row.symbol_name for row in kospi200_items]
+        kosdaq150_names = [row.symbol_name for row in kosdaq150_items]
+        kosdaq_all_names = [row.symbol_name for row in kosdaq_items]
+        all_symbol_names = list(set(row.symbol_name for row in (sorted_items + kosdaq_items)))
+
+        # ✅ symbol mapping
+        symbol_options_main = {row.symbol_name: row.symbol for row in sorted_items}
+        symbol_options_kosdaq = {row.symbol_name: row.symbol for row in kosdaq_items}
+        symbol_options = {**symbol_options_main, **symbol_options_kosdaq}
+
+        # ✅ 세션 상태 초기화
+        if "selected_stocks" not in st.session_state:
+            st.session_state["selected_stocks2"] = []
+
+        # ✅ 버튼 UI
+        col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 4])
+        
+
+        with col1:
+            if st.button("✅ 전체 선택", key="btn_all"):
+                st.session_state["selected_stocks2"] = list(set(
+                    st.session_state["selected_stocks2"] + all_symbol_names
+                ))
+
+        with col2:
+            if st.button("🏦 코스피 200 추가", key="btn_kospi"):
+                st.session_state["selected_stocks2"] = list(set(
+                    st.session_state["selected_stocks2"] + kospi200_names
+                ))
+
+        with col3:
+            if st.button("📈 코스닥 150 추가", key="btn_kosdaq150"):
+                st.session_state["selected_stocks2"] = list(set(
+                    st.session_state["selected_stocks2"] + kosdaq150_names
+                ))
+
+        with col4:
+            if st.button("📊 코스닥 전체 추가", key="btn_kosdaq_all"):
+                st.session_state["selected_stocks2"] = list(set(
+                    st.session_state["selected_stocks2"] + kosdaq_all_names
+                ))
+
+        with col5:
+            if st.button("❌ 선택 해제", key="btn_clear"):
+                st.session_state["selected_stocks2"] = []
+
+        # ✅ 유효 종목만 필터링
+        valid_selected_stocks = [
+            s for s in st.session_state.get("selected_stocks2", []) if s in symbol_options
+        ]
+
+        # ✅ 선택 수 표시
+        st.markdown(f"🔎 **선택된 종목 수: {len(valid_selected_stocks)} 종목**")
+
+        # ✅ 종목 선택 UI
+        selected_stocks = st.multiselect(
+            "📌 원하는 종목 선택",
+            options=all_symbol_names,
+            default=valid_selected_stocks,
+            key = "selected_stocks2"
+        )
+        selected_symbols = [symbol_options[name] for name in selected_stocks]
+
+        if st.button("📡 등락률 분석 요청"):
+
+            if not selected_symbols:
+                st.warning("📌 최소 1개 이상의 종목을 선택하세요.")
+            else:
+                with st.spinner("서버에 요청 중..."):
+                    api_url = f"{backend_base_url}/stock/price-change/selected"
+                    #조건 입력값
+                    payload = {
+                        "user_id": user_id,
+                        "symbols": selected_symbols
+                    }
+
+                    response = requests.post(api_url, json=payload)
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data["status"] == "success":
+                            presigned_url = data["result_presigned_url"]
+                            df = pd.read_csv(presigned_url)
+
+                            st.success("✅ 분석 완료!")
+                            
+                            # ✅ 업종별 통계 계산
+                            industry_summary = (
+                                df.groupby("industry")
+                                .agg(종목수=("symbol", "count"), 평균등락률=("change_pct", "mean"))
+                                .reset_index()
+                                .sort_values(by="평균등락률", ascending=False)
+                            )
+
+                            st.subheader("🏭 업종별 평균 등락률")
+                            st.dataframe(industry_summary)
+
+                            st.subheader("📈 상승 종목")
+                            st.metric("상승 종목 개수", f"{len(df[df['change_pct'] > 0])}")
+                            st.dataframe(df[df['change_pct'] > 0].sort_values(by='change_pct', ascending=False))
+
+                            st.subheader("📉 하락 종목")
+                            st.metric("하락 종목 개수",  f"{len(df[df['change_pct'] < 0])}")
+                            st.dataframe(df[df['change_pct'] < 0].sort_values(by='change_pct'))
+
+                            st.subheader("📋 전체 종목")
+                            st.metric("📊 분석된 종목 수", f"{len(df)}")
+                            st.dataframe(df)
+                        else:
+                            st.warning("⚠️ 분석 결과가 없습니다.")
+                    else:
+                        st.error("❌ 서버 요청 실패")
 
 
 if __name__ == "__main__":
