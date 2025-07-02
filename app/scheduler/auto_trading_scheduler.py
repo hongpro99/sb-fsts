@@ -192,9 +192,9 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot', so
     trading_bot._upsert_account_balance(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨
     trading_bot.update_roi(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨
 
-def run_market_netbuy_summary(id, virtual = False):
+def run_market_netbuy_summary():
     
-    trading_bot = AutoTradingBot(id=id, virtual=virtual)
+    trading_bot = AutoTradingBot(id='bnuazz15bot_real', virtual=False)
     
     result_kospi = trading_bot.get_foreign_institution_net_buy_summary(market_code= 'KSP', industry="0001")
     result_kosdaq = trading_bot.get_foreign_institution_net_buy_summary(market_code='KSQ', industry='1001')
