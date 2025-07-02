@@ -2710,3 +2710,78 @@ class AutoTradingBot:
             return None
 
         return valid.iloc[-1]['horizontal_high']
+    
+    def get_foreign_institution_net_buy_summary(self, market_code: str = "KSQ", industry: str = "1001"):
+        """
+        한국투자증권 실전투자 API - 국내기관/외국인 매매 종목 가집계
+
+        Parameters:
+            symbol (str): 종목코드 (e.g. "005930")
+
+        Returns:
+            dict: 응답 JSON 데이터
+
+        예시:
+            - 외국인 순매수 금액순: FID_DIV_CLS_CODE=0, FID_RANK_SORT_CLS_CODE=D
+            - 기관 매도 수량순: FID_DIV_CLS_CODE=2, FID_RANK_SORT_CLS_CODE=Q
+        """
+
+        # 실전 도메인
+        url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/quotations/inquire-investor-time-by-market"
+
+        # 요청 헤더
+        headers = {
+            "content-type": "application/json; charset=utf-8",
+            "authorization": str(self.kis.token),
+            "appkey": self.app_key,
+            "appsecret": self.secret_key,
+            "tr_id": "FHPTJ04030000",
+            "custtype": "P",  # 개인
+        }
+
+        # 쿼리 파라미터
+        params = {
+            "fid_input_iscd": market_code,   # 코스닥150: KQI
+            "fid_input_iscd_2": industry,
+        }
+
+        # 요청
+        response = requests.get(url, headers=headers, params=params)
+
+        if response.status_code != 200:
+            print("❌ 요청 실패:", response.status_code, response.text)
+            return None
+
+        data = response.json()
+        print(f"data: {data}")
+        
+        output_list = data.get('output', [])
+        if not output_list:
+            print("⚠️ output 리스트가 비어 있습니다.")
+            return None
+
+        output = output_list[0]
+        # 주체명과 해당 키 매핑
+        target_keys = {
+            '외국인': 'frgn_ntby_tr_pbmn',
+            '개인': 'prsn_ntby_tr_pbmn',
+            '기관계': 'orgn_ntby_tr_pbmn',
+            '증권': 'scrt_ntby_tr_pbmn',
+            '투자신탁': 'ivtr_ntby_tr_pbmn',
+            '사모펀드': 'pe_fund_ntby_tr_pbmn',
+            '은행': 'bank_ntby_tr_pbmn',
+            '보험': 'insu_ntby_tr_pbmn',
+            '종금': 'mrbn_ntby_tr_pbmn',
+            '기금': 'fund_ntby_tr_pbmn',
+            '기타단체': 'etc_orgt_ntby_tr_pbmn',
+            '기타법인': 'etc_corp_ntby_tr_pbmn'
+        }
+
+        result = {}
+        for name, key in target_keys.items():
+            value = output.get(key)
+            if value is not None:
+                result[name] = value
+
+        return result
+        

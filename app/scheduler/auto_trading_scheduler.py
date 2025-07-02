@@ -192,7 +192,31 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot', so
     trading_bot._upsert_account_balance(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨
     trading_bot.update_roi(trading_bot_name) # 따로 스케줄러 만들어서 다른 시간에 하도록 설정해도 됨
 
+def run_market_netbuy_summary(id, virtual = False):
+    
+    trading_bot = AutoTradingBot(id=id, virtual=virtual)
+    
+    result_kospi = trading_bot.get_foreign_institution_net_buy_summary(market_code= 'KSP', industry="0001")
+    result_kosdaq = trading_bot.get_foreign_institution_net_buy_summary(market_code='KSQ', industry='1001')
+    
+    # 메시지 포맷팅
+    def format_result(title, result):
+        if not result:
+            return f"❌ {title} 조회 실패 또는 데이터 없음"
+        lines = [f"✅ {title}"]
+        for name, amount in result.items():
+            lines.append(f"• {name}: {int(amount):,} 원")
+        return "\n".join(lines)
 
+    message = "\n\n".join([
+        format_result("📈 KOSPI 외국인/기관 순매수", result_kospi),
+        format_result("📊 KOSDAQ 외국인/기관 순매수", result_kosdaq)
+
+    ])
+
+    # 디스코드 전송
+    webhook.send_discord_webhook(message, "trading")
+    
 def scheduled_save_account_balance():
     """
     스케줄러: 계좌 잔고 저장
