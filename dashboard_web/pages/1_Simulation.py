@@ -1573,7 +1573,7 @@ def main():
     st.title("FSTS SIMULATION")
     
     # 탭 생성
-    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "📊 Simulation Result", "📈Auto Trading Bot Balance", "🏆Ranking", "Setting"])
+    tabs = st.tabs(["🏠 Bot Transaction History", "📈 Simulation Graph", "📊 KOSPI200 Simulation", "📊 Simulation Result", "📈Auto Trading Bot Balance", "🏆Ranking", "Setting", "Today's Updown"])
 
     # 각 탭의 내용 구성
     with tabs[0]:
@@ -1766,31 +1766,19 @@ def main():
             min_trade_value = st.number_input("💰 최소 매수금액 (KRW)", min_value=0, value=500000, step=1000000, key=f"min_trade_value")
             target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
     
-        # ✅ DB에서 종목 리스트 가져오기
-        result = list(StockSymbol.scan(
+        # ✅ 종목 불러오기
+        kospi_kosdaq150 = list(StockSymbol.scan(
             filter_condition=((StockSymbol.type == 'kospi200') | (StockSymbol.type == 'kosdaq150'))
         ))
-
-        # ✅ StockSymbol2에서도 종목 가져오기 (kosdaq 전체)
         kosdaq_all_result = list(StockSymbol2.scan(
             filter_condition=(StockSymbol2.type == 'kosdaq')
         ))
-
-        type_order = {
-            'kospi200': 1,
-            'kosdaq150': 2
-        }
-
-        # ✅ 정렬
         sorted_items = sorted(
-            result,
-            key=lambda x: (
-                type_order.get(getattr(x, 'type', ''), 99),
-                getattr(x, 'symbol_name', '')
-            )
+            kospi_kosdaq150,
+            key=lambda x: ({'kospi200': 1, 'kosdaq150': 2}.get(getattr(x, 'type', ''), 99), getattr(x, 'symbol_name', ''))
         )
 
-        # ✅ 분리
+        # ✅ 종목 분류
         kospi200_items = [row for row in sorted_items if getattr(row, 'type', '') == 'kospi200']
         kosdaq150_items = [row for row in sorted_items if getattr(row, 'type', '') == 'kosdaq150']
         kosdaq_items = [row for row in kosdaq_all_result if getattr(row, 'type', '') == 'kosdaq']
@@ -1798,42 +1786,47 @@ def main():
         kospi200_names = [row.symbol_name for row in kospi200_items]
         kosdaq150_names = [row.symbol_name for row in kosdaq150_items]
         kosdaq_all_names = [row.symbol_name for row in kosdaq_items]
+        all_symbol_names = list(set(row.symbol_name for row in (sorted_items + kosdaq_items)))
 
-        # ✅ 전체 종목 이름 리스트 (StockSymbol + StockSymbol2)
-        all_symbol_names = list(set(
-            row.symbol_name for row in (sorted_items + kosdaq_items)
-        ))
-
-        # ✅ 병합된 symbol_options
+        # ✅ symbol mapping
         symbol_options_main = {row.symbol_name: row.symbol for row in sorted_items}
         symbol_options_kosdaq = {row.symbol_name: row.symbol for row in kosdaq_items}
         symbol_options = {**symbol_options_main, **symbol_options_kosdaq}
 
+        # ✅ 세션 상태 초기화
+        if "selected_stocks" not in st.session_state:
+            st.session_state["selected_stocks"] = []
+
         # ✅ 버튼 UI
         col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 4])
+        
 
         with col1:
-            if st.button("✅ 전체 선택"):
-                st.session_state["selected_stocks"] = all_symbol_names
-                print(len(all_symbol_names))
+            if st.button("✅ 전체 선택", key="btn_all2"):
+                st.session_state["selected_stocks"] = list(set(
+                    st.session_state["selected_stocks"] + all_symbol_names
+                ))
 
         with col2:
-            if st.button("🏦 코스피 200 선택"):
-                st.session_state["selected_stocks"] = kospi200_names
-                print(len(kospi200_names))
+            if st.button("🏦 코스피 200 추가", key="btn_kospi2"):
+                st.session_state["selected_stocks"] = list(set(
+                    st.session_state["selected_stocks"] + kospi200_names
+                ))
 
         with col3:
-            if st.button("📈 코스닥 150 선택"):
-                st.session_state["selected_stocks"] = kosdaq150_names
-                print(len(kosdaq150_names))
+            if st.button("📈 코스닥 150 추가", key="btn_kosdaq150_2"):
+                st.session_state["selected_stocks"] = list(set(
+                    st.session_state["selected_stocks"] + kosdaq150_names
+                ))
 
         with col4:
-            if st.button("📊 코스닥 전체 선택"):
-                st.session_state["selected_stocks"] = kosdaq_all_names
-                print(len(kosdaq_all_names))
+            if st.button("📊 코스닥 전체 추가", key="btn_kosdaq_all2"):
+                st.session_state["selected_stocks"] = list(set(
+                    st.session_state["selected_stocks"] + kosdaq_all_names
+                ))
 
         with col5:
-            if st.button("❌ 선택 해제"):
+            if st.button("❌ 선택 해제", key="btn_clear2"):
                 st.session_state["selected_stocks"] = []
 
         # ✅ 세션 상태에 저장된 값 중, 현재 옵션에 존재하는 것만 유지
@@ -1841,7 +1834,10 @@ def main():
             st.session_state["selected_stocks"] = [
                 s for s in st.session_state["selected_stocks"] if s in symbol_options
             ]
-            
+
+        # ✅ 선택 수 표시
+        st.markdown(f"🔎 **선택된 종목 수: {len(st.session_state["selected_stocks"])} 종목**")
+                    
         # ✅ 사용자가 원하는 종목 선택 (다중 선택 가능)
         selected_stocks = st.multiselect("📌 원하는 종목 선택", all_symbol_names, key="selected_stocks")
         selected_symbols = {stock: symbol_options[stock] for stock in selected_stocks}
