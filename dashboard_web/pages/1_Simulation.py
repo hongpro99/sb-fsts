@@ -2364,6 +2364,17 @@ def main():
 
                             st.subheader("🏭 업종별 평균 등락률")
                             st.dataframe(industry_summary)
+                                                        
+                            # ✅ 테마별 통계 계산
+                            theme_summary = (
+                                df.groupby("theme")
+                                .agg(종목수=("symbol", "count"), 평균등락률=("change_pct", "mean"))
+                                .reset_index()
+                                .sort_values(by="평균등락률", ascending=False)
+                            )
+
+                            st.subheader("🏭 테마별 평균 등락률")
+                            st.dataframe(theme_summary)
 
                             st.subheader("📈 상승 종목")
                             st.metric("상승 종목 개수", f"{len(df[df['change_pct'] > 0])}")

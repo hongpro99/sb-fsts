@@ -2785,3 +2785,30 @@ class AutoTradingBot:
 
         return result
         
+    def map_investor_estimates(self, data: dict) -> list:
+        """
+        get_investor_trend_estimate 응답에서 외국인, 기관, 총매수량을 시간별로 추출 및 정리
+
+        Parameters:
+            data (dict): API 응답 JSON
+
+        Returns:
+            list[dict]: [{'시간': '09:30', '외국인': -51000, '기관': 0, '총계': -51000}, ...]
+        """
+        time_map = {
+            '1': '09:30',
+            '2': '10:00',
+            '3': '11:20',
+            '4': '13:20',
+            '5': '14:30',
+        }
+
+        result = []
+        for row in data.get('output2', []):
+            result.append({
+                '시간': time_map.get(row['bsop_hour_gb'], row['bsop_hour_gb']),
+                '외국인': int(row['frgn_fake_ntby_qty']),
+                '기관': int(row['orgn_fake_ntby_qty']),
+                '총계': int(row['sum_fake_ntby_qty'])
+            })
+        return result

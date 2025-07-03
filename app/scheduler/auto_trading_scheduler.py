@@ -9,7 +9,7 @@ from app.utils.crud_sql import SQLExecutor
 from app.utils.auto_trading_bot import AutoTradingBot
 from app.utils.dynamodb.crud import DynamoDBExecutor
 from app.utils.dynamodb.model.auto_trading_balance_model import AutoTradingBalance
-from app.utils.dynamodb.model.stock_symbol_model import StockSymbol
+from app.utils.dynamodb.model.stock_symbol_model import StockSymbol, StockSymbol2
 from app.utils.dynamodb.model.user_info_model import UserInfo
 from pykis import KisBalance
 from app.utils.webhook import Webhook
@@ -35,6 +35,9 @@ def scheduled_trading_weeklybot_task():
     
 def scheduled_trading_bnuazz15bot_real_task():
     scheduled_trading(id='bnuazz15bot_real', virtual = False, trading_bot_name = 'bnuazz15bot_real')
+    
+def get_netbuy_summary_by_investor():
+    netbuy_summary_by_investor(id='bnuazz15bot_real', virtual = False, trading_bot_name = 'bnuazz15bot_real')
 
 
 def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot', sorting = 'trade_volume'):
@@ -215,7 +218,92 @@ def run_market_netbuy_summary():
     ])
 
     # 디스코드 전송
-    webhook.send_discord_webhook(message, "trading")
+    webhook.send_discord_webhook(message, "alarm")
+    
+def netbuy_summary_by_investor(id, virtual, trading_bot_name):
+    
+    # 1. 트레이딩 봇 초기화
+    trading_bot = AutoTradingBot(id=id, virtual=virtual)
+
+    # 2. 날짜 설정 (당일)
+    today = date.today()
+    interval = "day"
+    
+    # ✅ symbol → symbol_name 매핑
+    symbol_name_map = {}
+    for item in StockSymbol.scan():
+        symbol_name_map[item.symbol] = item.symbol_name
+    for item in StockSymbol2.scan():
+        if item.symbol not in symbol_name_map:
+            symbol_name_map[item.symbol] = item.symbol_name
+
+    # 3. 계좌 잔고 조회
+    kis_account = trading_bot.kis.account()
+    kis_balance: KisBalance = kis_account.balance()
+
+    # 4. 보유 종목 필터링 (수량 > 0)
+    non_zero_stocks = [stock for stock in kis_balance.stocks if stock.qty > 0]
+    if not non_zero_stocks:
+        print("❌ 보유 종목이 없습니다.")
+        return
+
+    kis_balance.stocks = non_zero_stocks
+
+    # 5. 알림 시작 메시지
+    webhook.send_discord_webhook(
+        f'📢 **[{trading_bot_name}] 보유 종목별 외인/기관 매수 추정**\n', "alarm"
+    )
+
+    # 6. 종목별 외인/기관 데이터 출력
+    for stock in kis_balance.stocks:
+        symbol = stock.symbol
+
+        # OHLC 데이터 가져오기
+        ohlc_data = trading_bot._get_ohlc(symbol, today, today, interval)
+        # if not ohlc_data:
+        #     print(f"❌ {symbol} OHLC 데이터 없음")
+        #     continue
+
+        close_price = ohlc_data[-1].close
+
+        # 외인/기관 매매 추정치 조회
+        response = trading_bot.get_investor_trend_estimate(symbol)
+        # if not response:
+        #     print(f"❌ {symbol} 추정 데이터 없음")
+        #     continue
+
+        summary = trading_bot.map_investor_estimates(response)
+        # if not summary:
+        #     print(f"❌ {symbol} 요약 데이터 없음")
+        #     continue
+
+        symbol_name = symbol_name_map.get(symbol, symbol)
+
+        # 종목 헤더 메시지
+        header = f"📈 ** {symbol_name} ({symbol})**\n📊 종가: {close_price:,}원"
+        webhook.send_discord_webhook(header, "alarm")
+
+        # 시간대별 매매 정보 모두 출력
+        for row in summary:
+            time_str = row["시간"]
+            frgn_qty = row["외국인"]
+            orgn_qty = row["기관"]
+            sum_qty = row["총계"]
+
+            frgn_amt = frgn_qty * close_price
+            orgn_amt = orgn_qty * close_price
+            sum_amt = sum_qty * close_price
+
+            msg = (
+                f"🕒 {time_str}\n"
+                f"・🌏 외국인: {frgn_qty:+,}주 ({frgn_amt:+,.0f}원)\n"
+                f"・🏦 기관: {orgn_qty:+,}주 ({orgn_amt:+,.0f}원)\n"
+                f"・📦 총계: {sum_qty:+,}주 ({sum_amt:+,.0f}원)\n"
+                f"---------------------------"
+            )
+            webhook.send_discord_webhook(msg, "alarm")
+
+    return
     
 def scheduled_save_account_balance():
     """

@@ -44,7 +44,25 @@ scheduler.add_job(auto_trading_scheduler.scheduled_trading_schedulerbot_task, 'c
 scheduler.add_job(auto_trading_scheduler.scheduled_trading_dreaminmindbot_task, 'cron', day_of_week='mon-fri', hour='15', minute='10')  # 월~금 3시 10분에 실행
 scheduler.add_job(auto_trading_scheduler.scheduled_trading_bnuazz15bot_task, 'cron', day_of_week='mon-fri', hour='15', minute='00') # 월~금 3시 10분에 실행
 scheduler.add_job(auto_trading_scheduler.scheduled_trading_weeklybot_task, 'cron', day_of_week='mon-fri', hour='14', minute='30')# 금 3시 10분에 실행(주봉)
-scheduler.add_job(auto_trading_scheduler.run_market_netbuy_summary, 'cron', day_of_week='mon-fri', hour='23', minute='05')# 금 3시 10분에 실행(주봉)
+scheduler.add_job(auto_trading_scheduler.run_market_netbuy_summary, 'cron', day_of_week='mon-fri', hour='23', minute='05')# 월~금
+
+# 각각 따로 등록하거나, 반복 가능한 구조로 작성
+schedule_times = [
+    (9, 35),
+    (10, 5),
+    (11, 25),
+    (13, 25),
+    (14, 35),
+]
+
+for h, m in schedule_times:
+    scheduler.add_job(
+        auto_trading_scheduler.get_netbuy_summary_by_investor,
+        'cron',
+        day_of_week='mon-fri',
+        hour=h,
+        minute=m
+    )
 
 scheduler.start()
 
