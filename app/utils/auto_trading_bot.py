@@ -2396,6 +2396,7 @@ class AutoTradingBot:
                 psbl_order_info = self.inquire_psbl_order(symbol)
                 if psbl_order_info is None:
                     print(f"[{datetime.now()}] ❌ 주문가능금액 조회 실패")
+                    message = f"[{datetime.now()}] ❌ 주문가능금액 조회 실패: {symbol}"
                     return
 
                 max_buy_amt = int(psbl_order_info['output']['nrcvb_buy_amt']) # 최대 매수 가능 금액
@@ -2405,6 +2406,7 @@ class AutoTradingBot:
                     # ✅ 매수 가능 금액이 50만원 미만이면 매수 생략
                 if max_buy_amt < 500_000:
                     print(f"[{datetime.now()}] 🚫 매수 생략: 매수 가능 금액이 50만원 미만 ({max_buy_amt:,}원)")
+                    message = f"[{datetime.now()}] 🚫 매수 생략: 매수 가능 금액이 50만원 미만 ({max_buy_amt:,}원): {symbol}"
                     return
     
                 # ✅ 수수료 포함하여 수량 계산
@@ -2424,9 +2426,11 @@ class AutoTradingBot:
                 adjusted_price = float(quote.close) * (1 + 0.00014)
                 qty = math.floor(target_trade_value_krw / adjusted_price)
                 print(f"[{datetime.now()}] (모의투자) 계산된 매수 수량: {qty} (단가: {adjusted_price:.2f})")
+                message = f"[{datetime.now()}] (모의투자) 계산된 매수 수량: {qty} (단가: {adjusted_price:.2f}) - {symbol}"
 
             if qty <= 0:
                 print(f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}")
+                message = f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}"
                 return
 
             # # ✅ 예수금 조회 (inquire_balance() 사용) #오류 발생_ 빼도 될 것 같음
@@ -2454,6 +2458,7 @@ class AutoTradingBot:
                 )
             except Exception as e:
                 print(f"[{datetime.now()}] ❌ 매수 실패: {e}")
+                message = f"[{datetime.now()}] ❌ 매수 실패: {e} - {symbol}"
             
         elif order_type == 'sell':
             # ✅ 보유 종목에서 해당 symbol 찾아서 수량 확인
@@ -2462,6 +2467,7 @@ class AutoTradingBot:
 
             if not holding:
                 print(f"[{datetime.now()}] 🚫 매도 생략: {symbol} 보유 수량 없음")
+                message = f"[{datetime.now()}] 🚫 매도 생략: {symbol} 보유 수량 없음"
                 return
 
             qty = holding[1] #수량을 저장, holding[0]은 종목 코드
@@ -2480,12 +2486,15 @@ class AutoTradingBot:
                 
             except Exception as e:
                 print(f"[{datetime.now()}] ❌ 매도 실패: {e}")
+                message = f"[{datetime.now()}] ❌ 매도 실패: {e} - {symbol}"
 
         else:
             print(f"[{datetime.now()}] ❌ 잘못된 주문 타입입니다: {order_type}")
+            message = f"[{datetime.now()}] ❌ 잘못된 주문 타입입니다: {order_type} - {symbol}"
             
         webhook.send_discord_webhook(message, "trading")
-            
+
+
     def _get_holdings_with_details(self):
 
         account = self.kis.account()
