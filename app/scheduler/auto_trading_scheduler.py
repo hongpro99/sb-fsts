@@ -88,7 +88,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot', so
 
     if sorting == 'trade_volume':
         # ✅ 거래대금 기준 내림차순 정렬
-        sorted_result = sorted(
+        sorted_symbols = sorted(
             result,
             key=lambda stock: get_estimated_trade_value(stock),
             reverse=True
