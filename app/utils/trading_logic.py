@@ -251,11 +251,15 @@ class TradingLogic:
                 # 조건 3: EMA 기울기 양수
         ema10_slope = last['EMA_10'] - prev['EMA_10']
         ema20_slope = last['EMA_20'] - prev['EMA_20']
-        ema50_slope = last['EMA_5'] - prev['EMA_5']
         ema60_slope = last['EMA_60'] - prev['EMA_60']
+        ema120_slope = last['EMA_120'] - prev['EMA_120']
         
-        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema60_slope > 0 and ema120_slope > 0
         
+        bollinger_upper_slope = last['BB_Upper'] - prev['BB_Upper']
+        bollinger_lower_slope = last['BB_Lower'] - prev['BB_Lower']
+        
+        slope_up2 = bollinger_upper_slope > 0 and bollinger_lower_slope > 0
         # 고점 돌파 (최근 5일 고점)
         recent_close_high = df['High'].iloc[-6:-1].max()
         cond8 = last['Close'] > recent_close_high
@@ -265,7 +269,7 @@ class TradingLogic:
         
         cond9 = last['Close'] > last_resistance
         # ✅ 최종 매수 조건
-        buy_signal = all([long_trend, crossover, not cond7, cond6, slope_up, volume_good, cond5, cond9, not_long_upper_shadow])
+        buy_signal = all([long_trend, crossover, not cond7, cond6, slope_up, volume_good, cond5, slope_up2])
         
         return buy_signal, None
     
@@ -613,11 +617,11 @@ class TradingLogic:
         )
 
         # 조건 3: EMA 기울기 양수
-        ema10_slope = last['EMA_5'] - prev['EMA_5']
-        ema20_slope = last['EMA_10'] - prev['EMA_10']
-        ema50_slope = last['EMA_20'] - prev['EMA_20']
+        ema10_slope = last['EMA_10'] - prev['EMA_10']
+        ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema60_slope = last['EMA_60'] - prev['EMA_60']
-        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
+        ema120_slope = last['EMA_120'] - prev['EMA_120']
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema120_slope > 0 and ema60_slope > 0
 
         # 조건 4: 거래량 증가
         volume_up = last['Volume'] > last['Volume_MA5']
@@ -627,20 +631,25 @@ class TradingLogic:
         is_bearish = last['Close'] > last['Open']
         
         upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        not_long_upper_shadow  = upper_shadow_ratio <= 0.7  # 윗꼬리 80% 이상이면 제외
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.8  # 윗꼬리 80% 이상이면 제외
 
-        # 윗꼬리, 아랫꼬리 계산
-        upper_wick = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        lower_wick = (min(last['Open'], last['Close']) - last['Low']) / (last['High'] - last['Low'] + 1e-6)
+        # # 윗꼬리, 아랫꼬리 계산
+        # upper_wick = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        # lower_wick = (min(last['Open'], last['Close']) - last['Low']) / (last['High'] - last['Low'] + 1e-6)
     
-        gap_threshold = 0.05
-        # 조건 1: 전일 대비 시초가 갭업
-        gap_up = last['Open'] > prev['Close'] * (1 + gap_threshold)
+        # gap_threshold = 0.05
+        # # 조건 1: 전일 대비 시초가 갭업
+        # gap_up = last['Open'] > prev['Close'] * (1 + gap_threshold)
         
-        wick_ratio_threshold =0.4
-        has_long_wick = lower_wick >= wick_ratio_threshold
+        # wick_ratio_threshold =0.4
+        # has_long_wick = lower_wick >= wick_ratio_threshold
+        
+        bollinger_upper_slope = last['BB_Upper'] - prev['BB_Upper']
+        bollinger_lower_slope = last['BB_Lower'] - prev['BB_Lower']
+        
+        slope_up2 = bollinger_upper_slope > 0 and bollinger_lower_slope > 0
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and is_bearish and volume_up2 and not_long_upper_shadow and not gap_up
+        buy_signal = cross_up and slope_up and volume_up and is_bearish and volume_up2 and not_long_upper_shadow and slope_up2
 
         return buy_signal, None
     

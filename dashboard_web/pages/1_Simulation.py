@@ -1176,7 +1176,7 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
     reorder_columns = [
         "timestamp", "symbol", "initial_capital", "portfolio_value", "quantity",
         "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi",
-        "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", "signal_reasons", "total_buy_cost", "buy_signal_info", "ohlc_data_full", "history"
+        "total_quantity", "average_price", "take_profit_hit", "stop_loss_hit", "fee_buy", "fee_sell", "tax", "total_costs", "signal_reasons", "total_buy_cost", "buy_signal_info", "ohlc_data_full", "history", "stock_type"
     ]
     results_df = results_df[[col for col in reorder_columns if col in results_df.columns]]
 
@@ -1276,13 +1276,14 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
 
     # 표출하고 싶은 컬럼 필터
     columns_to_show = [
-        "timestamp_str", "stock_name", "close_price", "avg_price", "total_quantity", "trade_type",
+        "timestamp_str", "stock_name", "stock_type", "close_price", "avg_price", "total_quantity", "trade_type",
         "reason", "realized_pnl", "realized_roi", "unrealized_pnl", "unrealized_roi", "krw_balance",
         "buy_logic_reasons", "sell_logic_reasons"
     ]
     columns_rename = {
         "timestamp_str": "날짜",
         "stock_name": "종목명",
+        "stock_type": "종목타입",
         "close_price": "종가",
         "avg_price": "평균단가",
         "total_quantity": "보유수량",
@@ -1788,10 +1789,25 @@ def main():
         kosdaq_all_names = [row.symbol_name for row in kosdaq_items]
         all_symbol_names = list(set(row.symbol_name for row in (sorted_items + kosdaq_items)))
 
-        # ✅ symbol mapping
+        # ✅ symbol + type mapping
         symbol_options_main = {row.symbol_name: row.symbol for row in sorted_items}
         symbol_options_kosdaq = {row.symbol_name: row.symbol for row in kosdaq_items}
         symbol_options = {**symbol_options_main, **symbol_options_kosdaq}
+        
+        # ✅ symbol + type 매핑 (symbol 기준)
+        symbol_type_map_main = {
+            row.symbol: getattr(row, "type", "unknown")
+            for row in sorted_items
+        }
+
+        # ✅ 덮어쓰기 없이 병합
+        for row in kosdaq_items:
+            symbol = row.symbol
+            if symbol not in symbol_type_map_main:
+                symbol_type_map_main[symbol] = getattr(row, "type", "unknown")
+
+        # ✅ 병합
+        symbol_type_map = symbol_type_map_main # 	{symbol: type}
 
         # ✅ 세션 상태 초기화
         if "selected_stocks" not in st.session_state:
@@ -1841,6 +1857,7 @@ def main():
         # ✅ 사용자가 원하는 종목 선택 (다중 선택 가능)
         selected_stocks = st.multiselect("📌 원하는 종목 선택", all_symbol_names, key="selected_stocks")
         selected_symbols = {stock: symbol_options[stock] for stock in selected_stocks}
+        stock_type = symbol_type_map
 
         # ✅ 차트 간격 (interval) 설정
         interval_options = {"DAY": "day", "WEEK": "week", "MONTH": "month"}
@@ -1923,6 +1940,7 @@ def main():
                 "min_trade_value": min_trade_value,
                 "selected_stocks": selected_stocks, #이름만
                 "selected_symbols": selected_symbols, #이름+코드(key,value)
+                "stock_type": stock_type,
                 "interval": interval,
                 "buy_trading_logic": selected_buyTrading_logic,
                 "sell_trading_logic": selected_sellTrading_logic,
@@ -1956,6 +1974,7 @@ def main():
                     "min_trade_value": simulation_settings['min_trade_value'],
                     "selected_stocks": simulation_settings['selected_stocks'],
                     "selected_symbols": simulation_settings['selected_symbols'],
+                    "stock_type": simulation_settings['stock_type'],
                     "interval": simulation_settings['interval'],
                     "buy_trading_logic": simulation_settings['buy_trading_logic'],
                     "sell_trading_logic": simulation_settings['sell_trading_logic'],

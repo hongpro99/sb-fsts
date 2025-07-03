@@ -11,6 +11,7 @@ class SimulationTradingBulkModel(BaseModel):
     min_trade_value: Optional[int]
     selected_stocks: List[str]
     selected_symbols: Dict[str, str]
+    stock_type : Dict[str, str]
     interval: str
     buy_trading_logic: Optional[List[str]]
     sell_trading_logic: Optional[List[str]]
