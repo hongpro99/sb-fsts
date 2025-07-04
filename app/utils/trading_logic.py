@@ -259,7 +259,7 @@ class TradingLogic:
         bollinger_upper_slope = last['BB_Upper'] - prev['BB_Upper']
         bollinger_lower_slope = last['BB_Lower'] - prev['BB_Lower']
         
-        slope_up2 = bollinger_upper_slope > 0 and bollinger_lower_slope > 0
+        slope_up2 = bollinger_upper_slope > 0 
         # 고점 돌파 (최근 5일 고점)
         recent_close_high = df['High'].iloc[-6:-1].max()
         cond8 = last['Close'] > recent_close_high
@@ -647,7 +647,7 @@ class TradingLogic:
         bollinger_upper_slope = last['BB_Upper'] - prev['BB_Upper']
         bollinger_lower_slope = last['BB_Lower'] - prev['BB_Lower']
         
-        slope_up2 = bollinger_upper_slope > 0 and bollinger_lower_slope > 0
+        slope_up2 = bollinger_upper_slope > 0
         # 최종 조건
         buy_signal = cross_up and slope_up and volume_up and is_bearish and volume_up2 and not_long_upper_shadow and slope_up2
 
