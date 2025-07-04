@@ -870,7 +870,18 @@ def setup_simulation_tab():
         key = stock.symbol_name  # 'a' 값을 키로
         value = stock.symbol  # 'b' 값을 값으로
         symbol_options[key] = value  # 딕셔너리에 추가
-            
+        
+    # Dropdown 메뉴를 통해 데이터 선택
+    symbol_type = {
+        # "352820": "kospi",
+        # "003490": "kospi",
+    }
+    
+    for stock in sorted_items:
+        key = stock.symbol  # 'a' 값을 키로
+        value = stock.type  # 'b' 값을 값으로
+        symbol_type[key] = value  # 딕셔너리에 추가
+                    
     # interval 설정
     interval_options = {
         "DAY": "day",
@@ -906,6 +917,9 @@ def setup_simulation_tab():
         buy_percentage = None
         
     symbol = symbol_options[selected_stock]
+    stock_type = symbol_type[symbol]
+    print(f"stock_type: {stock_type}")
+
     interval = interval_options[selected_interval]
     
     selected_buyTrading_logic = [available_buy_logic[logic] for logic in selected_buy_logic] if selected_buy_logic else []
@@ -1105,6 +1119,7 @@ def setup_simulation_tab():
         "kospi200": symbol_options,
         "symbol": symbol,
         "selected_stock": selected_stock,
+        "stock_type" : stock_type,
         "interval": interval,
         "buy_trading_logic": selected_buyTrading_logic,
         "sell_trading_logic": selected_sellTrading_logic,
@@ -1644,6 +1659,7 @@ def main():
                     "user_id": simulation_settings["id"],
                     "symbol": simulation_settings["symbol"],
                     "stock_name": simulation_settings["selected_stock"],
+                    "stock_type": simulation_settings['stock_type'],
                     "start_date": simulation_settings["start_date"].isoformat(),
                     "end_date": simulation_settings["end_date"].isoformat(),
                     "target_trade_value_krw": simulation_settings["target_trade_value_krw"],

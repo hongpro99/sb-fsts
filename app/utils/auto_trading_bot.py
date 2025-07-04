@@ -231,7 +231,7 @@ class AutoTradingBot:
     
 
     def simulate_trading(
-            self, symbol, stock_name, start_date, end_date, target_trade_value_krw, target_trade_value_ratio, min_trade_value, buy_trading_logic=None, sell_trading_logic=None,
+            self, symbol, stock_name, stock_type, start_date, end_date, target_trade_value_krw, target_trade_value_ratio, min_trade_value, buy_trading_logic=None, sell_trading_logic=None,
             interval='day', buy_percentage = None, ohlc_mode = 'default', initial_capital=None, rsi_period = 25, take_profit_logic=None, 
             stop_loss_logic=None, indicators=None
         ):
@@ -248,6 +248,7 @@ class AutoTradingBot:
         
         valid_symbol['symbol'] = symbol
         valid_symbol['stock_name'] = stock_name
+        valid_symbol['stock_type'] = stock_type
         valid_symbol['ohlc_data'] = ohlc_data
         valid_symbol['df'] = df
 
@@ -295,6 +296,7 @@ class AutoTradingBot:
         holding = {
             'symbol': symbol,
             'stock_name': stock_name,
+            'stock_type': stock_type,
             'timestamp_str': "",
             'close_price': 0,
             'total_quantity': 0,
@@ -419,6 +421,7 @@ class AutoTradingBot:
                         trading_history = self._create_trading_history(
                             symbol=symbol,
                             stock_name=holding['stock_name'],
+                            stock_type = holding['stock_type'],
                             fee=fee,
                             tax=tax,
                             revenue=revenue,
@@ -483,6 +486,7 @@ class AutoTradingBot:
                         trading_history = self._create_trading_history(
                             symbol=symbol,
                             stock_name=holding['stock_name'],
+                            stock_type = holding['stock_type'],
                             fee=fee,
                             tax=tax,
                             revenue=revenue,
@@ -548,6 +552,7 @@ class AutoTradingBot:
                     trading_history = self._create_trading_history(
                         symbol=symbol,
                         stock_name=holding['stock_name'],
+                        stock_type = holding['stock_type'],
                         fee=fee,
                         tax=tax,
                         revenue=revenue,
@@ -695,6 +700,7 @@ class AutoTradingBot:
                         trading_history = self._create_trading_history(
                             symbol=symbol,
                             stock_name=holding['stock_name'],
+                            stock_type = holding['stock_type'],
                             fee=fee,
                             tax=tax,
                             revenue=revenue,
@@ -743,6 +749,7 @@ class AutoTradingBot:
                     simulation_history = self._create_trading_history(
                         symbol=symbol,
                         stock_name=stock_name,
+                        stock_type = stock_type,
                         fee=0,
                         tax=0,
                         revenue=0,
