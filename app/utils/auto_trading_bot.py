@@ -20,6 +20,7 @@ from app.utils.dynamodb.crud import DynamoDBExecutor
 from app.utils.database import get_db, get_db_session
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
 from app.utils.dynamodb.model.auto_trading_model import AutoTrading
+from app.utils.dynamodb.model.stock_symbol_model import StockSymbol, StockSymbol2
 from app.utils.dynamodb.model.auto_trading_balance_model import AutoTradingBalance
 from app.utils.dynamodb.model.user_info_model import UserInfo
 from pykis import KisBalance, KisOrderProfits
@@ -791,9 +792,9 @@ class AutoTradingBot:
         start_date = simulation_settings["start_date"] - timedelta(days=180)
         end_date = simulation_settings["end_date"]
         interval = simulation_settings["interval"]
-        
-        failed_stocks = set()  # 중복 제거 자동 처리
 
+        failed_stocks = set()  # 중복 제거 자동 처리
+        
         # 사전에 계산된 OHLC 데이터와 DataFrame을 저장 (api 이슈)
         for stock_name, symbol in simulation_settings["selected_symbols"].items():
             
@@ -805,11 +806,16 @@ class AutoTradingBot:
                 
                 df = self._create_ohlc_df(ohlc_data=ohlc_data, rsi_period=rsi_period)
                 
+                        # ✅ type 가져오기
+                stock_type_map = simulation_settings['stock_type']
+                stock_type = stock_type_map.get(symbol, "unknown")
+        
                 # 유효한 종목만 저장
                 valid_symbol['symbol'] = symbol
                 valid_symbol['stock_name'] = stock_name
                 valid_symbol['ohlc_data'] = ohlc_data
                 valid_symbol['df'] = df
+                valid_symbol['stock_type'] = stock_type
 
                 valid_symbols.append(valid_symbol)
 
@@ -819,7 +825,7 @@ class AutoTradingBot:
                 failed_stocks.add(stock_name)
                         
         # ✅ 세션 상태에 저장
-        simulation_settings["selected_symbols"] = valid_symbols
+        simulation_settings["selected_symbols"] = valid_symbols #simulation_settings["selected_symbols"]에 type 추가되도 괜찮?
 
         symbols = valid_symbols
         trade_ratio = simulation_settings.get("target_trade_value_ratio", 100)
@@ -864,6 +870,7 @@ class AutoTradingBot:
             holding_dict = {
                 'symbol': symbol['symbol'],
                 'stock_name': stock_name,
+                'stock_type': stock_type,
                 'timestamp_str': "",
                 'close_price': 0,
                 'total_quantity': 0,
@@ -883,6 +890,8 @@ class AutoTradingBot:
             }
 
             global_state['account_holdings'].append(holding_dict)
+            
+
 
         date_range = sorted(list(all_dates))  # 날짜 정렬
 
@@ -907,7 +916,7 @@ class AutoTradingBot:
         )
 
         result = dynamodb_executor.execute_update(data_model, pk_name)
-
+   
         # ✅ 시뮬레이션 시작
         for idx, current_date in enumerate(date_range): # ✅ 하루 기준 고정 portfolio_value 계산 (종목별 보유 상태 반영)            
             for holding in global_state['account_holdings']:
@@ -923,6 +932,7 @@ class AutoTradingBot:
                 df = s['df']
                 ohlc_data = s['ohlc_data']
                 stock_name = s['stock_name']
+                stock_type = s['stock_type']
 
                 if not any(pd.Timestamp(c.time).tz_localize(None).normalize() == current_date for c in ohlc_data):
                     continue
@@ -1010,6 +1020,7 @@ class AutoTradingBot:
                         trading_history = self._create_trading_history(
                             symbol=symbol,
                             stock_name=stock_name,
+                            stock_type = stock_type,
                             fee=fee,
                             tax=tax,
                             revenue=revenue,
@@ -1074,6 +1085,7 @@ class AutoTradingBot:
                         trading_history = self._create_trading_history(
                             symbol=symbol,
                             stock_name=stock_name,
+                            stock_type = stock_type,
                             fee=fee,
                             tax=tax,
                             revenue=revenue,
@@ -1139,6 +1151,7 @@ class AutoTradingBot:
                     trading_history = self._create_trading_history(
                         symbol=symbol,
                         stock_name=stock_name,
+                        stock_type = stock_type,
                         fee=fee,
                         tax=tax,
                         revenue=revenue,
@@ -1174,7 +1187,8 @@ class AutoTradingBot:
                 df = s['df']
                 ohlc_data = s['ohlc_data']
                 stock_name = s['stock_name']
-
+                stock_type = s['stock_type']
+                
                 # 알맞은 종목 찾기
                 holding = next((h for h in global_state['account_holdings'] if h['symbol'] == symbol), None)
 
@@ -1285,6 +1299,7 @@ class AutoTradingBot:
                         trading_history = self._create_trading_history(
                             symbol=symbol,
                             stock_name=stock_name,
+                            stock_type = stock_type,
                             fee=fee,
                             tax=tax,
                             revenue=revenue,
@@ -1334,6 +1349,7 @@ class AutoTradingBot:
                     simulation_history = self._create_trading_history(
                         symbol=symbol,
                         stock_name=stock_name,
+                        stock_type = stock_type,
                         fee=0,
                         tax=0,
                         revenue=0,
@@ -1374,7 +1390,7 @@ class AutoTradingBot:
 
 
     def _create_trading_history(
-        self, symbol, stock_name, fee, tax, revenue, timestamp, timestamp_str, reason, trade_type, trade_quantity,
+        self, symbol, stock_name, stock_type, fee, tax, revenue, timestamp, timestamp_str, reason, trade_type, trade_quantity,
         avg_price, buy_logic_reasons, sell_logic_reasons, take_profit_hit, stop_loss_hit,
         realized_pnl, realized_roi, unrealized_pnl, unrealized_roi, krw_balance, total_quantity, total_buy_cost, close_price
     ):
@@ -1383,6 +1399,7 @@ class AutoTradingBot:
 
         trading_history['symbol'] = symbol
         trading_history['stock_name'] = stock_name
+        trading_history['stock_type'] = stock_type
         trading_history['fee'] = fee
         trading_history['tax'] = tax
         trading_history['revenue'] = revenue
