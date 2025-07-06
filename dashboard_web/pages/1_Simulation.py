@@ -71,18 +71,14 @@ def draw_lightweight_chart(data_df, assets, indicators):
     for i in indicators:
         if i['type'] == 'ema' and i['draw_yn'] is True:
             i['data'] = json.loads(data_df.dropna(subset=[i['name']]).rename(columns={i['name']: "value"}).to_json(orient="records"))
-
-    # ema_89 = json.loads(data_df.dropna(subset=['ema_89']).rename(columns={"ema_89": "value"}).to_json(orient="records"))
-    # ema_13 = json.loads(data_df.dropna(subset=['ema_13']).rename(columns={"ema_13": "value"}).to_json(orient="records"))
-    # ema_21 = json.loads(data_df.dropna(subset=['ema_21']).rename(columns={"ema_21": "value"}).to_json(orient="records"))
-    # ema_55 = json.loads(data_df.dropna(subset=['ema_55']).rename(columns={"ema_55": "value"}).to_json(orient="records"))
-    # ema_5 = json.loads(data_df.dropna(subset=['ema_5']).rename(columns={"ema_5": "value"}).to_json(orient="records"))
+        if i['type'] == 'sma' and i['draw_yn'] is True:
+            i['data'] = json.loads(data_df.dropna(subset=[i['name']]).rename(columns={i['name']: "value"}).to_json(orient="records"))
     
-    sma_5 = json.loads(data_df.dropna(subset=['sma_5']).rename(columns={"sma_5": "value"}).to_json(orient="records"))
-    sma_20 = json.loads(data_df.dropna(subset=['sma_20']).rename(columns={"sma_20": "value"}).to_json(orient="records"))
-    sma_40 = json.loads(data_df.dropna(subset=['sma_40']).rename(columns={"sma_40": "value"}).to_json(orient="records"))
-    sma_200 = json.loads(data_df.dropna(subset=['sma_200']).rename(columns={"sma_200": "value"}).to_json(orient="records"))
-    sma_120 = json.loads(data_df.dropna(subset=['sma_120']).rename(columns={"sma_120": "value"}).to_json(orient="records"))
+    # sma_5 = json.loads(data_df.dropna(subset=['sma_5']).rename(columns={"sma_5": "value"}).to_json(orient="records"))
+    # sma_20 = json.loads(data_df.dropna(subset=['sma_20']).rename(columns={"sma_20": "value"}).to_json(orient="records"))
+    # sma_40 = json.loads(data_df.dropna(subset=['sma_40']).rename(columns={"sma_40": "value"}).to_json(orient="records"))
+    # sma_200 = json.loads(data_df.dropna(subset=['sma_200']).rename(columns={"sma_200": "value"}).to_json(orient="records"))
+    # sma_120 = json.loads(data_df.dropna(subset=['sma_120']).rename(columns={"sma_120": "value"}).to_json(orient="records"))
     
     rsi = json.loads(data_df.dropna(subset=['rsi']).rename(columns={"rsi": "value"}).to_json(orient="records"))
     macd = json.loads(data_df.dropna(subset=['macd']).rename(columns={"macd": "value"}).to_json(orient="records"))
@@ -405,75 +401,22 @@ def draw_lightweight_chart(data_df, assets, indicators):
                     "priceLineVisible": False,
                 },
             })
-            
-            # sma_5
-        if "sma_5" in indicator['name']:
+
+        # SMA
+        if indicator['type'] == 'sma' and indicator['draw_yn'] is True:
             seriesCandlestickChart.append({
                 "type": 'Line',
-                "data": sma_5,
+                "data": indicator['data'],
                 "options": {
-                    "color": color, #청록색
-                    "lineWidth": 1.5,
+                    "color": color, #검은색
+                    "lineWidth": 2,
                     "priceScaleId": "right",
-                    "lastValueVisible": False, # 가격 레이블 숨기기
-                    "priceLineVisible": False, # 가격 라인 숨기기
+                    "lastValueVisible": False,
+                    "priceLineVisible": False,
                 },
-            })
+            }) 
             
-            # sma_20
-        if "sma_20" in indicator['name']:
-            seriesCandlestickChart.append({
-                "type": 'Line',
-                "data": sma_20,
-                "options": {
-                    "color": color, #청록색
-                    "lineWidth": 1,
-                    "priceScaleId": "right",
-                    "lastValueVisible": False, # 가격 레이블 숨기기
-                    "priceLineVisible": False, # 가격 라인 숨기기
-                },
-            })
-            
-            # sma_40
-        if "sma_40" in indicator['name']:
-            seriesCandlestickChart.append({
-                "type": 'Line',
-                "data": sma_40,
-                "options": {
-                    "color": color, #청록색
-                    "lineWidth": 1.5,
-                    "priceScaleId": "right",
-                    "lastValueVisible": False, # 가격 레이블 숨기기
-                    "priceLineVisible": False, # 가격 라인 숨기기
-                },
-            })
-        if "sma_200" in indicator['name']:
-            seriesCandlestickChart.append({
-                "type": 'Line',
-                "data": sma_200,
-                "options": {
-                    "color": color, #청록색
-                    "lineWidth": 1.5,
-                    "priceScaleId": "right",
-                    "lastValueVisible": False, # 가격 레이블 숨기기
-                    "priceLineVisible": False, # 가격 라인 숨기기
-                },
-            })
-            
-        if "sma_120" in indicator['name']:
-            seriesCandlestickChart.append({
-                "type": 'Line',
-                "data": sma_120,
-                "options": {
-                    "color": color, #청록색
-                    "lineWidth": 1.5,
-                    "priceScaleId": "right",
-                    "lastValueVisible": False, # 가격 레이블 숨기기
-                    "priceLineVisible": False, # 가격 라인 숨기기
-                },
-            })
-            
-            # 📌 추세선 파라미터 입력
+        # 📌 추세선 파라미터 입력
         lookback_prev = 7
         lookback_next = 7
 
@@ -1011,7 +954,7 @@ def setup_simulation_tab():
             "type": "ema",
             "period": 60,
             "draw_yn": True,
-            "color": "노랑"
+            "color": "보라"
         },
         {
             "type": "ema",
@@ -1019,10 +962,43 @@ def setup_simulation_tab():
             "draw_yn": True,
             "color": "주황"
         },
+        {
+            "type": "sma",
+            "period": 5,
+            "draw_yn": False,
+            "color": "갈색"
+        },
+        {
+            "type": "sma",
+            "period": 20,
+            "draw_yn": False,
+            "color": "청록"
+        },
+        {
+            "type": "sma",
+            "period": 40,
+            "draw_yn": False,
+            "color": "남색"
+        },
+        {
+            "type": "sma",
+            "period": 120,
+            "draw_yn": False,
+            "color": "올리브"
+        },
+        {
+            "type": "sma",
+            "period": 200,
+            "draw_yn": False,
+            "color": "회색"
+        },
     ]
 
-    st.write("##### EMA")
     for idx, indicator in enumerate(indicators):
+        if idx == 0:
+            st.write("##### EMA")
+        elif idx == 5:
+            st.write("##### SMA")
         with st.container():
             # 3개의 열로 나누기
             col0, col1, col2, col3 = st.columns([1, 2, 2, 10])
@@ -1030,8 +1006,8 @@ def setup_simulation_tab():
                 indicator['draw_yn'] = st.checkbox(f"선택_{idx}", value=indicator['draw_yn'], label_visibility="collapsed")
             # 두 번째 열: 숫자 입력
             with col1:
-                indicator['period'] = st.number_input("수량", min_value=0, value=indicator['period'], step=1, key=f"ema_period_{idx}", label_visibility="collapsed")
-                indicator['name'] = f"ema_{indicator['period']}"
+                indicator['period'] = st.number_input("수량", min_value=0, value=indicator['period'], step=1, key=f"period_{idx}", label_visibility="collapsed")
+                indicator['name'] = f"{indicator['type']}_{indicator['period']}"
             # 세 번째 열: 라디오 버튼
             with col2:
                 colors_options = list(colors.keys())
@@ -1046,38 +1022,8 @@ def setup_simulation_tab():
                     f"<div style='width:40px;height:40px;background:{indicator['color_hex']};border:0px solid black; margin-top:0px; margin-bottom:0px;'></div>",
                     unsafe_allow_html=True
                 )
-
-    if st.checkbox("SMA 5", value=False):
-        indicators.append({
-            'name': "sma_5",
-            'color': colors["검정"],
-            'period': 5
-        })
-    if st.checkbox("SMA 20", value=False):
-        indicators.append({
-            'name': "sma_20",
-            'color': colors["검정"],
-            'period': 20
-        })
-    if st.checkbox("SMA 40", value=False):
-        indicators.append({
-            'name': "sma_40",
-            'color': colors["검정"],
-            'period': 40
-        })
-    if st.checkbox("SMA 200", value=False):
-        indicators.append({
-            'name': "sma_200",
-            'color': colors["검정"],
-            'period': 200
-        })
-    if st.checkbox("SMA 120", value=False):
-        indicators.append({
-            'name': "sma_120",
-            'color': colors["검정"],
-            'period': 120
-        })               
-    if st.checkbox("bollinger band", value=False):
+             
+    if st.checkbox("bollinger band", value=True):
         indicators.append({
             'type': "bollinger_band",
             'name': "bollinger band",

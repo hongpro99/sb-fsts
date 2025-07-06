@@ -261,6 +261,7 @@ class AutoTradingBot:
         # 익절, 손절 로직 별 다양화
         if take_profit_logic['name'] is None:
             use_take_profit = False
+            take_profit_logic_name = None
             take_profit_ratio = 0
         else:
             use_take_profit = True
@@ -269,6 +270,7 @@ class AutoTradingBot:
 
         if stop_loss_logic['name'] is None:
             use_stop_loss = False
+            stop_loss_logic_name = None
             stop_loss_ratio = 0
         else:
             use_stop_loss = True
@@ -1451,6 +1453,8 @@ class AutoTradingBot:
         for i in indicators:
             if i['type'] == 'ema' and i['draw_yn'] is True:
                 df = indicator.cal_ema_df(df, i['period'])
+            elif i['type'] == 'sma' and i['draw_yn'] is True:
+                df = indicator.cal_sma_df(df, i['period'])
 
         # 지표 계산
         df = indicator.cal_ema_df(df, 5)
@@ -1542,6 +1546,7 @@ class AutoTradingBot:
         # 익절, 손절 로직 별 다양화
         if take_profit_logic['name'] is None:
             use_take_profit = False
+            take_profit_logic_name = None
             take_profit_ratio = 0
         else:
             use_take_profit = True
@@ -1550,6 +1555,7 @@ class AutoTradingBot:
 
         if stop_loss_logic['name'] is None:
             use_stop_loss = False
+            stop_loss_logic_name = None
             stop_loss_ratio = 0
         else:
             use_stop_loss = True
