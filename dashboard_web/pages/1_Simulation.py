@@ -1198,8 +1198,10 @@ def draw_bulk_simulation_result(assets, results, simulation_settings):
         st.metric("rsi_buy_threshold", simulation_settings["rsi_buy_threshold"] if simulation_settings.get("rsi_buy_threshold") else "없음")
         st.metric("rsi_sell_threshold", simulation_settings["rsi_sell_threshold"] if simulation_settings.get("rsi_sell_threshold") else "없음")
     with col4:
-        st.metric("익절 비율", simulation_settings["take_profit_ratio"] if simulation_settings.get("use_take_profit") else "없음")
-        st.metric("손절 비율", simulation_settings["stop_loss_ratio"] if simulation_settings.get("use_stop_loss") else "없음")
+        st.metric("익절 로직", simulation_settings["take_profit_logic"]["name"] if simulation_settings.get("take_profit_logic") else "없음")
+        st.metric("익절 비율", simulation_settings["take_profit_logic"]["params"]["ratio"] if simulation_settings.get("take_profit_logic") else "없음")
+        st.metric("손절 로직", simulation_settings["stop_loss_logic"]["name"] if simulation_settings.get("stop_loss_logic") else "없음")
+        st.metric("손절 비율", simulation_settings["stop_loss_logic"]["params"]["ratio"] if simulation_settings.get("stop_loss_logic") else "없음")
 
     # 한글 로직 이름 맵핑
     file_path = "./dashboard_web/trading_logic.json"
