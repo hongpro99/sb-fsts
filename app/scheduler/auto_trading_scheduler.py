@@ -118,7 +118,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot', so
     # ✅ scheduled_trading 시작 시 잔고 조회
     account = trading_bot.kis.account()
     balance: KisBalance = account.balance()
-     
+    
     print(f'------ {trading_bot_name}의 계좌 익절/손절이 완료되었습니다. 이제부터 주식 자동 트레이딩을 시작합니다!')            
     webhook.send_discord_webhook(
     f'----------------------- {trading_bot_name}의 계좌 익절/손절이 완료되었습니다. 이제부터 주식 자동 트레이딩을 시작합니다!',

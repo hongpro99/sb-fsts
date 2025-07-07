@@ -243,8 +243,11 @@ class AutoTradingBot:
 
         valid_symbol = {}
         # ✅ OHLC 데이터 가져오기
-        ohlc_data = self._get_ohlc(symbol, start_date_for_ohlc, end_date, interval, ohlc_mode)    
-        df = self._create_ohlc_df(ohlc_data=ohlc_data, indicators=indicators, rsi_period=rsi_period)
+        ohlc_data = self._get_ohlc(symbol, start_date_for_ohlc, end_date, interval, ohlc_mode)
+        
+        df = self._create_ohlc_df(ohlc_data=ohlc_data, symbol = symbol, start_date=start_date_for_ohlc, end_date=end_date, indicators=indicators, rsi_period=rsi_period)
+
+        print(f" df2: {df}" )
         
         valid_symbol['symbol'] = symbol
         valid_symbol['stock_name'] = stock_name
@@ -813,7 +816,7 @@ class AutoTradingBot:
                 ohlc_data = self._get_ohlc(symbol, start_date, end_date, interval)
                 rsi_period = simulation_settings['rsi_period']
                 
-                df = self._create_ohlc_df(ohlc_data=ohlc_data, rsi_period=rsi_period)
+                df = self._create_ohlc_df(ohlc_data=ohlc_data, symbol = symbol, start_date=start_date, end_date=end_date, rsi_period=rsi_period)
                 
                         # ✅ type 가져오기
                 stock_type_map = simulation_settings['stock_type']
@@ -1434,7 +1437,7 @@ class AutoTradingBot:
         return trading_history
 
 
-    def _create_ohlc_df(self, ohlc_data, indicators=[], rsi_period=25):
+    def _create_ohlc_df(self, ohlc_data, symbol, start_date, end_date,  indicators=[], rsi_period=25):
 
         # ✅ OHLC → DataFrame 변환
         timestamps = [c.time for c in ohlc_data]
@@ -1444,6 +1447,27 @@ class AutoTradingBot:
         ]
         df = pd.DataFrame(ohlc, columns=["Time", "Open", "High", "Low", "Close", "Volume"], index=pd.DatetimeIndex(timestamps))
         df.index = df.index.tz_localize(None)
+
+        # ✅ 공매도 데이터 병합
+        if symbol and start_date and end_date:
+            try:
+
+                short_df = self.get_short_sale_daily_trend_df_multi(
+                    symbol=symbol,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+
+                if short_df is not None and not short_df.empty:
+                    short_df.index = pd.to_datetime(short_df.index).tz_localize(None)
+
+                    # ✅ 병합: index 기준으로만 병합, '영업일자' 컬럼 제거
+                    df = df.merge(short_df, how="left", left_index=True, right_index=True)
+                    df.drop(columns=[col for col in df.columns if col == "영업일자"], inplace=True, errors="ignore")
+
+            except Exception as e:
+                print(f"⚠️ 공매도 데이터 병합 실패: {e}")
+                
         indicator = TechnicalIndicator()
         
         lookback_prev = 5
@@ -1489,7 +1513,7 @@ class AutoTradingBot:
         
         df['EMA_55_Slope_MA'] = df['EMA_55_Slope'].rolling(window=3).mean()
         df['EMA_89_Slope_MA'] = df['EMA_89_Slope'].rolling(window=3).mean()
-
+        
         return df
     
 
@@ -1508,17 +1532,19 @@ class AutoTradingBot:
             # dynamodb 에서 가져오느라 그럼
             symbol = s.symbol
             stock_name = s.symbol_name
+            stock_type = s.stock_type
 
             valid_symbol = {}
             try:
                 # ✅ OHLC 데이터 가져오기
                 ohlc_data = self._get_ohlc(symbol, start_date_for_ohlc, end_date, interval)
-  
-                df = self._create_ohlc_df(ohlc_data=ohlc_data, rsi_period=rsi_period)
+
+                df = self._create_ohlc_df(ohlc_data=ohlc_data, symbol=symbol, start_date=start_date_for_ohlc, end_date=end_date, rsi_period=rsi_period)
                 
                 # 유효한 종목만 저장
                 valid_symbol['symbol'] = symbol
                 valid_symbol['stock_name'] = stock_name
+                valid_symbol['stock_type'] = stock_type
                 valid_symbol['ohlc_data'] = ohlc_data
                 valid_symbol['df'] = df
 
@@ -1579,6 +1605,7 @@ class AutoTradingBot:
             holding_dict = {
                 'symbol': holding.symbol,
                 'stock_name': stock_name,
+                'stock_type': stock_type,
                 'timestamp_str': "",
                 'close_price': 0,
                 'total_quantity': 0,
@@ -1616,6 +1643,7 @@ class AutoTradingBot:
                 df = s['df']
                 ohlc_data = s['ohlc_data']
                 stock_name = s['stock_name']
+                stock_type = s['stock_type']
 
                 if not any(pd.Timestamp(c.time).tz_localize(None).normalize() == current_date for c in ohlc_data):
                     continue
@@ -1691,6 +1719,7 @@ class AutoTradingBot:
                         trading_history = self._create_trading_history(
                             symbol=symbol,
                             stock_name=stock_name,
+                            stock_type = stock_type,
                             fee=fee,
                             tax=tax,
                             revenue=revenue,
@@ -1758,6 +1787,7 @@ class AutoTradingBot:
                         trading_history = self._create_trading_history(
                             symbol=symbol,
                             stock_name=stock_name,
+                            stock_type= stock_type,
                             fee=fee,
                             tax=tax,
                             revenue=revenue,
@@ -1827,6 +1857,7 @@ class AutoTradingBot:
                     trading_history = self._create_trading_history(
                         symbol=symbol,
                         stock_name=stock_name,
+                        stock_type=stock_type,
                         fee=fee,
                         tax=tax,
                         revenue=revenue,
@@ -1875,6 +1906,7 @@ class AutoTradingBot:
                 df = s['df']
                 ohlc_data = s['ohlc_data']
                 stock_name = s['stock_name']
+                stock_type = s['stock_type']
 
                 # 알맞은 종목 찾기
                 holding = next((h for h in global_state['account_holdings'] if h['symbol'] == symbol), None)
@@ -1884,6 +1916,7 @@ class AutoTradingBot:
                     holding = {
                         'symbol': symbol,
                         'stock_name': stock_name,
+                        'stock_type': stock_type,
                         'timestamp_str': "",
                         'close_price': 0,
                         'total_quantity': 0,
@@ -2012,6 +2045,7 @@ class AutoTradingBot:
                         trading_history = self._create_trading_history(
                             symbol=symbol,
                             stock_name=stock_name,
+                            stock_type=stock_type,
                             fee=fee,
                             tax=tax,
                             revenue=revenue,
@@ -2074,6 +2108,7 @@ class AutoTradingBot:
                     simulation_history = self._create_trading_history(
                         symbol=symbol,
                         stock_name=stock_name,
+                        stock_type=stock_type,
                         fee=0,
                         tax=0,
                         revenue=0,
@@ -2154,7 +2189,7 @@ class AutoTradingBot:
                     buy_yn, _ = logic.bottom_rebound_trading(ohlc_df)
                     
                 elif trading_logic == 'sma_breakout_trading':
-                    buy_yn, _ = logic.sma_breakout_trading(ohlc_df, symbol)
+                    buy_yn, _ = logic.sma_breakout_trading(ohlc_df, symbol, resistance)
                     
                 elif trading_logic == 'ema_breakout_trading3':
                     buy_yn, _ = logic.ema_breakout_trading3(ohlc_df)
@@ -2851,3 +2886,139 @@ class AutoTradingBot:
                 '총계': int(row['sum_fake_ntby_qty'])
             })
         return result
+    
+    def get_short_sale_daily_trend(
+        self,
+        symbol: str,
+        start_date: str,
+        end_date: str,
+        market_code: str = "J"  # 코스피: J, 코스닥: Q
+    ):
+        """
+        한국투자증권 실전투자 API - 국내주식 공매도 일별추이 조회
+
+        Parameters:
+            symbol (str): 종목코드 (6자리 문자열, 예: "005930")
+            start_date (str): 조회 시작일 (YYYYMMDD)
+            end_date (str): 조회 종료일 (YYYYMMDD)
+            market_code (str): 시장 분류 코드 ("J": 코스피, "Q": 코스닥)
+
+        Returns:
+            dict: 일별 공매도 데이터 목록 또는 None
+        """
+
+        url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/quotations/daily-short-sale"
+
+        headers = {
+            "content-type": "application/json; charset=utf-8",
+            "authorization": str(self.kis.token),
+            "appkey": self.app_key,
+            "appsecret": self.secret_key,
+            "tr_id": "FHPST04830000",
+            "custtype": "P",  # 개인
+        }
+
+        params = {
+            "FID_INPUT_ISCD": symbol,
+            "FID_INPUT_DATE_1": start_date,
+            "FID_INPUT_DATE_2": end_date,
+            "FID_COND_MRKT_DIV_CODE": market_code,
+        }
+
+        response = requests.get(url, headers=headers, params=params)
+
+        if response.status_code != 200:
+            print("❌ 요청 실패:", response.status_code, response.text)
+            return None
+
+        data = response.json()
+        output2 = data.get("output2", [])
+
+        if not output2:
+            print("⚠️ output2가 비어 있습니다.")
+            return None
+
+        # ✅ 영문 → 한글 필드 매핑
+        field_map = {
+            "stck_bsop_date": "영업일자",
+            "stck_clpr": "종가",
+            "prdy_vrss": "전일대비",
+            "prdy_vrss_sign": "전일대비부호",
+            "prdy_ctrt": "전일대비율",
+            "acml_vol": "누적거래량",
+            "stnd_vol_smtn": "기준거래량합계",
+            "ssts_cntg_qty": "공매도체결수량",
+            "ssts_vol_rlim": "공매도거래량비중",
+            "acml_ssts_cntg_qty": "누적공매도체결수량",
+            "acml_ssts_cntg_qty_rlim": "누적공매도수량비중",
+            "acml_tr_pbmn": "누적거래대금",
+            "stnd_tr_pbmn_smtn": "기준거래대금합계",
+            "ssts_tr_pbmn": "공매도거래대금",
+            "ssts_tr_pbmn_rlim": "공매도거래대금비중",
+            "acml_ssts_tr_pbmn": "누적공매도거래대금",
+            "acml_ssts_tr_pbmn_rlim": "누적공매도거래대금비중",
+            "stck_oprc": "시가",
+            "stck_hgpr": "고가",
+            "stck_lwpr": "저가",
+            "avrg_prc": "공매도평균가격"
+        }
+
+        # ✅ 리스트 → DataFrame
+        df = pd.DataFrame(output2)
+
+        # ✅ 컬럼명 매핑
+        df.rename(columns=field_map, inplace=True)
+
+        # ✅ 날짜 컬럼 datetime으로 변환
+        df["영업일자"] = pd.to_datetime(df["영업일자"], format="%Y%m%d")
+        df.set_index("영업일자", inplace=True)
+
+        # ✅ 숫자형 변환 시도
+        for col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return df
+    
+
+
+    def get_short_sale_daily_trend_df_multi(self, symbol, start_date, end_date, market_code="J") -> pd.DataFrame:
+        """
+        start_date ~ end_date 전체 구간을 공매도 API 제한을 고려해 여러 번 나눠 호출하여 모두 연결
+        
+        Returns:
+            pd.DataFrame: 전체 날짜 구간의 공매도 df (index = datetime)
+        """
+
+        all_data = []
+
+        # 한 번에 조회 가능한 최대 기간 (약 90일, 여유 있게 85일로 제한)
+        chunk_days = 85
+        current_start = start_date
+
+        while current_start <= end_date:
+            current_end = min(current_start + timedelta(days=chunk_days - 1), end_date)
+
+            try:
+                df = self.get_short_sale_daily_trend(
+                    symbol=symbol,
+                    start_date=current_start.strftime("%Y%m%d"),
+                    end_date=current_end.strftime("%Y%m%d"),
+                    market_code=market_code
+                )
+                if df is not None and not df.empty:
+                    all_data.append(df)
+
+            except Exception as e:
+                print(f"⚠️ 공매도 데이터 요청 실패: {current_start} ~ {current_end}: {e}")
+
+            current_start = current_end + timedelta(days=1)
+
+        if all_data:
+            full_df = pd.concat(all_data).sort_index()
+            # 중복 제거 (혹시 API가 중복 포함할 수 있으므로)
+            full_df = full_df[~full_df.index.duplicated(keep='last')]
+            return full_df
+
+        print(f"❌ 전체 구간에 대해 공매도 데이터 없음: {symbol}")
+        return pd.DataFrame()
+    
