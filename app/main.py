@@ -57,7 +57,7 @@ schedule_times = [
 schedule_times2 = {
     (10, 30),
     (12, 30),
-    (14, 30),
+    (15, 00),
 
 }
 
