@@ -21,7 +21,9 @@ class UserInfo(Model):
 
     id = UnicodeAttribute(hash_key=True)  # ✅ PK
     created_at = NumberAttribute()
+    created_at_dt = UnicodeAttribute(null=True)
     updated_at = NumberAttribute(null=True)
+    updated_at_dt = UnicodeAttribute(null=True)
     password = UnicodeAttribute()
     name = UnicodeAttribute()
     app_key = UnicodeAttribute()
@@ -37,6 +39,6 @@ class UserInfo(Model):
     target_trade_value_krw = NumberAttribute()
     max_allocation = NumberAttribute()
     interval = UnicodeAttribute()
-    take_profit_logic = ListAttribute(of=StopLossLogic)
-    stop_loss_logic = ListAttribute(of=StopLossLogic)
+    take_profit_logic = StopLossLogic()
+    stop_loss_logic = StopLossLogic()
     trading_bot_name = UnicodeAttribute(null=True)

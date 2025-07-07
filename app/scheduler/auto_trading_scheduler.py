@@ -109,11 +109,18 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot', so
     interval = user_info.interval
     min_trade_value = 0 # 최소 거래 금액은 0으로 설정 (필요시 수정 가능)
     target_trade_value_ratio = 20 # 임시로 20%로 설정 (필요시 수정 가능)
-    take_profit_logics = user_info.take_profit_logic
-    stop_loss_logics = user_info.stop_loss_logic
-
-    take_profit_logic = next((logic.as_dict() for logic in take_profit_logics if logic['use_yn'] is True), None)
-    stop_loss_logic = next((logic.as_dict() for logic in stop_loss_logics if logic['use_yn'] is True), None)
+    
+    if user_info.take_profit_logic['use_yn'] is True:
+        take_profit_logic = user_info.take_profit_logic
+    else:
+        # 익절 로직이 사용되지 않는 경우 None으로 설정
+        take_profit_logic = None
+    
+    if user_info.stop_loss_logic['use_yn'] is True:
+        stop_loss_logic = user_info.stop_loss_logic
+    else:
+        # 손절 로직이 사용되지 않는 경우 None으로 설정
+        stop_loss_logic = None
 
     # ✅ scheduled_trading 시작 시 잔고 조회
     account = trading_bot.kis.account()

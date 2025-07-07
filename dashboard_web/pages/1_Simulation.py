@@ -17,11 +17,13 @@ import numpy as np
 import plotly.express as px
 import requests
 import time
+from pytz import timezone
 
 # 프로젝트 루트를 PYTHONPATH에 추가
 #sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
+from app.utils.dynamodb.crud import DynamoDBExecutor
 from app.utils.dynamodb.model.auto_trading_model import AutoTrading
 from app.utils.dynamodb.model.stock_symbol_model import StockSymbol, StockSymbol2
 from app.utils.dynamodb.model.trading_history_model import TradingHistory
@@ -733,7 +735,7 @@ def login_page():
     st.title("🔑 LOGIN PAGE")
 
     # 사용자 입력 받기
-    username = st.text_input("아이디", key="username")
+    username = st.text_input("아이디", key="username_input")
     password = st.text_input("비밀번호", type="password", key="password")
     
     # 간단한 사용자 검증 (실제 서비스에서는 DB 연동 필요)
@@ -745,7 +747,7 @@ def login_page():
         
         if len(result) > 0:
             st.session_state["authenticated"] = True
-            st.query_params = {"page" : "main", "login": "true"}
+            st.query_params = {"page" : "main", "login": "true", "username": username}
             st.rerun()  # 로그인 후 페이지 새로고침
         else:
             st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
@@ -1531,7 +1533,7 @@ def main():
     with col3:
         if st.button("LOGOUT"):
             st.session_state["authenticated"] = False
-            st.query_params = {"page" : "login", "login": "false"}
+            st.query_params = {"page" : "login", "login": "false", "username": ""}
             st.rerun()  # 로그아웃 후 페이지 새로고침
             
     st.title("FSTS SIMULATION")
@@ -2201,32 +2203,83 @@ def main():
 
         # 선택된 봇에 해당하는 거래 내역 가져오기
         if selected_bot_name:
-            st.write(f"선택한 봇: {selected_bot_name}")
             selected_bot = [item for item in auto_trading_bots if item.trading_bot_name == selected_bot_name][0]
             print(f"Selected Bot: {selected_bot.id}")
             trading_bot = list(UserInfo.query(selected_bot.id))[0]
             
             selected_buy_trading_logics = st.multiselect(
-                "매수 로직 리스트",
+                "매수 로직 리스트",
                 options=trading_bot.buy_trading_logic,        # 전체 선택지
                 default=trading_bot.buy_trading_logic
             )
 
-            # 출력 예시
-            st.write({
-                "매수로직": selected_buy_trading_logics,
-            })
+            selected_sell_trading_logics = st.multiselect(
+                "매도 로직 리스트",
+                options=trading_bot.sell_trading_logic,
+                default=trading_bot.sell_trading_logic
+            )
 
-        # selected_buy_trading_logics = st.selectbox("매수 로직 리스트", buy_trading_logics)
+            take_profit_use_yn = st.checkbox("익절 조건 사용", value=trading_bot.take_profit_logic.use_yn, key="take_profit_use_yn")
 
-        # data_model = SimulationHistory(
-        #     simulation_id=simulation_id,
-        #     updated_at=updated_at,
-        #     updated_at_dt=updated_at_dt,
-        #     status=status
-        # )
+            if trading_bot.take_profit_logic.name in list(available_take_profit_logic.values()):
+                take_profit_index = list(available_take_profit_logic.values()).index(trading_bot.take_profit_logic.name)
+            else:
+                take_profit_index = 0  # 없을 경우 첫 번째 값으로
 
-        # result = dynamodb_executor.execute_update(data_model, pk_name)
+            selected_take_profit_logic = st.selectbox("익절 방식 선택", list(available_take_profit_logic.keys()), index=take_profit_index, key="take_profit_logic")
+            take_profit_logic_name = available_take_profit_logic[selected_take_profit_logic]
+            take_profit_ratio = st.number_input("익절 기준 (%)", value=float(trading_bot.take_profit_logic.params.ratio), min_value=0.0, key="take_profit_ratio_setting")
+
+            stop_loss_use_yn = st.checkbox("손절 조건 사용", value=trading_bot.stop_loss_logic.use_yn, key="stop_loss_use_yn")
+
+            if trading_bot.stop_loss_logic.name in list(available_stop_loss_logic.values()):
+                stop_loss_index = list(available_stop_loss_logic.values()).index(trading_bot.stop_loss_logic.name)
+            else:
+                stop_loss_index = 0  # 없을 경우 첫 번째 값으로
+
+            selected_stop_loss_logic = st.selectbox("손절 방식 선택", list(available_stop_loss_logic.keys()), index=stop_loss_index, key="stop_loss_logic")
+            stop_loss_logic_name = available_stop_loss_logic[selected_stop_loss_logic]
+            stop_loss_ratio = st.number_input("손절 기준 (%)", value=float(trading_bot.stop_loss_logic.params.ratio), min_value=0.0, key="stop_loss_ratio_setting")
+
+            target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=trading_bot.target_trade_value_krw, key=f'target_trade_value_krw_setting')
+
+            if st.button("저장", key="save_bot_settings", use_container_width=True, disabled=False if st.session_state["username"] == selected_bot.id else True):
+                
+                dynamodb_executor = DynamoDBExecutor()
+                pk_name = 'id'
+                
+                kst = timezone("Asia/Seoul")
+                # 현재 시간을 KST로 변환
+                current_time = datetime.now(kst)
+                updated_at = int(current_time.timestamp() * 1000)  # ✅ 밀리세컨드 단위로 SK 생성
+                updated_at_dt = current_time.strftime("%Y-%m-%d %H:%M:%S")
+
+                data_model = UserInfo(
+                    id=selected_bot.id,
+                    updated_at=updated_at,
+                    updated_at_dt=updated_at_dt,
+                    buy_trading_logic=selected_buy_trading_logics,
+                    sell_trading_logic=selected_sell_trading_logics,
+                    take_profit_logic={
+                        "use_yn": take_profit_use_yn,
+                        "name": take_profit_logic_name,
+                        "params": {
+                            "ratio": take_profit_ratio
+                        }
+                    },
+                    stop_loss_logic={
+                        "use_yn": stop_loss_use_yn,
+                        "name": stop_loss_logic_name,
+                        "params": {
+                            "ratio": stop_loss_ratio
+                        }
+                    },
+                    target_trade_value_krw=target_trade_value_krw,
+                )
+
+                result = dynamodb_executor.execute_update(data_model, pk_name)
+                
+                st.success(f"봇 설정이 저장되었습니다. {selected_bot}")
         
     with tabs[7]:
         
@@ -2383,6 +2436,7 @@ if __name__ == "__main__":
     params = st.query_params
     is_logged_in = params.get("login", "false") == "true"
     current_page = params.get("page", "login")
+    st.session_state["username"] = params.get("username", "Guest")
         
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = is_logged_in
