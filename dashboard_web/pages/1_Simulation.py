@@ -2207,6 +2207,23 @@ def main():
             print(f"Selected Bot: {selected_bot.id}")
             trading_bot = list(UserInfo.query(selected_bot.id))[0]
             
+            target_method = st.radio(
+                "매수 금액을 어떻게 설정할까요?",
+                ["직접 입력", "자본 비율 (%)"],
+                index=1,
+                horizontal=True,
+                key=f'target_method_setting'
+            )
+
+            if target_method == "직접 입력":
+                target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=trading_bot.target_trade_value_krw, key=f'target_trade_value_krw_setting')
+                target_trade_value_ratio = None
+                min_trade_value = 0
+            else:
+                target_trade_value_ratio = st.slider("💡 초기 자본 대비 매수 비율 (%)", 1, 100, trading_bot.target_trade_value_ratio, key=f'target_trade_value_ratio_setting') #마우스 커서로 왔다갔다 하는 기능
+                min_trade_value = st.number_input("💰 최소 매수금액 (KRW)", min_value=0, value=trading_bot.min_trade_value, step=1000000, key=f"min_trade_value_setting")
+                target_trade_value_krw = None  # 실제 시뮬 루프에서 매일 계산
+
             selected_buy_trading_logics = st.multiselect(
                 "매수 로직 리스트",
                 options=trading_bot.buy_trading_logic,        # 전체 선택지
@@ -2241,8 +2258,6 @@ def main():
             stop_loss_logic_name = available_stop_loss_logic[selected_stop_loss_logic]
             stop_loss_ratio = st.number_input("손절 기준 (%)", value=float(trading_bot.stop_loss_logic.params.ratio), min_value=0.0, key="stop_loss_ratio_setting")
 
-            target_trade_value_krw = st.number_input("🎯 목표 매수 금액 (KRW)", min_value=10000, step=10000, value=trading_bot.target_trade_value_krw, key=f'target_trade_value_krw_setting')
-
             if st.button("저장", key="save_bot_settings", use_container_width=True, disabled=False if st.session_state["username"] == selected_bot.id else True):
                 
                 dynamodb_executor = DynamoDBExecutor()
@@ -2274,7 +2289,9 @@ def main():
                             "ratio": stop_loss_ratio
                         }
                     },
+                    min_trade_value=min_trade_value,
                     target_trade_value_krw=target_trade_value_krw,
+                    target_trade_value_ratio=target_trade_value_ratio,
                 )
 
                 result = dynamodb_executor.execute_update(data_model, pk_name)
