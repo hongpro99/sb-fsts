@@ -1532,7 +1532,7 @@ class AutoTradingBot:
             # dynamodb 에서 가져오느라 그럼
             symbol = s.symbol
             stock_name = s.symbol_name
-            stock_type = s.stock_type
+            stock_type = s.type
 
             valid_symbol = {}
             try:
