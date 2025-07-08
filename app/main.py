@@ -47,15 +47,15 @@ scheduler.add_job(auto_trading_scheduler.scheduled_trading_weeklybot_task, 'cron
 
 
 schedule_times = [
-    (9, 35),
-    (10, 5),
-    (11, 25),
-    (13, 25),
-    (14, 35),
+    # (9, 35),
+    # (10, 5),
+    # (11, 25),
+    # (13, 25),
+    (14, 35)
 ]
 
 schedule_times2 = {
-    (10, 30),
+    (10, 00),
     (12, 30),
     (15, 00),
 
