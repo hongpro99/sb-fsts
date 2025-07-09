@@ -107,8 +107,8 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot', so
     target_trade_value_krw = user_info.target_trade_value_krw
     max_allocation = user_info.max_allocation
     interval = user_info.interval
-    min_trade_value = 0 # 최소 거래 금액은 0으로 설정 (필요시 수정 가능)
-    target_trade_value_ratio = 20 # 임시로 20%로 설정 (필요시 수정 가능)
+    min_trade_value = user_info.min_trade_value
+    target_trade_value_ratio = user_info.target_trade_value_ratio
     
     if user_info.take_profit_logic['use_yn'] is True:
         take_profit_logic = user_info.take_profit_logic
