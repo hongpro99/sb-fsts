@@ -2457,7 +2457,7 @@ class AutoTradingBot:
         buy_price = None  # 시장가 매수
         sell_price = None # 시장가 매도
 
-        if order_type == 'buy':
+        if order_type == 'BUY':
             if not self.virtual:
                 psbl_order_info = self.inquire_psbl_order(symbol)
                 if psbl_order_info is None:
@@ -2526,7 +2526,7 @@ class AutoTradingBot:
                 print(f"[{datetime.now()}] ❌ 매수 실패: {e}")
                 message = f"[{datetime.now()}] ❌ 매수 실패: {e} - {symbol}"
             
-        elif order_type == 'sell':
+        elif order_type == 'SELL':
             # ✅ 보유 종목에서 해당 symbol 찾아서 수량 확인
             holdings = self._get_holdings_with_details()
             holding = next((item for item in holdings if item['symbol'] == symbol), None)
