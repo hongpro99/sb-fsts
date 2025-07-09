@@ -1490,6 +1490,7 @@ class AutoTradingBot:
         df = indicator.cal_ema_df(df, 60)
         df = indicator.cal_ema_df(df, 89)
         df = indicator.cal_ema_df(df, 120)
+        df = indicator.cal_ema_df(df, 200)
         
         df = indicator.cal_sma_df(df, 5)
         df = indicator.cal_sma_df(df, 10)
