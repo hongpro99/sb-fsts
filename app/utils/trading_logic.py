@@ -206,7 +206,7 @@ class TradingLogic:
         prev_prev = df.iloc[-3]
         # ✅ 중장기 정배열 조건
         long_trend = (
-            last['EMA_10'] > last['EMA_20'] > last['EMA_60'] > last['EMA_120']
+            last['EMA_5'] > last['EMA_10'] > last['EMA_20'] > last['EMA_60'] > last['EMA_120'] > last['EMA_200']
         )
 
         # ✅ EMA_5가 전일 EMA_13 아래에 있다가 당일 상향 돌파
