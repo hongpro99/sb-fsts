@@ -56,19 +56,20 @@ schedule_times = [
 
 schedule_times2 = {
     (10, 00),
-    (12, 30),
-    (15, 00),
+    (12, 00),
+    (14, 00),
+    (16, 00)
 
 }
 
-for h, m in schedule_times:
-    scheduler.add_job(
-        auto_trading_scheduler.get_netbuy_summary_by_investor,
-        'cron',
-        day_of_week='mon-fri',
-        hour=h,
-        minute=m
-    )
+# for h, m in schedule_times:
+#     scheduler.add_job(
+#         auto_trading_scheduler.get_netbuy_summary_by_investor,
+#         'cron',
+#         day_of_week='mon-fri',
+#         hour=h,
+#         minute=m
+#     )
     
 for h, m in schedule_times2:
     scheduler.add_job(
