@@ -2271,18 +2271,20 @@ class AutoTradingBot:
         
         quantity = 1
         reason_str = f"매수 로직 : {buy_logic_reasons}, 매도 로직 : {sell_logic_reasons}, 익절 : {take_profit_hit}, 손절 : {stop_loss_hit}, 이유 : {reason}"
+        
+        price = ohlc_data[-1].close  # 현재 종가로 매매
         # 매매 요청
-        self._trade_place_order(symbol, symbol_name, target_trade_value_krw, trade_type, trading_bot_name)
+        self._trade_place_order(symbol, symbol_name, target_trade_value_krw, trade_type, price, trading_bot_name)
 
         # 결과 웹훅 전송
         webhook.send_discord_webhook(
-            f"[reason:{reason_str}], {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW",
+            f"[reason:{reason_str}], {symbol_name} 매수가 완료되었습니다. 매수금액 : {price}KRW",
             "trading"
         )
         
         # 매매 기록 DB 저장
         self._insert_trading_history(
-            reason_str, trade_type, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name
+            reason_str, trade_type, trading_bot_name, price, quantity, symbol, symbol_name
         )
         
         # if trade_type == "BUY":
@@ -2452,7 +2454,7 @@ class AutoTradingBot:
         return quote
 
 
-    def _trade_place_order(self, symbol, symbol_name, target_trade_value_krw, order_type, trading_bot_name):
+    def _trade_place_order(self, symbol, symbol_name, target_trade_value_krw, order_type, price, trading_bot_name):
         quote = self._get_quote(symbol=symbol)
         buy_price = None  # 시장가 매수
         sell_price = None # 시장가 매도
@@ -2519,7 +2521,7 @@ class AutoTradingBot:
                     symbol_name = symbol_name,
                     qty=qty,
                     order_type="buy",
-                    buy_price=buy_price,
+                    buy_price=price,
                     trading_bot_name = trading_bot_name
                 )
             except Exception as e:
@@ -2546,7 +2548,7 @@ class AutoTradingBot:
                     symbol_name = symbol_name,
                     qty=qty,
                     order_type='sell',
-                    sell_price=sell_price,
+                    sell_price=price,
                     trading_bot_name = trading_bot_name
                 )
                 
