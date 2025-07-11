@@ -2404,7 +2404,8 @@ def main():
                         if data["status"] == "success":
                             presigned_url = data["result_presigned_url"]
                             df = pd.read_csv(presigned_url)
-
+                            
+                            st.session_state["analyzed_df"] = df  # ✅ 분석 결과 저장
                             st.success("✅ 분석 완료!")
                             
                             # ✅ 업종별 통계 계산
@@ -2418,9 +2419,19 @@ def main():
                             st.subheader("🏭 업종별 평균 등락률")
                             st.dataframe(industry_summary)
                                                         
-                            # ✅ 테마별 통계 계산
+                            import ast
+
+                            # 문자열을 리스트로
+                            df["theme"] = df["theme"].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
+                            # theme가 리스트인 상태라고 가정
+                            df_exploded = df.explode("theme")
+
+                            # theme가 None인 경우 제외
+                            df_exploded = df_exploded[df_exploded["theme"].notna()]
+
+                            # 평균 등락률 집계
                             theme_summary = (
-                                df.groupby("theme")
+                                df_exploded.groupby("theme")
                                 .agg(종목수=("symbol", "count"), 평균등락률=("change_pct", "mean"))
                                 .reset_index()
                                 .sort_values(by="평균등락률", ascending=False)
@@ -2445,6 +2456,120 @@ def main():
                     else:
                         st.error("❌ 서버 요청 실패")
 
+        search_query = st.text_input("🔎 종목명 또는 테마 키워드를 입력하세요", "")
+        do_search = st.button("🔍 검색")
+
+        if do_search and search_query.strip():
+            matched_items = []
+            lower_query = search_query.lower()
+            seen_symbols = set()
+
+            for row in (sorted_items + kosdaq_items):
+                symbol = row.symbol
+                if symbol in seen_symbols:
+                    continue
+
+                name = getattr(row, "symbol_name", "").lower()
+                themes = [t.lower() for t in (row.theme or [])]
+
+                if lower_query in name or any(lower_query in t for t in themes):
+                    matched_items.append(row)
+                    seen_symbols.add(symbol)
+
+            if matched_items:
+                search_symbols = [row.symbol for row in matched_items]
+
+                with st.spinner("📡 검색 중..."):
+                    api_url = f"{backend_base_url}/stock/price-change/selected"
+                    payload = {"user_id": user_id, "symbols": search_symbols}
+                    response = requests.post(api_url, json=payload)
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data["status"] == "success":
+                            df = pd.read_csv(data["result_presigned_url"])
+                            df["symbol"] = df["symbol"].astype(str).str.zfill(6)
+
+                            def format_change(val):
+                                if pd.isna(val): return "N/A"
+                                val = round(val, 2)
+                                return int(val) if val == int(val) else val
+
+                            result_df = pd.DataFrame([
+                                {
+                                    "종목명": row.symbol_name,
+                                    "종목코드": row.symbol,
+                                    "종류": getattr(row, "type", "unknown"),
+                                    "테마": ", ".join(row.theme) if row.theme else "-",
+                                    "등락률(%)": (
+                                        format_change(df[df["symbol"] == row.symbol]["change_pct"].values[0])
+                                        if row.symbol in df["symbol"].values else "N/A"
+                                    )
+                                }
+                                for row in matched_items
+                            ])
+
+                            def color_change(val):
+                                if isinstance(val, (float, int)):
+                                    if val > 0: return "color: green"
+                                    elif val < 0: return "color: red"
+                                return "color: gray"
+                            
+
+                            st.success(f"🔍 총 {len(result_df)}개 종목이 검색되었습니다. 상승: {len(df[df['change_pct'] > 0])}, 하락: {len(df[df['change_pct'] < 0])}")
+                            styled_df = result_df.style.applymap(color_change, subset=["등락률(%)"])
+                            st.dataframe(styled_df)
+
+                            # 디버깅용 누락 종목 표시
+                            missing = [row.symbol for row in matched_items if row.symbol not in df["symbol"].values]
+                            if missing:
+                                st.warning(f"❗ 등락률 누락된 종목: {missing}")
+
+                        else:
+                            st.warning("⚠️ 등락률을 불러오지 못했습니다.")
+                    else:
+                        st.error("❌ 서버 요청 실패")
+            else:
+                st.warning("❌ 해당하는 종목명 또는 테마가 없습니다.")
+        
+        # st.markdown("---")
+        # st.subheader("🔍 종목 이름 또는 테마 키워드 검색")
+
+        # search_query = st.text_input("🔎 종목명 또는 테마 키워드를 입력하세요", "").strip()
+
+        # df = st.session_state.get("analyzed_df", None)  # ✅ 이전 분석 결과 불러오기
+        # print(f"df: {df}")
+        
+        #         # symbol 컬럼이 숫자형이면 str로 변환
+        # if df is not None:
+        #     df["symbol"] = df["symbol"].astype(str)
+    
+        # if search_query:
+        #     matched_items = []
+        #     lower_query = search_query.lower()
+
+        #     for row in (sorted_items + kosdaq_items):
+        #         name = getattr(row, "symbol_name", "").lower()
+        #         themes = [t.lower() for t in (row.theme or [])]
+
+        #         if lower_query in name or any(lower_query in t for t in themes):
+        #             matched_items.append(row)
+
+        #     if matched_items:
+        #         result_df = pd.DataFrame([
+        #             {
+        #                 "종목명": row.symbol_name,
+        #                 "종목코드": row.symbol,
+        #                 "종류": getattr(row, "type", "unknown"),
+        #                 "테마": ", ".join(row.theme) if row.theme else "-",
+        #                 "등락률(%)": round(df[df["symbol"] == row.symbol]["change_pct"].values[0], 2) if df is not None and row.symbol in df["symbol"].values else "N/A"
+        #             }
+        #             for row in matched_items
+        #         ])
+        #         st.success(f"🔍 총 {len(result_df)}개 종목이 검색되었습니다.")
+        #         st.dataframe(result_df)
+        #     else:
+        #         st.warning("❌ 해당하는 종목명 또는 테마가 없습니다.")
 
 if __name__ == "__main__":
         # Streamlit 실행 시 로그인 여부 확인
