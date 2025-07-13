@@ -1760,6 +1760,7 @@ class AutoTradingBot:
                         # 매도 실행
                         self._trade_kis(
                             trade_type="SELL",
+                            trade_quantity=trade_quantity,
                             buy_logic_reasons=buy_logic_reasons,
                             sell_logic_reasons=sell_logic_reasons,
                             take_profit_hit=take_profit_hit,
@@ -1828,6 +1829,7 @@ class AutoTradingBot:
                         # 매도 실행
                         self._trade_kis(
                             trade_type="SELL",
+                            trade_quantity=trade_quantity,
                             buy_logic_reasons=buy_logic_reasons,
                             sell_logic_reasons=sell_logic_reasons,
                             take_profit_hit=take_profit_hit,
@@ -1898,6 +1900,7 @@ class AutoTradingBot:
                     # 매도 실행
                     self._trade_kis(
                         trade_type="SELL",
+                        trade_quantity=trade_quantity,
                         buy_logic_reasons=buy_logic_reasons,
                         sell_logic_reasons=sell_logic_reasons,
                         take_profit_hit=take_profit_hit,
@@ -2086,6 +2089,7 @@ class AutoTradingBot:
                         # 매도 실행
                         self._trade_kis(
                             trade_type="BUY",
+                            trade_quantity=trade_quantity,
                             buy_logic_reasons=buy_logic_reasons,
                             sell_logic_reasons=sell_logic_reasons,
                             take_profit_hit=take_profit_hit,
@@ -2287,22 +2291,24 @@ class AutoTradingBot:
         return signal_reasons
 
 
-    def _trade_kis(self, trade_type, buy_logic_reasons, sell_logic_reasons, take_profit_hit, stop_loss_hit, reason, symbol, symbol_name, ohlc_data, trading_bot_name, target_trade_value_krw):
+    def _trade_kis(self, trade_type, buy_logic_reasons, sell_logic_reasons, take_profit_hit, stop_loss_hit, reason, symbol, symbol_name, ohlc_data, trading_bot_name, target_trade_value_krw, trade_quantity):
         
-        quantity = 1
+        # trade_quantity = 1
         reason_str = f"매수 로직 : {buy_logic_reasons}, 매도 로직 : {sell_logic_reasons}, 익절 : {take_profit_hit}, 손절 : {stop_loss_hit}, 이유 : {reason}"
+        
+        price = ohlc_data[-1].close  # 현재 종가로 매매
         # 매매 요청
-        self._trade_place_order(symbol, symbol_name, target_trade_value_krw, trade_type, trading_bot_name)
+        self._trade_place_order(symbol, symbol_name, target_trade_value_krw, trade_type, price, trade_quantity, trading_bot_name)
 
         # 결과 웹훅 전송
         webhook.send_discord_webhook(
-            f"[reason:{reason_str}], {symbol_name} 매수가 완료되었습니다. 매수금액 : {int(ohlc_data[-1].close)}KRW",
+            f"[reason:{reason_str}], {symbol_name} 매수가 완료되었습니다. 매수금액 : {price}KRW",
             "trading"
         )
         
         # 매매 기록 DB 저장
         self._insert_trading_history(
-            reason_str, trade_type, trading_bot_name, ohlc_data[-1].close, quantity, symbol, symbol_name
+            reason_str, trade_type, trading_bot_name, price, trade_quantity, symbol, symbol_name
         )
         
         # if trade_type == "BUY":
@@ -2472,74 +2478,64 @@ class AutoTradingBot:
         return quote
 
 
-    def _trade_place_order(self, symbol, symbol_name, target_trade_value_krw, order_type, trading_bot_name):
-        quote = self._get_quote(symbol=symbol)
-        buy_price = None  # 시장가 매수
-        sell_price = None # 시장가 매도
+    def _trade_place_order(self, symbol, symbol_name, target_trade_value_krw, order_type, price, trade_quantity, trading_bot_name):
+        # 호가 조회
+        # quote = self._get_quote(symbol=symbol)
+        # buy_price = None  # 시장가 매수
+        # sell_price = None # 시장가 매도
 
         if order_type == 'BUY':
-            if not self.virtual:
-                psbl_order_info = self.inquire_psbl_order(symbol)
-                if psbl_order_info is None:
-                    print(f"[{datetime.now()}] ❌ 주문가능금액 조회 실패")
-                    message = f"[{datetime.now()}] ❌ 주문가능금액 조회 실패: {symbol}"
-                    return
+            # if not self.virtual:
+            #     psbl_order_info = self.inquire_psbl_order(symbol)
+            #     if psbl_order_info is None:
+            #         print(f"[{datetime.now()}] ❌ 주문가능금액 조회 실패")
+            #         message = f"[{datetime.now()}] ❌ 주문가능금액 조회 실패: {symbol}"
+            #         return
 
-                max_buy_amt = int(psbl_order_info['output']['nrcvb_buy_amt']) # 최대 매수 가능 금액
-                max_buy_qty = int(psbl_order_info['output']['max_buy_qty'])      # 최대 매수 가능 수량
-                print(f"max_buy_amt: {max_buy_amt}, max_buy_qty: {max_buy_qty}, target_trade_value_krw: {target_trade_value_krw}")
+            #     max_buy_amt = int(psbl_order_info['output']['nrcvb_buy_amt']) # 최대 매수 가능 금액
+            #     max_buy_qty = int(psbl_order_info['output']['max_buy_qty'])      # 최대 매수 가능 수량
+            #     print(f"max_buy_amt: {max_buy_amt}, max_buy_qty: {max_buy_qty}, target_trade_value_krw: {target_trade_value_krw}")
                 
-                    # ✅ 매수 가능 금액이 50만원 미만이면 매수 생략
-                if max_buy_amt < 500_000:
-                    print(f"[{datetime.now()}] 🚫 매수 생략: 매수 가능 금액이 50만원 미만 ({max_buy_amt:,}원)")
-                    message = f"[{datetime.now()}] 🚫 매수 생략: 매수 가능 금액이 50만원 미만 ({max_buy_amt:,}원): {symbol}"
-                    return
+            #         # ✅ 매수 가능 금액이 50만원 미만이면 매수 생략
+            #     if max_buy_amt < 500_000:
+            #         print(f"[{datetime.now()}] 🚫 매수 생략: 매수 가능 금액이 50만원 미만 ({max_buy_amt:,}원)")
+            #         message = f"[{datetime.now()}] 🚫 매수 생략: 매수 가능 금액이 50만원 미만 ({max_buy_amt:,}원): {symbol}"
+            #         return
     
-                # ✅ 수수료 포함하여 수량 계산
-                adjusted_price = float(quote.close) * (1 + 0.00014)  # 수수료 포함 단가
+            #     # ✅ 수수료 포함하여 수량 계산
+            #     adjusted_price = price * (1 + 0.00014)  # 수수료 포함 단가
 
-                # 1. 원래 요청 금액과 최대 가능 금액 중 작은 금액 선택
-                actual_trade_value = min(target_trade_value_krw, max_buy_amt)
+            #     # 1. 원래 요청 금액과 최대 가능 금액 중 작은 금액 선택
+            #     actual_trade_value = min(target_trade_value_krw, max_buy_amt)
         
-                if actual_trade_value == target_trade_value_krw:
-                    qty = math.floor(actual_trade_value / adjusted_price)
-                    #qty = qty - 1 #개수를 1개 줄여서 매수 실패 방지
-                else:
-                    qty = max_buy_qty
-                    qty = max(0, qty - 1) #개수를 1개 줄여서 매수 실패 방지
+            #     if actual_trade_value == target_trade_value_krw:
+            #         qty = math.floor(actual_trade_value / adjusted_price)
+            #         #qty = qty - 1 #개수를 1개 줄여서 매수 실패 방지
+            #     else:
+            #         qty = max_buy_qty
+            #         qty = max(0, qty - 1) #개수를 1개 줄여서 매수 실패 방지
                     
-            else:  # ✅ 모의투자인 경우 psbl 조회 건너뛰고 target_trade_value로만 계산
-                adjusted_price = float(quote.close) * (1 + 0.00014)
-                qty = math.floor(target_trade_value_krw / adjusted_price)
-                print(f"[{datetime.now()}] (모의투자) 계산된 매수 수량: {qty} (단가: {adjusted_price:.2f})")
-                message = f"[{datetime.now()}] (모의투자) 계산된 매수 수량: {qty} (단가: {adjusted_price:.2f}) - {symbol}"
+            # else:  # ✅ 모의투자인 경우 psbl 조회 건너뛰고 target_trade_value로만 계산
+            #     adjusted_price = price * (1 + 0.00014)
+            #     qty = math.floor(target_trade_value_krw / adjusted_price)
+            #     print(f"[{datetime.now()}] (모의투자) 계산된 매수 수량: {qty} (단가: {adjusted_price:.2f})")
+            #     message = f"[{datetime.now()}] (모의투자) 계산된 매수 수량: {qty} (단가: {adjusted_price:.2f}) - {symbol}"
 
-            if qty <= 0:
-                print(f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}")
-                message = f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}"
-                return
+            # if qty <= 0:
+            #     print(f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}")
+            #     message = f"[{datetime.now()}] 🚫 수량이 0입니다. 매수 생략: {symbol}"
+            #     return
 
-            # # ✅ 예수금 조회 (inquire_balance() 사용) #오류 발생_ 빼도 될 것 같음
-            # deposit = self.inquire_balance()
-            # if deposit is None:
-            #     print("❌ 예수금 조회 실패: None 반환됨")
-            #     return
-            # buying_limit = deposit * Decimal(str(max_allocation))
-            
-        
-            # if order_amount > buying_limit:
-            #     print(f"[{datetime.now()}] 🚫 매수 생략: 주문금액 {order_amount:,}원이 예수금의 {max_allocation*100:.0f}% 초과")
-            #     return
-            order_amount = qty * quote.close
-            print(f"[{datetime.now()}] ✅ 자동 매수 실행: bot: {trading_bot_name} 종목 {symbol_name}, 수량 {qty}주, 주문 금액 {order_amount:,}원")
-            message = f"[{datetime.now()}] ✅ 자동 매수 실행: bot: {trading_bot_name} 종목 {symbol_name}, 수량 {qty}주, 주문 금액 {order_amount:,}원"
+            order_amount = trade_quantity * price
+            print(f"[{datetime.now()}] ✅ 자동 매수 실행: bot: {trading_bot_name} 종목 {symbol_name}, 수량 {trade_quantity}주, 주문 금액 {order_amount:,}원")
+            message = f"[{datetime.now()}] ✅ 자동 매수 실행: bot: {trading_bot_name} 종목 {symbol_name}, 수량 {trade_quantity}주, 주문 금액 {order_amount:,}원"
             try:
                 self.place_order(
                     symbol=symbol,
                     symbol_name = symbol_name,
-                    qty=qty,
+                    qty=trade_quantity,
                     order_type="buy",
-                    buy_price=buy_price,
+                    buy_price=price,
                     trading_bot_name = trading_bot_name
                 )
             except Exception as e:
@@ -2548,25 +2544,25 @@ class AutoTradingBot:
             
         elif order_type == 'SELL':
             # ✅ 보유 종목에서 해당 symbol 찾아서 수량 확인
-            holdings = self._get_holdings_with_details()
-            holding = next((item for item in holdings if item['symbol'] == symbol), None)
+            # holdings = self._get_holdings_with_details()
+            # holding = next((item for item in holdings if item['symbol'] == symbol), None)
 
-            if not holding:
-                print(f"[{datetime.now()}] 🚫 매도 생략: {symbol} 보유 수량 없음")
-                message = f"[{datetime.now()}] 🚫 매도 생략: {symbol} 보유 수량 없음"
-                return
+            # if not holding:
+            #     print(f"[{datetime.now()}] 🚫 매도 생략: {symbol} 보유 수량 없음")
+            #     message = f"[{datetime.now()}] 🚫 매도 생략: {symbol} 보유 수량 없음"
+            #     return
 
-            qty = holding[1] #수량을 저장, holding[0]은 종목 코드
+            # qty = holding[1] #수량을 저장, holding[0]은 종목 코드
 
-            print(f"[{datetime.now()}] ✅ 자동 매도 실행: bot: {trading_bot_name} 종목 {symbol_name}, 수량 {qty}주 (시장가 매도)")
-            message = f"[{datetime.now()}] ✅ 자동 매도 실행: bot: {trading_bot_name} 종목 {symbol_name}, 수량 {qty}주 (시장가 매도)"
+            print(f"[{datetime.now()}] ✅ 자동 매도 실행: bot: {trading_bot_name} 종목 {symbol_name}, 수량 {trade_quantity}주 (시장가 매도)")
+            message = f"[{datetime.now()}] ✅ 자동 매도 실행: bot: {trading_bot_name} 종목 {symbol_name}, 수량 {trade_quantity}주 (시장가 매도)"
             try:
                 self.place_order(
                     symbol=symbol,
                     symbol_name = symbol_name,
-                    qty=qty,
+                    qty=trade_quantity,
                     order_type='sell',
-                    sell_price=sell_price,
+                    sell_price=price,
                     trading_bot_name = trading_bot_name
                 )
                 
