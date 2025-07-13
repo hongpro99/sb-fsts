@@ -206,8 +206,9 @@ class TradingLogic:
         prev_prev = df.iloc[-3]
         # ✅ 중장기 정배열 조건
         long_trend = (
-            last['EMA_5'] > last['EMA_10'] > last['EMA_20'] > last['EMA_60'] > last['EMA_120'] > last['EMA_200']
+            last['EMA_5'] > last['EMA_10'] > last['EMA_20'] > last['EMA_60'] > last['EMA_120'] 
         )
+
 
         # ✅ EMA_5가 전일 EMA_13 아래에 있다가 당일 상향 돌파
         crossover = prev['Close'] <= prev['EMA_5'] and last['Close'] > last['EMA_5']
@@ -645,7 +646,180 @@ class TradingLogic:
 
         return buy_signal, None
     
+    def sma_crossover_trading(self, df, last_resistance):
+        if len(df) < 2:
+            return False, None
+
+        if last_resistance is None:
+            return False, None
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        prev_prev = df.iloc[-3]
+        # ✅ 중장기 정배열 조건
+        long_trend = (
+            last['SMA_5'] > last['SMA_10'] > last['SMA_20'] > last['SMA_60'] > last['SMA_120']
+        )
+        
+        print(f"last['SMA_120']: {last['SMA_120']}")
+
+        # ✅ EMA_5가 전일 EMA_13 아래에 있다가 당일 상향 돌파
+        crossover = prev['Close'] <= prev['SMA_5'] and last['Close'] > last['SMA_5']
+
+        # ✅ 종가가 EMA_5, EMA_13 위에 있어야 신뢰도 ↑
+        price_above = last['Close'] > last['SMA_5'] and last['Close'] > last['SMA_10']
+
+        # ✅ 거래량 조건 (5일 평균 이상 & 전일보다 증가)
+        volume_ma5 = df['Volume'].rolling(5).mean().iloc[-1]
+        volume_good = last['Volume'] > volume_ma5 and last['Volume'] > prev['Volume']
+
+        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        cond5  = upper_shadow_ratio <= 0.8  # 윗꼬리 80% 이상이면 제외
+        cond6 = last['Close'] > last["Open"]
+        
+        cond7 = prev_prev['Close'] >= prev_prev['SMA_5'] and prev['Close'] <= prev['SMA_5'] and last['Close'] > last['SMA_5']
+        
+                # 조건 3: EMA 기울기 양수
+        sma10_slope = last['SMA_10'] - prev['SMA_10']
+        sma20_slope = last['SMA_20'] - prev['SMA_20']
+        sma60_slope = last['SMA_60'] - prev['SMA_60']
+        sma120_slope = last['SMA_120'] - prev['SMA_120']
+        
+        slope_up = sma10_slope > 0 and sma20_slope > 0 and sma60_slope > 0 and sma120_slope > 0
+        
+        bollinger_upper_slope = last['BB_Upper'] - prev['BB_Upper']
+        bollinger_lower_slope = last['BB_Lower'] - prev['BB_Lower']
+        
+        slope_up2 = bollinger_upper_slope > 0 
+        # 고점 돌파 (최근 5일 고점)
+        recent_close_high = df['High'].iloc[-6:-1].max()
+        cond8 = last['Close'] > recent_close_high
+        
+        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.7  # 윗꼬리 80% 이상이면 제외
+        
+        cond9 = last['Close'] > last_resistance
+        # ✅ 최종 매수 조건
+        buy_signal = all([long_trend, crossover, not cond7, cond6, slope_up, volume_good, cond5, slope_up2])
+        
+        return buy_signal, None
     
+    def wma_crossover_trading(self, df, last_resistance):
+        if len(df) < 2:
+            return False, None
+
+        if last_resistance is None:
+            return False, None
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        prev_prev = df.iloc[-3]
+        # ✅ 중장기 정배열 조건
+        long_trend = (
+            last['WMA_5'] > last['WMA_10'] > last['WMA_20'] > last['WMA_60'] > last['WMA_120']
+        )
+
+        # ✅ EMA_5가 전일 EMA_13 아래에 있다가 당일 상향 돌파
+        crossover = prev['Close'] <= prev['WMA_5'] and last['Close'] > last['WMA_5']
+
+        # ✅ 종가가 EMA_5, EMA_13 위에 있어야 신뢰도 ↑
+        price_above = last['Close'] > last['WMA_5'] and last['Close'] > last['WMA_10']
+
+        # ✅ 거래량 조건 (5일 평균 이상 & 전일보다 증가)
+        volume_ma5 = df['Volume'].rolling(5).mean().iloc[-1]
+        volume_good = last['Volume'] > volume_ma5 and last['Volume'] > prev['Volume']
+
+        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        cond5  = upper_shadow_ratio <= 0.8  # 윗꼬리 80% 이상이면 제외
+        cond6 = last['Close'] > last["Open"]
+        
+        cond7 = prev_prev['Close'] >= prev_prev['WMA_5'] and prev['Close'] <= prev['WMA_5'] and last['Close'] > last['WMA_5']
+        
+                # 조건 3: EMA 기울기 양수
+        sma10_slope = last['WMA_10'] - prev['WMA_10']
+        sma20_slope = last['WMA_20'] - prev['WMA_20']
+        sma60_slope = last['WMA_60'] - prev['WMA_60']
+        sma120_slope = last['WMA_120'] - prev['WMA_120']
+        
+        slope_up = sma10_slope > 0 and sma20_slope > 0 and sma60_slope > 0 and sma120_slope > 0
+        
+        bollinger_upper_slope = last['BB_Upper'] - prev['BB_Upper']
+        bollinger_lower_slope = last['BB_Lower'] - prev['BB_Lower']
+        
+        slope_up2 = bollinger_upper_slope > 0 
+        # 고점 돌파 (최근 5일 고점)
+        recent_close_high = df['High'].iloc[-6:-1].max()
+        cond8 = last['Close'] > recent_close_high
+        
+        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.7  # 윗꼬리 80% 이상이면 제외
+        
+        cond9 = last['Close'] > last_resistance
+        # ✅ 최종 매수 조건
+        buy_signal = all([long_trend, crossover, not cond7, cond6, slope_up, volume_good, cond5, slope_up2])
+        
+        return buy_signal, None
+    
+    def ema_crossover_trading2(self, df, last_resistance):
+        if len(df) < 2:
+            return False, None
+
+        if last_resistance is None:
+            return False, None
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        prev_prev = df.iloc[-3]
+        # ✅ 중장기 정배열 조건
+        long_trend = (
+            last['EMA_5'] > last['EMA_10'] > last['EMA_20'] > last['EMA_60'] > last['EMA_120'] 
+        )
+
+
+        # ✅ EMA_5가 전일 EMA_13 아래에 있다가 당일 상향 돌파
+        crossover = prev['Close'] <= prev['EMA_5'] and last['Close'] > last['EMA_5']
+
+        # ✅ 종가가 EMA_5, EMA_13 위에 있어야 신뢰도 ↑
+        price_above = last['Close'] > last['EMA_5'] and last['Close'] > last['EMA_10']
+
+        # ✅ 거래량 조건 (5일 평균 이상 & 전일보다 증가)
+        volume_ma5 = df['Volume'].rolling(5).mean().iloc[-1]
+        volume_good = last['Volume'] > volume_ma5 and last['Volume'] > prev['Volume']
+
+        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        cond5  = upper_shadow_ratio <= 0.8  # 윗꼬리 80% 이상이면 제외
+        cond6 = last['Close'] > last["Open"]
+        
+        cond7 = prev_prev['Close'] >= prev_prev['EMA_5'] and prev['Close'] <= prev['EMA_5'] and last['Close'] > last['EMA_5']
+        
+                # 조건 3: EMA 기울기 양수
+        ema10_slope = last['EMA_10'] - prev['EMA_10']
+        ema20_slope = last['EMA_20'] - prev['EMA_20']
+        ema60_slope = last['EMA_60'] - prev['EMA_60']
+        ema120_slope = last['EMA_120'] - prev['EMA_120']
+        
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema60_slope > 0 and ema120_slope > 0
+        
+        bollinger_upper_slope = last['BB_Upper'] - prev['BB_Upper']
+        bollinger_lower_slope = last['BB_Lower'] - prev['BB_Lower']
+        
+        slope_up2 = bollinger_upper_slope > 0 
+        # 고점 돌파 (최근 5일 고점)
+        recent_close_high = df['High'].iloc[-6:-1].max()
+        cond8 = last['Close'] > recent_close_high
+        
+        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
+        not_long_upper_shadow  = upper_shadow_ratio <= 0.7  # 윗꼬리 80% 이상이면 제외
+        
+        cond9 = last['Close'] > last_resistance
+        
+        # ✅ 60일간 EMA_5 / EMA_120 비율의 최대값이 1.2 미만
+        ratio_max_60 = (df['EMA_5'] / df['EMA_120']).iloc[-60:].max()
+        cond10 = ratio_max_60 < 1.2        
+        # ✅ 최종 매수 조건
+        buy_signal = all([long_trend, crossover, not cond7, cond6, slope_up, volume_good, cond5, slope_up2, cond10])
+        
+        return buy_signal, None     
     
     
     

@@ -239,7 +239,7 @@ class AutoTradingBot:
         valid_symbols = []
         
         # 지표 계산을 위해 180일 이전부터 OHLC 데이터를 가져옵니다.        
-        start_date_for_ohlc = start_date - timedelta(days=180)
+        start_date_for_ohlc = start_date - timedelta(days=300)
 
         valid_symbol = {}
         # ✅ OHLC 데이터 가져오기
@@ -1507,6 +1507,17 @@ class AutoTradingBot:
         df = indicator.cal_bollinger_band(df)
         df = indicator.cal_horizontal_levels_df(df, lookback_prev, lookback_next)
         
+        df = indicator.cal_wma_df(df, 5)
+        df = indicator.cal_wma_df(df, 10)
+        df = indicator.cal_wma_df(df, 20)
+        df = indicator.cal_wma_df(df, 60)
+        df = indicator.cal_wma_df(df, 120)
+        df = indicator.cal_wma_df(df, 200)        
+        
+        print(f"5일 wma: {df['WMA_5']}")
+        print(f"20일 wma: {df['WMA_20']}")
+        print(f"60일 wma: {df['WMA_60']}")
+                        
         # 🔧 EMA 기울기 추가 및 이동평균 계산
         #df['EMA_55_Slope'] = df['EMA_55'] - df['EMA_55'].shift(1)
         df['EMA_89_Slope'] = df['EMA_89'] - df['EMA_89'].shift(1)
@@ -2214,7 +2225,16 @@ class AutoTradingBot:
                     buy_yn, _ = logic.weekly_trading(ohlc_df, resistance)
                     
                 elif trading_logic == 'new_trading':
-                    buy_yn, _ = logic.new_trading(ohlc_df)                    
+                    buy_yn, _ = logic.new_trading(ohlc_df)
+                    
+                elif trading_logic == 'sma_crossover_trading':
+                    buy_yn, _ = logic.sma_crossover_trading(ohlc_df, resistance)
+                    
+                elif trading_logic == 'wma_crossover_trading':
+                    buy_yn, _ = logic.wma_crossover_trading(ohlc_df, resistance)
+                    
+                elif trading_logic == 'ema_breakout_trading2':
+                    buy_yn, _ = logic.ema_breakout_trading2(ohlc_df, resistance)                                                            
                 
                 if buy_yn:
                     signal_reasons.append(trading_logic)

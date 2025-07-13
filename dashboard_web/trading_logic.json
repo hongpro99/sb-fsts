@@ -16,7 +16,10 @@
         "should_buy": "should_buy",
         "should_buy_break_high_trend": "should_buy_break_high_trend",
         "weekly_trading": "weekly_trading",
-        "new_trading": "new_trading"
+        "new_trading": "new_trading",
+        "sma_crossover_trading": "sma_crossover_trading",
+        "wma_crossover_trading": "wma_crossover_trading",
+        "눌림2": "ema_breakout_trading2"
         
     },
     "available_sell_logic": {
