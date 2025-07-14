@@ -2193,6 +2193,17 @@ def main():
     with tabs[6]:
         
         st.header("Setting")
+
+        # JSON 파일 읽기
+        file_path = "./dashboard_web/trading_logic.json"
+        with open(file_path, "r", encoding="utf-8") as file:
+            trading_logic = json.load(file)
+
+        available_buy_logic = trading_logic["available_buy_logic"]
+        available_sell_logic = trading_logic["available_sell_logic"]
+        available_take_profit_logic = trading_logic["available_take_profit_logic"]
+        available_stop_loss_logic = trading_logic["available_stop_loss_logic"]
+                
         # 선택할 옵션 리스트
         auto_trading_bots = list(UserInfo.scan())
         print(f"AutoTrading BOTS: {auto_trading_bots}")
@@ -2226,14 +2237,14 @@ def main():
 
             selected_buy_trading_logics = st.multiselect(
                 "매수 로직 리스트",
-                options=trading_bot.buy_trading_logic,        # 전체 선택지
-                default=trading_bot.buy_trading_logic
+                options=list(available_buy_logic.keys()),        # 전체 선택지
+                default=[k for k, v in available_buy_logic.items() if v in trading_bot.buy_trading_logic] # 현재 봇에 설정된 매수 로직
             )
 
             selected_sell_trading_logics = st.multiselect(
                 "매도 로직 리스트",
-                options=trading_bot.sell_trading_logic,
-                default=trading_bot.sell_trading_logic
+                options=list(available_sell_logic.keys()),
+                default=[k for k, v in available_buy_logic.items() if v in trading_bot.sell_trading_logic] # 현재 봇에 설정된 매도 로직
             )
 
             take_profit_use_yn = st.checkbox("익절 조건 사용", value=trading_bot.take_profit_logic.use_yn, key="take_profit_use_yn")
