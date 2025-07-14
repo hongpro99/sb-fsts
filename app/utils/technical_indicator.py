@@ -211,6 +211,30 @@ class TechnicalIndicator:
         
         return df
     
+    def cal_wma_df(self, df, period, round_digits=1):
+        """
+        DataFrame에서 WMA(가중 이동평균)를 계산하여 추가합니다.
+
+        :param df: 입력 DataFrame
+        :param period: WMA 주기
+        :param round_digits: 반올림 자릿수 (기본값: 1)
+        :return: WMA 컬럼이 추가된 DataFrame
+        """
+
+        wma_column_name = f'WMA_{period}'
+
+        weights = list(range(1, period + 1))  # [1, 2, ..., period]
+        
+        df[wma_column_name] = (
+            df['Close']
+            .rolling(window=period)
+            .apply(lambda prices: sum(prices * weights) / sum(weights), raw=True)
+        )
+
+        df[wma_column_name] = df[wma_column_name].round(round_digits)
+
+        return df
+    
     def cal_horizontal_levels_df(self, df, lookback_prev=5, lookback_next=5):
         """
         df에 고점/저점 수평선 컬럼을 추가
