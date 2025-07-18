@@ -71,14 +71,14 @@ schedule_times2 = {
 #         minute=m
 #     )
     
-for h, m in schedule_times2:
-    scheduler.add_job(
-        auto_trading_scheduler.run_market_netbuy_summary,
-        'cron',
-        day_of_week='mon-fri',
-        hour=h,
-        minute=m
-    )    
+# for h, m in schedule_times2:
+#     scheduler.add_job(
+#         auto_trading_scheduler.run_market_netbuy_summary,
+#         'cron',
+#         day_of_week='mon-fri',
+#         hour=h,
+#         minute=m
+#     )    
 
 scheduler.start()
 

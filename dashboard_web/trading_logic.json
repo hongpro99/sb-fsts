@@ -19,7 +19,8 @@
         "new_trading": "new_trading",
         "sma_crossover_trading": "sma_crossover_trading",
         "wma_crossover_trading": "wma_crossover_trading",
-        "눌림2": "ema_breakout_trading2"
+        "눌림2": "ema_breakout_trading2",
+        "day120_trend_line": "day120_trend_line"
         
     },
     "available_sell_logic": {
