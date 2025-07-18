@@ -198,15 +198,15 @@ class TradingLogic:
         if len(df) < 2:
             return False, None
 
-        if last_resistance is None:
-            return False, None
+        # if last_resistance is None:
+        #     return False, None
         
         last = df.iloc[-1]
         prev = df.iloc[-2]
         prev_prev = df.iloc[-3]
         # ✅ 중장기 정배열 조건
         long_trend = (
-            last['EMA_5'] > last['EMA_10'] > last['EMA_20'] > last['EMA_60'] > last['EMA_120'] 
+            last['EMA_10'] > last['EMA_20'] > last['EMA_60'] > last['EMA_120'] 
         )
 
 
@@ -650,15 +650,15 @@ class TradingLogic:
         if len(df) < 2:
             return False, None
 
-        if last_resistance is None:
-            return False, None
+        # if last_resistance is None:
+        #     return False, None
         
         last = df.iloc[-1]
         prev = df.iloc[-2]
         prev_prev = df.iloc[-3]
         # ✅ 중장기 정배열 조건
         long_trend = (
-            last['SMA_5'] > last['SMA_10'] > last['SMA_20'] > last['SMA_60'] > last['SMA_120']
+            last['SMA_10'] > last['SMA_20'] > last['SMA_60'] > last['SMA_120']
         )
         
         print(f"last['SMA_120']: {last['SMA_120']}")
@@ -708,15 +708,15 @@ class TradingLogic:
         if len(df) < 2:
             return False, None
 
-        if last_resistance is None:
-            return False, None
+        # if last_resistance is None:
+        #     return False, None
         
         last = df.iloc[-1]
         prev = df.iloc[-2]
         prev_prev = df.iloc[-3]
         # ✅ 중장기 정배열 조건
         long_trend = (
-            last['WMA_5'] > last['WMA_10'] > last['WMA_20'] > last['WMA_60'] > last['WMA_120']
+            last['WMA_10'] > last['WMA_20'] > last['WMA_60'] > last['WMA_120']
         )
 
         # ✅ EMA_5가 전일 EMA_13 아래에 있다가 당일 상향 돌파
@@ -764,8 +764,8 @@ class TradingLogic:
         if len(df) < 2:
             return False, None
 
-        if last_resistance is None:
-            return False, None
+        # if last_resistance is None:
+        #     return False, None
         
         last = df.iloc[-1]
         prev = df.iloc[-2]
@@ -819,12 +819,25 @@ class TradingLogic:
         # ✅ 최종 매수 조건
         buy_signal = all([long_trend, crossover, not cond7, cond6, slope_up, volume_good, cond5, slope_up2, cond10])
         
-        return buy_signal, None     
+        return buy_signal, None
+    
+    def day120_trend_line(self, df):
+        if len(df) < 2:
+            return False, None
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        prev_prev = df.iloc[-3]
+        
+        cond1 = last['EMA_60'] > prev['EMA_60']
+        cond2 = last['EMA_120'] > prev['EMA_120']
+        cond3 = last['Close'] < last['EMA_60'] * (1+0.02)
+        # ✅ 최종 매수 조건
+        buy_signal = all([cond1, cond2, cond3])
+        
+        return buy_signal, None      
     
     
-    
-
-
 ### -------------------------------------------------------------매도로직-------------------------------------------------------------
 
     def should_sell_break_low_trend(self, df, window=5):
