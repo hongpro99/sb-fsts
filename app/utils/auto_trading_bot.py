@@ -673,8 +673,20 @@ class AutoTradingBot:
                     total_balance = global_state['krw_balance'] + total_market_value
                     trade_amount = min(total_balance * (trade_ratio / 100), global_state['krw_balance'])
 
+                # 매수 제약 조건 체크
+                if buy_percentage is None:
+                    buy_condition = True
+                else:
+                    # 매수 비율이 지정되어 있을 경우, 현재 종가와 평균가의 차이가 매수 비율보다 클 때만 매수
+                    if holding['avg_price'] == 0:
+                        buy_condition = True
+                    else:
+                        if buy_percentage < abs(holding['avg_price'] - close_price) / holding['avg_price'] * 100:
+                            buy_condition = True
+                        else:
+                            buy_condition = False
                 # ✅ 매수 실행
-                if len(buy_logic_reasons) > 0 and min_trade_value <= trade_amount: # 최소 금액 이상일 때
+                if len(buy_logic_reasons) > 0 and min_trade_value <= trade_amount and buy_condition: # 최소 금액 이상일 때, buy_percentage 보다 클 때만 매수
                     buy_quantity = math.floor(trade_amount / close_price)
                     cost = buy_quantity * close_price
                     fee = cost * 0.00014
@@ -798,6 +810,8 @@ class AutoTradingBot:
             return 0.0  # 또는 np.nan
     
     def simulate_trading_bulk(self, simulation_settings):
+
+        buy_percentage = simulation_settings.get("buy_percentage", None)
 
         valid_symbols = []
 
@@ -1279,8 +1293,21 @@ class AutoTradingBot:
                     total_balance = global_state['krw_balance'] + total_market_value
                     trade_amount = min(total_balance * (trade_ratio / 100), global_state['krw_balance'])
 
+                # 매수 제약 조건 체크
+                if buy_percentage is None:
+                    buy_condition = True
+                else:
+                    # 매수 비율이 지정되어 있을 경우, 현재 종가와 평균가의 차이가 매수 비율보다 클 때만 매수
+                    if holding['avg_price'] == 0:
+                        buy_condition = True
+                    else:
+                        if buy_percentage < abs(holding['avg_price'] - close_price) / holding['avg_price'] * 100:
+                            buy_condition = True
+                        else:
+                            buy_condition = False
+
                 # ✅ 매수 실행
-                if len(buy_logic_reasons) > 0 and min_trade_value <= trade_amount:
+                if len(buy_logic_reasons) > 0 and min_trade_value <= trade_amount and buy_condition: # 최소 금액 이상일 때, buy_percentage 보다 클 때만 매수
                     buy_quantity = math.floor(trade_amount / close_price)
                     cost = buy_quantity * close_price
                     fee = cost * 0.00014
