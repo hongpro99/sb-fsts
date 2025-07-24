@@ -52,7 +52,7 @@ def scheduled_trading(id, virtual = False, trading_bot_name = 'schedulerbot', so
     start_date = end_date
     interval = "day"
     
-        # ✅ 코스닥150 종목 가져오기
+    # ✅ 코스닥150 종목 가져오기
     result = list(StockSymbol.scan(
         filter_condition=(StockSymbol.type == 'kosdaq150')
     ))
