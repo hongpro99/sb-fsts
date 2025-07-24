@@ -2241,7 +2241,10 @@ class AutoTradingBot:
                     buy_yn, _ = logic.ema_breakout_trading2(ohlc_df, resistance)
                     
                 elif trading_logic == 'day120_trend_line':
-                    buy_yn, _ = logic.day120_trend_line(ohlc_df)                                                                               
+                    buy_yn, _ = logic.day120_trend_line(ohlc_df)
+                    
+                elif trading_logic == 'day120_trend_line_2':
+                    buy_yn, _ = logic.day120_trend_line_2(ohlc_df)                                                                                                   
                 
                 if buy_yn:
                     signal_reasons.append(trading_logic)

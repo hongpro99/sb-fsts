@@ -835,6 +835,22 @@ class TradingLogic:
         # ✅ 최종 매수 조건
         buy_signal = all([cond1, cond2, cond3])
         
+        return buy_signal, None
+    
+    def day120_trend_line_2(self, df):
+        if len(df) < 2:
+            return False, None
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        prev_prev = df.iloc[-3]
+        
+        cond1 = last['EMA_60'] > prev['EMA_60']
+        cond2 = last['EMA_120'] > prev['EMA_120']
+        cond3 = last['Close'] < last['EMA_120'] * (1+0.02)
+        # ✅ 최종 매수 조건
+        buy_signal = all([cond1, cond2, cond3])
+        
         return buy_signal, None      
     
     
