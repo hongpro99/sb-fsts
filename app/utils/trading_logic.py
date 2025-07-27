@@ -832,6 +832,7 @@ class TradingLogic:
         cond1 = last['EMA_60'] > prev['EMA_60']
         cond2 = last['EMA_120'] > prev['EMA_120']
         cond3 = last['Close'] < last['EMA_60'] * (1+0.02)
+        
         # ✅ 최종 매수 조건
         buy_signal = all([cond1, cond2, cond3])
         
@@ -851,9 +852,59 @@ class TradingLogic:
         # ✅ 최종 매수 조건
         buy_signal = all([cond1, cond2, cond3])
         
-        return buy_signal, None      
+        return buy_signal, None
     
+    def day120_trend_line_2(self, df):
+        if len(df) < 2:
+            return False, None
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        prev_prev = df.iloc[-3]
+        
+        cond1 = last['EMA_60'] > prev['EMA_60']
+        cond2 = last['EMA_120'] > prev['EMA_120']
+        cond3 = last['Close'] < last['EMA_120'] * (1+0.02)
+        # ✅ 최종 매수 조건
+        buy_signal = all([cond1, cond2, cond3])
+        
+        return buy_signal, None          
     
+    def new_trend_entry(self, df):
+        """
+        EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
+
+        """
+
+        if df.shape[0] < 2:
+            print("❌ 데이터가 부족해서 trend_entry_trading 조건 계산 불가")
+            return False, None
+
+        if 'Volume_MA5' not in df.columns:
+            df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        trade_date = last.name.date()
+        
+        close_price = float(last['Close'])
+        volume = float(last['Volume'])
+
+        # 조건 1: EMA 기울기 양수
+        ema10_slope = last['EMA_10'] - last['EMA_20']
+        ema20_slope = last['EMA_10'] - prev['EMA_10']
+        ema50_slope = last['EMA_20'] - prev['EMA_20']
+        ema60_slope = last['EMA_60'] - prev['EMA_60']
+        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
+
+        # 조건 2: 거래량 증가
+        cond5 = last['Close'] < last['EMA_10'] * (1+0.035)
+        cond6 = abs(last['Close'] - last['Open']) < last['EMA_10'] * (1+0.03)
+        
+        # 최종 조건
+        buy_signal = slope_up and cond5 and cond6
+
+        return buy_signal, None  
 ### -------------------------------------------------------------매도로직-------------------------------------------------------------
 
     def should_sell_break_low_trend(self, df, window=5):
