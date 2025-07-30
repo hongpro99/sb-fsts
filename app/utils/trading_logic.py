@@ -904,6 +904,36 @@ class TradingLogic:
         # 최종 조건
         buy_signal = slope_up and cond5 and cond6
 
+        return buy_signal, None
+    
+    def new_trend_entry2(self, df):
+        """
+        EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
+
+        """
+
+        if df.shape[0] < 2:
+            print("❌ 데이터가 부족해서 trend_entry_trading 조건 계산 불가")
+            return False, None
+
+        if 'Volume_MA5' not in df.columns:
+            df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        prev_prev = df.iloc[-3]
+        trade_date = last.name.date()
+        
+        close_price = float(last['Close'])
+        volume = float(last['Volume'])
+
+        # 조건 2: 거래량 증가
+        cond5 = last['EMA_60'] > prev['EMA_60']
+        cond6 = prev['EMA_60'] <= prev_prev['EMA_60']
+        
+        # 최종 조건
+        buy_signal = cond5 and cond6
+
         return buy_signal, None  
 ### -------------------------------------------------------------매도로직-------------------------------------------------------------
 
