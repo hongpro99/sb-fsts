@@ -38,6 +38,21 @@ setup_env()
 
 backend_base_url = os.getenv('BACKEND_BASE_URL')
 
+def initial_router():
+    params = st.query_params
+    is_logged_in = params.get("login", "false") == "true"
+    current_page = params.get("page", "login")
+    st.session_state["username"] = params.get("username", "Guest")
+    
+    if "authenticated" not in st.session_state:
+        st.session_state["authenticated"] = is_logged_in
+
+    if st.session_state["authenticated"] and current_page == 'main':
+        main()
+    else:
+        login_page()
+
+
 def draw_lightweight_chart(data_df, assets, indicators):
 
     buy_signals = []    
@@ -2582,19 +2597,7 @@ def main():
         #     else:
         #         st.warning("❌ 해당하는 종목명 또는 테마가 없습니다.")
 
-if __name__ == "__main__":
-        # Streamlit 실행 시 로그인 여부 확인
-        
-    # ✅ 현재 쿼리 파라미터로 페이지 상태 확인
-    params = st.query_params
-    is_logged_in = params.get("login", "false") == "true"
-    current_page = params.get("page", "login")
-    st.session_state["username"] = params.get("username", "Guest")
-        
-    if "authenticated" not in st.session_state:
-        st.session_state["authenticated"] = is_logged_in
 
-    if st.session_state["authenticated"] and current_page == 'main':
-        main()
-    else:
-        login_page()
+
+# Streamlit 앱 진입점
+initial_router()
