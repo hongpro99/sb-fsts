@@ -2277,10 +2277,10 @@ class AutoTradingBot:
                     buy_yn, _ = logic.new_trend_entry(ohlc_df)
                     
                 elif trading_logic == 'new_trend_entry2':
-                    buy_yn, _ = logic.new_trend_entry2(ohlc_df)  
-
-                elif trading_logic == 'combined_new_trend_entry':
-                    buy_yn, _ = logic.combined_new_trend_entry(ohlc_df)                                                                                                                                       
+                    buy_yn, _ = logic.new_trend_entry2(ohlc_df)
+                    
+                elif trading_logic == 'congestion_trading':
+                    buy_yn, _ = logic.congestion_trading(ohlc_df)                                                                                                                                            
                 
                 if buy_yn:
                     signal_reasons.append(trading_logic)
@@ -2324,7 +2324,9 @@ class AutoTradingBot:
                     _, result = logic.sell_on_support_break(ohlc_df)
                     
                 elif trading_logic == 'horizontal_low_sell':
-                    _, result = logic.horizontal_low_sell(ohlc_df)                    
+                    _, result = logic.horizontal_low_sell(ohlc_df)
+                    
+                                       
 
                 # ✅ 조건 만족하면 즉시 기록
                 if result:

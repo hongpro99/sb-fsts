@@ -935,6 +935,43 @@ class TradingLogic:
 
         return buy_signal, None
     
+    def congestion_trading(self, df):
+        """
+        최대값/최소값 < 1.03
+        최소값이 120 이평보다 크다
+        120 이평 상승
+
+        """
+
+        if df.shape[0] < 2:
+            print("❌ 데이터가 부족해서 trend_entry_trading 조건 계산 불가")
+            return False, None
+
+        if 'Volume_MA5' not in df.columns:
+            df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        prev_prev = df.iloc[-3]
+        trade_date = last.name.date()
+        
+        close_price = float(last['Close'])
+        volume = float(last['Volume'])
+        
+        emas = [last['EMA_5'], last['EMA_10'], last['EMA_20'], last['EMA_60']]
+        max_price = max(emas)
+        min_price = min(emas)
+        # 조건 2: 거래량 증가
+        cond1 = last['EMA_120'] - prev['EMA_120'] > 0
+        cond2 = min_price > last['EMA_120']
+        cond3 = max_price /  min_price < 1.03
+        
+        # 최종 조건
+        buy_signal = cond1 and cond2 and cond3
+
+        return buy_signal, None      
+        return buy_signal, None
+    
 
     def combined_new_trend_entry(self, df):
         
