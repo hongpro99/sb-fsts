@@ -2233,6 +2233,8 @@ def main():
             print(f"Selected Bot: {selected_bot.id}")
             trading_bot = list(UserInfo.query(selected_bot.id))[0]
             
+            print(f"Trading buy logic: {trading_bot.buy_trading_logic}")
+
             target_method = st.radio(
                 "매수 금액을 어떻게 설정할까요?",
                 ["직접 입력", "자본 비율 (%)"],
@@ -2256,11 +2258,15 @@ def main():
                 default=[k for k, v in available_buy_logic.items() if v in trading_bot.buy_trading_logic] # 현재 봇에 설정된 매수 로직
             )
 
+            selected_buy_trading_logics_values = [available_buy_logic[key] for key in selected_buy_trading_logics]
+
             selected_sell_trading_logics = st.multiselect(
                 "매도 로직 리스트",
                 options=list(available_sell_logic.keys()),
-                default=[k for k, v in available_buy_logic.items() if v in trading_bot.sell_trading_logic] # 현재 봇에 설정된 매도 로직
+                default=[k for k, v in available_sell_logic.items() if v in trading_bot.sell_trading_logic] # 현재 봇에 설정된 매도 로직
             )
+
+            selected_sell_trading_logics_values = [available_sell_logic[key] for key in selected_sell_trading_logics]
 
             take_profit_use_yn = st.checkbox("익절 조건 사용", value=trading_bot.take_profit_logic.use_yn, key="take_profit_use_yn")
 
@@ -2299,8 +2305,8 @@ def main():
                     id=selected_bot.id,
                     updated_at=updated_at,
                     updated_at_dt=updated_at_dt,
-                    buy_trading_logic=selected_buy_trading_logics,
-                    sell_trading_logic=selected_sell_trading_logics,
+                    buy_trading_logic=selected_buy_trading_logics_values,
+                    sell_trading_logic=selected_sell_trading_logics_values,
                     take_profit_logic={
                         "use_yn": take_profit_use_yn,
                         "name": take_profit_logic_name,
