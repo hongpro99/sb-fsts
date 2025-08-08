@@ -708,8 +708,8 @@ class TradingLogic:
         if len(df) < 2:
             return False, None
 
-        # if last_resistance is None:
-        #     return False, None
+        if last_resistance is None:
+            return False, None
         
         last = df.iloc[-1]
         prev = df.iloc[-2]
