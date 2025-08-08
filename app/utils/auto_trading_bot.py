@@ -2179,16 +2179,30 @@ class AutoTradingBot:
 
 
     def _get_kis_krw_balance(self):
-        kis_account = self.kis.account()
-        # 주문 가능 금액 구하는 법 (우회)
-        # 매수가 1원으로 주문 가능 금액을 구함
-        orderable_amount: KisOrderableAmount = kis_account.orderable_amount(
-            market="KRX",
-            price=1,
-            symbol="039200"
-        )
 
-        return int(orderable_amount.qty)
+        # 1원 단위로 조회
+        kis_account = self.kis.account()
+        max_retries = 5
+
+        kis_krw_balance = 0
+
+        for attempt in range(0, max_retries):
+            try:
+                orderable_amount: KisOrderableAmount = kis_account.orderable_amount(
+                    market="KRX",
+                    price=1,
+                    symbol="039200"
+                )
+
+                kis_krw_balance = int(orderable_amount.qty)
+                break
+
+            except Exception as e:
+                print(f"[{attempt+1}/{max_retries}] 주문 가능 금액 조회 실패: {e}")
+                time.sleep(1)  # 1초 대기 후 재시도
+
+        return kis_krw_balance
+                
 
     def _get_trading_logic_reasons(self, trading_logics, symbol, candle, ohlc_df, support, resistance, high_trendline, trade_type = 'BUY', rsi_buy_threshold = 30, rsi_sell_threshold = 70):
 
