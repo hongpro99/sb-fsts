@@ -1540,11 +1540,7 @@ class AutoTradingBot:
         df = indicator.cal_wma_df(df, 60)
         df = indicator.cal_wma_df(df, 120)
         df = indicator.cal_wma_df(df, 200)        
-        
-        print(f"5일 wma: {df['WMA_5']}")
-        print(f"20일 wma: {df['WMA_20']}")
-        print(f"60일 wma: {df['WMA_60']}")
-                        
+                                
         # 🔧 EMA 기울기 추가 및 이동평균 계산
         #df['EMA_55_Slope'] = df['EMA_55'] - df['EMA_55'].shift(1)
         df['EMA_89_Slope'] = df['EMA_89'] - df['EMA_89'].shift(1)
