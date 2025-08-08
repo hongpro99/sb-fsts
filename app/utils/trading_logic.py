@@ -891,11 +891,10 @@ class TradingLogic:
         volume = float(last['Volume'])
 
         # 조건 1: EMA 기울기 양수
-        ema10_slope = last['EMA_10'] - last['EMA_20']
-        ema20_slope = last['EMA_10'] - prev['EMA_10']
-        ema50_slope = last['EMA_20'] - prev['EMA_20']
+        ema10_slope = last['EMA_10'] - prev['EMA_10']
+        ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema60_slope = last['EMA_60'] - prev['EMA_60']
-        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
+        slope_up = last['EMA_10'] - last['EMA_20'] > 0 and ema10_slope > 0 and ema20_slope > 0 and ema60_slope > 0
 
         # 조건 2: 거래량 증가
         cond5 = last['Close'] < last['EMA_10'] * (1+0.035)
@@ -971,6 +970,26 @@ class TradingLogic:
         buy_signal = cond1 and cond2 and cond3
 
         return buy_signal, None      
+        return buy_signal, None
+    
+
+    def combined_new_trend_entry(self, df):
+        
+        check_period = 10
+        first_buy_signal, _ = self.new_trend_entry(df)
+
+        final_buy_signal = False
+
+        if first_buy_signal: # new 상승 추세가 매수 신호가 발생하면
+            for i in range(1, check_period + 1):
+                final_buy_signal, _ = self.trend_entry_trading(df.iloc[:-i])
+                if final_buy_signal:
+                    print(f"✅ {i}일 전 상승 추세형 매수 신호 발생")
+                    break
+        
+        return final_buy_signal, None
+        
+
 ### -------------------------------------------------------------매도로직-------------------------------------------------------------
 
     def should_sell_break_low_trend(self, df, window=5):
