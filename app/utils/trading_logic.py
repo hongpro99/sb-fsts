@@ -962,14 +962,15 @@ class TradingLogic:
         max_price = max(emas)
         min_price = min(emas)
         # 조건 2: 거래량 증가
-        cond1 = last['EMA_120'] - prev['EMA_120'] > 0
+        cond1 = last['EMA_120'] > prev['EMA_120']
         cond2 = min_price > last['EMA_120']
         cond3 = max_price /  min_price < 1.03
+        cond4 = last['EMA_5'] > prev['EMA_5']
+        cond5 = abs(last['Open'] - last['Close']) < last['EMA_60'] * 0.01
         
         # 최종 조건
-        buy_signal = cond1 and cond2 and cond3
+        buy_signal = cond1 and cond2 and cond3 and cond4 and cond5
 
-        return buy_signal, None      
         return buy_signal, None
     
 

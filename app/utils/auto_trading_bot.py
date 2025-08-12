@@ -2290,7 +2290,10 @@ class AutoTradingBot:
                     buy_yn, _ = logic.new_trend_entry2(ohlc_df)
                     
                 elif trading_logic == 'congestion_trading':
-                    buy_yn, _ = logic.congestion_trading(ohlc_df)                                                                                                                                            
+                    buy_yn, _ = logic.congestion_trading(ohlc_df)   
+
+                elif trading_logic == 'combined_new_trend_entry':
+                    buy_yn, _ = logic.combined_new_trend_entry(ohlc_df)
                 
                 if buy_yn:
                     signal_reasons.append(trading_logic)
