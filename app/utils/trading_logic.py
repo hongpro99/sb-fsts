@@ -529,10 +529,10 @@ class TradingLogic:
 
         return buy_signal, None
     
-    def trend_entry_trading(self, df):
+    def trend_entry_trading(self, df, lower_threshold_ratio = -1.00, upper_threshold_ratio = 1.00):
         """
+        이름 : 상승추세형 매수
         EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
-
         """
 
         if df.shape[0] < 2:
@@ -571,12 +571,16 @@ class TradingLogic:
         
         # ❌ 조건 5: 당일 윗꼬리 음봉 제외, 윗꼬리 조건 추가
         is_bearish = last['Close'] > last['Open']
+
+        # 상승률 확인
+        rate = (last['Close'] - last['Open']) / last['Open'] # 0.05  # 5% 이상 상승
+        change_ratio_check = rate >= lower_threshold_ratio and rate <= upper_threshold_ratio
         
         upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
         not_long_upper_shadow  = upper_shadow_ratio <= 0.8  # 윗꼬리 80% 이상이면 제외
     
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and is_bearish and volume_up2 and not_long_upper_shadow
+        buy_signal = cross_up and slope_up and volume_up and is_bearish and volume_up2 and not_long_upper_shadow and change_ratio_check
 
         return buy_signal, None
     
@@ -872,8 +876,8 @@ class TradingLogic:
     
     def new_trend_entry(self, df):
         """
+        이름 : new 상승추세
         EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
-
         """
 
         if df.shape[0] < 2:
@@ -897,7 +901,7 @@ class TradingLogic:
         slope_up = last['EMA_10'] - last['EMA_20'] > 0 and ema10_slope > 0 and ema20_slope > 0 and ema60_slope > 0
 
         # 조건 2: 거래량 증가
-        cond5 = last['Close'] < last['EMA_10'] * (1+0.035)
+        cond5 = last['Close'] < last['EMA_10'] * (1+0.02)
         cond6 = abs(last['Close'] - last['Open']) < last['EMA_10'] * (1+0.03)
         
         # 최종 조건
@@ -983,7 +987,7 @@ class TradingLogic:
 
         if first_buy_signal: # new 상승 추세가 매수 신호가 발생하면
             for i in range(1, check_period + 1):
-                final_buy_signal, _ = self.trend_entry_trading(df.iloc[:-i])
+                final_buy_signal, _ = self.trend_entry_trading(df.iloc[:-i], lower_threshold_ratio=0.06)
                 if final_buy_signal:
                     print(f"✅ {i}일 전 상승 추세형 매수 신호 발생")
                     break

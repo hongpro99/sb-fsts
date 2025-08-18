@@ -7,6 +7,7 @@
         "상승추세형2": "ema_breakout_trading",
         "지수이동평균선 확인2": "ema_breakout_trading2",
         "상승추세형 매수": "trend_entry_trading",
+        "상승추세형 매수_0to6": "trend_entry_trading_0_to_6",
         "저점반등형 매수": "bottom_rebound_trading",
         "단순이동평균" : "sma_breakout_trading",
         "상승추세형3": "ema_breakout_trading3",

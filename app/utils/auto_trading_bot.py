@@ -2237,6 +2237,9 @@ class AutoTradingBot:
                     
                 elif trading_logic == 'trend_entry_trading':
                     buy_yn, _ = logic.trend_entry_trading(ohlc_df)
+                
+                elif trading_logic == 'trend_entry_trading_0_to_6':
+                    buy_yn, _ = logic.trend_entry_trading(ohlc_df, lower_threshold_ratio=0.0, upper_threshold_ratio= 0.06)
                     
                 elif trading_logic == 'bottom_rebound_trading':
                     buy_yn, _ = logic.bottom_rebound_trading(ohlc_df)
