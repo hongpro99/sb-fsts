@@ -426,45 +426,23 @@ class TradingLogic:
             print("❌ 데이터가 부족해서 trend_entry_trading 조건 계산 불가")
             return False, None
 
-        if 'Volume_MA5' not in df.columns:
-            df['Volume_MA5'] = df['Volume'].rolling(window=5).mean()
-        
         last = df.iloc[-1]
         prev = df.iloc[-2]
-        trade_date = last.name.date()
+                
+        # 고점 돌파 (최근 20일 고점)
+        d_recent_close_high = df['Close'].iloc[-21:-1].max()
+        cond1 = last['Close'] = d_recent_close_high
         
-        close_price = float(last['Close'])
-        volume = float(last['Volume'])
-
-        # 조건 1: 거래대금 계산(30억 이상)
-        trade_value = close_price * volume
-
-        # 조건 2: EMA_10이 EMA_20 상향 돌파
-        cross_up = (
-            prev['EMA_10'] <= prev['EMA_20'] and
-            last['EMA_10'] > last['EMA_20'] and last['EMA_10'] > last['EMA_120']
-        )
-
-        # 조건 3: EMA 기울기 양수
-        ema10_slope = last['EMA_5'] - prev['EMA_5']
-        ema20_slope = last['EMA_10'] - prev['EMA_10']
-        ema50_slope = last['EMA_20'] - prev['EMA_20']
-        ema60_slope = last['EMA_60'] - prev['EMA_60']
-        slope_up = ema10_slope > 0 and ema20_slope > 0 and ema50_slope > 0 and ema60_slope > 0
-
-        # 조건 4: 거래량 증가
-        volume_up = last['Volume'] > last['Volume_MA5']
-        volume_up2 = last['Volume'] > prev['Volume']
+        d_1_recent_close_high = df['Close'].iloc[-21:-1].max()
+        cond2 = prev['Close'] < d_1_recent_close_high
         
-        # ❌ 조건 5: 당일 윗꼬리 음봉 제외, 윗꼬리 조건 추가
-        is_bearish = last['Close'] > last['Open']
+        cond3 = last['EMA_5'] > last['EMA_20']> last['EMA_60'] > last['EMA_120']
+        cond4 = last['EMA_5'] > prev['EMA_5']
+        cond5 = last['EMA_20'] > prev['EMA_20']
+        cond6 = last['EMA_60'] > prev['EMA_60']
         
-        upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
-        not_long_upper_shadow  = upper_shadow_ratio <= 0.8  # 윗꼬리 80% 이상이면 제외
-
-        cond = last['EMA_10'] > last['EMA_120'] * 1.07    
         # 최종 조건
-        buy_signal = cross_up and slope_up and volume_up and is_bearish and volume_up2 and not_long_upper_shadow and cond
+        buy_signal = cond1 and cond2 and cond3 and cond4 and cond5 and cond6
 
         return buy_signal, None
 
