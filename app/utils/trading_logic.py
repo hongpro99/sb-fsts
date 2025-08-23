@@ -971,7 +971,32 @@ class TradingLogic:
                     break
         
         return final_buy_signal, None
+
+
+    def all_time_high_trading(self, df, days=10, period=60):
+        """
+        D-1 일부터 D-n 일까지 n일간 60일 신고가 아닐 조건
+        """
+        if len(df) < 2:
+            return False, None
+
+        df[f"max_{period}d_close"] = df["Close"].rolling(window=period).max()
         
+        buy_signal = True
+
+        for i in range(1, 11):   # d ~ d-9 까지 10개
+            idx = -1 * i
+            close = df.iloc[idx]["Close"]
+            max_close = df.iloc[idx]["max_60d_close"]
+            if i == 1:
+                close == max_close # d 일은 60일 신고가여야 함
+            else:
+                if close >= max_close:
+                    buy_signal = False
+                    break
+            
+        return buy_signal, None
+
 
 ### -------------------------------------------------------------매도로직-------------------------------------------------------------
 
@@ -1167,4 +1192,17 @@ class TradingLogic:
 
         sell_signal = dead_cross
         
+        return None, sell_signal
+    
+    def sell_on_5ema_break(self, df):
+        """
+        5일선 이탈 시 매도
+        """
+        if len(df) < 2:
+            return None, False
+
+        last = df.iloc[-1]
+
+        sell_signal = last['Close'] < last['EMA_5']
+
         return None, sell_signal

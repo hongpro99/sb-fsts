@@ -2297,6 +2297,9 @@ class AutoTradingBot:
 
                 elif trading_logic == 'combined_new_trend_entry':
                     buy_yn, _ = logic.combined_new_trend_entry(ohlc_df)
+
+                elif trading_logic == 'all_time_high_trading':
+                    buy_yn, _ = logic.all_time_high_trading(ohlc_df, days=10, period=60)
                 
                 if buy_yn:
                     signal_reasons.append(trading_logic)
@@ -2342,7 +2345,8 @@ class AutoTradingBot:
                 elif trading_logic == 'horizontal_low_sell':
                     _, result = logic.horizontal_low_sell(ohlc_df)
                     
-                                       
+                elif trading_logic == 'sell_on_5ema_break':
+                    _, result = logic.sell_on_5ema_break(ohlc_df)                       
 
                 # ✅ 조건 만족하면 즉시 기록
                 if result:

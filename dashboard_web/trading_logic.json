@@ -26,8 +26,8 @@
         "new 상승추세": "new_trend_entry",
         "60일상승전환": "new_trend_entry2",
         "congestion_trading": "congestion_trading",
-        "상승추세형 매수_new 상승추세": "combined_new_trend_entry"
-        
+        "상승추세형 매수_new 상승추세": "combined_new_trend_entry",
+        "신고가형": "all_time_high_trading"
     },
     "available_sell_logic": {
         "꼬리 확인": "check_wick",
@@ -40,7 +40,8 @@
         "추세 손절": "should_sell",
         "볼린저밴드 이탈": "break_prev_low",
         "지지선": "sell_on_support_break",
-        "horizontal_low_sell": "horizontal_low_sell"        
+        "horizontal_low_sell": "horizontal_low_sell",
+        "5일선 이탈": "sell_on_5ema_break"       
     },
     "available_take_profit_logic": {
         "고정 비율": "fixed_ratio",
