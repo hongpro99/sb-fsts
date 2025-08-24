@@ -2346,7 +2346,16 @@ class AutoTradingBot:
                     _, result = logic.horizontal_low_sell(ohlc_df)
                     
                 elif trading_logic == 'sell_on_5ema_break':
-                    _, result = logic.sell_on_5ema_break(ohlc_df)                       
+                    _, result = logic.sell_on_ema_break(ohlc_df, ema_period=5)
+
+                elif trading_logic == 'sell_on_10ema_break':
+                    _, result = logic.sell_on_ema_break(ohlc_df, ema_period=10) 
+
+                elif trading_logic == 'sell_on_20ema_break':
+                    _, result = logic.sell_on_ema_break(ohlc_df, ema_period=20)
+
+                elif trading_logic == 'ema_cross_sell_5short_10long':
+                    _, result = logic.ema_cross_sell(ohlc_df, period_short=5, period_long=10)                        
 
                 # ✅ 조건 만족하면 즉시 기록
                 if result:

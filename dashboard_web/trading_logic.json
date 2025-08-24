@@ -41,7 +41,10 @@
         "볼린저밴드 이탈": "break_prev_low",
         "지지선": "sell_on_support_break",
         "horizontal_low_sell": "horizontal_low_sell",
-        "5일선 이탈": "sell_on_5ema_break"       
+        "5일선 이탈": "sell_on_5ema_break",
+        "10일선 이탈": "sell_on_10ema_break",
+        "20일선 이탈": "sell_on_20ema_break",
+        "5일선-10일선 데드크로스": "ema_cross_sell_5short_10long"
     },
     "available_take_profit_logic": {
         "고정 비율": "fixed_ratio",

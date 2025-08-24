@@ -431,9 +431,9 @@ class TradingLogic:
                 
         # 고점 돌파 (최근 20일 고점)
         d_recent_close_high = df['Close'].iloc[-21:-1].max()
-        cond1 = last['Close'] = d_recent_close_high
+        cond1 = last['Close'] == d_recent_close_high
         
-        d_1_recent_close_high = df['Close'].iloc[-21:-1].max()
+        d_1_recent_close_high = df['Close'].iloc[-21-1:-1-1].max()
         cond2 = prev['Close'] < d_1_recent_close_high
         
         cond3 = last['EMA_5'] > last['EMA_20']> last['EMA_60'] > last['EMA_120']
@@ -987,11 +987,17 @@ class TradingLogic:
         for i in range(1, 11):   # d ~ d-9 까지 10개
             idx = -1 * i
             close = df.iloc[idx]["Close"]
-            max_close = df.iloc[idx]["max_60d_close"]
+            max_close = df.iloc[idx][f"max_{period}d_close"]
             if i == 1:
-                close == max_close # d 일은 60일 신고가여야 함
+                if close == max_close: # d 일은 60일 신고가여야 함
+                    buy_signal = True
+                else:
+                    buy_signal = False
+                    break
             else:
-                if close >= max_close:
+                if close < max_close:
+                    buy_signal = True
+                else:
                     buy_signal = False
                     break
             
@@ -1143,7 +1149,7 @@ class TradingLogic:
         # 조건 1: 5일 EMA 데드크로스
         dead_cross = prev['EMA_10'] > prev['EMA_20'] and last['EMA_10'] < last['EMA_20']
         
-                # 조건 3: EMA 기울기 양수
+        # 조건 3: EMA 기울기
         ema10_slope = last['EMA_10'] - prev['EMA_10']
         ema20_slope = last['EMA_20'] - prev['EMA_20']
         ema50_slope = last['EMA_55'] - prev['EMA_55']
@@ -1194,15 +1200,34 @@ class TradingLogic:
         
         return None, sell_signal
     
-    def sell_on_5ema_break(self, df):
+    def sell_on_ema_break(self, df, period=5):
         """
-        5일선 이탈 시 매도
+        n일선 이탈 시 매도
         """
         if len(df) < 2:
             return None, False
 
         last = df.iloc[-1]
 
-        sell_signal = last['Close'] < last['EMA_5']
+        sell_signal = last['Close'] < last[f'EMA_{period}']
 
+        return None, sell_signal
+    
+
+    def ema_cross_sell(self, df, period_short=5, period_long=10):
+        """
+        df: DataFrame with columns ['Close', 'EMA_5', 'EMA_10', 'Low']
+        5일선이 10일선 밑으로 갈 때
+        """
+        if len(df) < 3:
+            return None, False  # 데이터 부족
+
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+
+        # 조건 1: 5일 EMA 데드크로스
+        dead_cross = prev[f'EMA_{period_short}'] > prev[f'EMA_{period_long}'] and last[f'EMA_{period_short}'] < last[f'EMA_{period_long}']
+
+        sell_signal = dead_cross
+        
         return None, sell_signal
