@@ -416,6 +416,7 @@ class TradingLogic:
         
         return buy_signal, None
     
+
     def should_buy_break_high_trend(self, df):
         """
         EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
@@ -436,7 +437,7 @@ class TradingLogic:
         d_1_recent_close_high = df['Close'].iloc[-21-1:-1-1].max()
         cond2 = prev['Close'] < d_1_recent_close_high
         
-        cond3 = last['EMA_5'] > last['EMA_20']> last['EMA_60'] > last['EMA_120']
+        cond3 = last['EMA_5'] > last['EMA_20'] > last['EMA_60'] > last['EMA_120']
         cond4 = last['EMA_5'] > prev['EMA_5']
         cond5 = last['EMA_20'] > prev['EMA_20']
         cond6 = last['EMA_60'] > prev['EMA_60']
@@ -981,7 +982,11 @@ class TradingLogic:
             return False, None
 
         df[f"max_{period}d_close"] = df["Close"].rolling(window=period).max()
-        
+        df[f"low_minus_EMA_120"] = df["Low"] - df[f"EMA_120"]
+
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+
         buy_signal = True
 
         for i in range(1, 11):   # d ~ d-9 까지 10개
@@ -1000,7 +1005,17 @@ class TradingLogic:
                 else:
                     buy_signal = False
                     break
-            
+        
+        cond2 = df.iloc[-21-1:-1-1][f"low_minus_EMA_120"].min() < 0
+
+        # ema 조건
+        cond3 = last["EMA_5"] > last["EMA_20"]
+        cond4 = last["EMA_20"] > last["EMA_60"]
+        cond5 = last["EMA_20"] > prev["EMA_20"]
+        cond6 = last["EMA_60"] > prev["EMA_60"]
+
+        buy_signal = buy_signal and cond2 and cond3 and cond4 and cond5 and cond6
+
         return buy_signal, None
 
 
