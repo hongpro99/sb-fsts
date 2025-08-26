@@ -427,17 +427,17 @@ class TradingLogic:
             print("❌ 데이터가 부족해서 trend_entry_trading 조건 계산 불가")
             return False, None
 
+        period = 20
+
+        df[f"max_{period}d_close"] = df["Close"].rolling(window=period).max()
+        
         last = df.iloc[-1]
         prev = df.iloc[-2]
-                
-        # 고점 돌파 (최근 20일 고점)
-        d_recent_close_high = df['Close'].iloc[-21:-1].max()
-        cond1 = last['Close'] == d_recent_close_high
+
+        cond1 = (last["Close"] == last[f"max_{period}d_close"])
+        cond2 = (prev["Close"] < prev[f"max_{period}d_close"])
         
-        d_1_recent_close_high = df['Close'].iloc[-21-1:-1-1].max()
-        cond2 = prev['Close'] < d_1_recent_close_high
-        
-        cond3 = last['EMA_5'] > last['EMA_20'] > last['EMA_60'] > last['EMA_120']
+        cond3 = last['EMA_5'] > last['EMA_20'] > last['EMA_60']
         cond4 = last['EMA_5'] > prev['EMA_5']
         cond5 = last['EMA_20'] > prev['EMA_20']
         cond6 = last['EMA_60'] > prev['EMA_60']
