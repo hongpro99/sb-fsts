@@ -433,17 +433,21 @@ class TradingLogic:
         
         last = df.iloc[-1]
         prev = df.iloc[-2]
+        d_2_prev = df.iloc[-3]
 
         cond1 = (last["Close"] == last[f"max_{period}d_close"])
         cond2 = (prev["Close"] < prev[f"max_{period}d_close"])
+        cond3 = (d_2_prev["Close"] < d_2_prev[f"max_{period}d_close"])
+        cond4 = (last['Close'] > last['Open'])
+        cond5 = (last['Close'] / prev['Close'] < 1.15) # 15% 이상 상승 제외
         
-        cond3 = last['EMA_5'] > last['EMA_20'] > last['EMA_60']
-        cond4 = last['EMA_5'] > prev['EMA_5']
-        cond5 = last['EMA_20'] > prev['EMA_20']
-        cond6 = last['EMA_60'] > prev['EMA_60']
+        cond6 = (last['EMA_5'] > last['EMA_20'] and last['EMA_20'] > last['EMA_60'])
+        cond7 = last['EMA_5'] > prev['EMA_5']
+        cond8 = last['EMA_20'] > prev['EMA_20']
+        cond9 = last['EMA_60'] > prev['EMA_60']
         
         # 최종 조건
-        buy_signal = cond1 and cond2 and cond3 and cond4 and cond5 and cond6
+        buy_signal = cond1 and cond2 and cond3 and cond4 and cond5 and cond6 and cond7 and cond8 and cond9
 
         return buy_signal, None
 
