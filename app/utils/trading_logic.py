@@ -202,6 +202,7 @@ class TradingLogic:
         #     return False, None
         
         # 추가
+        df["close_minus_ema60"] = df["Close"] - df["EMA_60"]
         df["min_15d_close_minus_ema60"] = (
             df["close_minus_ema60"].rolling(window=15).min()
         )
