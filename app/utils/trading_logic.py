@@ -256,7 +256,9 @@ class TradingLogic:
         # ✅ 최종 매수 조건
         buy_signal = all([long_trend, crossover, not cond7, cond6, slope_up, volume_good, cond5, slope_up2])
 
-        if 
+        # 비교용 버전
+        if version == 2:
+            buy_signal = buy_signal and cond10
         
         return buy_signal, None
     
