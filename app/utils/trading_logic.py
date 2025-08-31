@@ -194,12 +194,17 @@ class TradingLogic:
 
         return buy_signal, None
     
-    def ema_crossover_trading(self, df, last_resistance):
+    def ema_crossover_trading(self, df, last_resistance, version=1):
         if len(df) < 2:
             return False, None
 
         # if last_resistance is None:
         #     return False, None
+        
+        # 추가
+        df["min_15d_close_minus_ema60"] = (
+            df["close_minus_ema60"].rolling(window=15).min()
+        )
         
         last = df.iloc[-1]
         prev = df.iloc[-2]
@@ -246,8 +251,12 @@ class TradingLogic:
         not_long_upper_shadow  = upper_shadow_ratio <= 0.7  # 윗꼬리 80% 이상이면 제외
         
         cond9 = last['Close'] > last_resistance
+        cond10 = prev['min_15d_close_minus_ema60'] < 0
+
         # ✅ 최종 매수 조건
         buy_signal = all([long_trend, crossover, not cond7, cond6, slope_up, volume_good, cond5, slope_up2])
+
+        if 
         
         return buy_signal, None
     
@@ -430,6 +439,18 @@ class TradingLogic:
         period = 20
 
         df[f"max_{period}d_close"] = df["Close"].rolling(window=period).max()
+        df["max_20d_open_close"] = (
+            pd.concat([df["Close"], df["Open"]], axis=1)  # 2개 컬럼 합치기
+            .max(axis=1)                                  # 각 날의 Close vs Open 중 큰 값
+            .rolling(window=20)                           # 20일치 윈도우
+            .max()
+        )
+        df["min_20d_open_close"] = (
+            pd.concat([df["Close"], df["Open"]], axis=1)
+            .min(axis=1)             # 일자별 시가/종가 중 작은 값
+            .rolling(window=20)
+            .min()                   # 최근 20일 중 최소값
+        )
         
         last = df.iloc[-1]
         prev = df.iloc[-2]
@@ -440,6 +461,7 @@ class TradingLogic:
         cond3 = (d_2_prev["Close"] < d_2_prev[f"max_{period}d_close"])
         cond4 = (last['Close'] > last['Open'])
         cond5 = (last['Close'] / prev['Close'] < 1.15) # 15% 이상 상승 제외
+        cond10 = (prev['max_20d_open_close'] / prev['min_20d_open_close'] < 1.1) # d-1일 기준 최근 20일 변동성 10% 이하
         
         cond6 = (last['EMA_5'] > last['EMA_20'] and last['EMA_20'] > last['EMA_60'])
         cond7 = last['EMA_5'] > prev['EMA_5']
@@ -447,7 +469,7 @@ class TradingLogic:
         cond9 = last['EMA_60'] > prev['EMA_60']
         
         # 최종 조건
-        buy_signal = cond1 and cond2 and cond3 and cond4 and cond5 and cond6 and cond7 and cond8 and cond9
+        buy_signal = cond1 and cond2 and cond3 and cond4 and cond5 and cond6 and cond7 and cond8 and cond9 and cond10
 
         return buy_signal, None
 
@@ -512,7 +534,7 @@ class TradingLogic:
 
         return buy_signal, None
     
-    def trend_entry_trading(self, df, lower_threshold_ratio = -1.00, upper_threshold_ratio = 1.00):
+    def trend_entry_trading(self, df, lower_threshold_ratio = -1.00, upper_threshold_ratio = 1.00, version=2):
         """
         이름 : 상승추세형 매수
         EMA 배열 + 상향 돌파 기반 매수 신호 생성 및 사유 기록
@@ -562,10 +584,13 @@ class TradingLogic:
         upper_shadow_ratio = (last['High'] - max(last['Open'], last['Close'])) / (last['High'] - last['Low'] + 1e-6)
         not_long_upper_shadow  = upper_shadow_ratio <= 0.8  # 윗꼬리 80% 이상이면 제외
     
+        if version == 2:
+            not_long_upper_shadow = True # 버전 2에서는 윗꼬리 조건 무시
         # 최종 조건
         buy_signal = cross_up and slope_up and volume_up and is_bearish and volume_up2 and not_long_upper_shadow and change_ratio_check
 
         return buy_signal, None
+    
     
     def new_trading(self, df):
         """

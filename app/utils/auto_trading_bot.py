@@ -2238,6 +2238,9 @@ class AutoTradingBot:
                 elif trading_logic == 'trend_entry_trading':
                     buy_yn, _ = logic.trend_entry_trading(ohlc_df)
                 
+                elif trading_logic == 'trend_entry_trading_v2':
+                    buy_yn, _ = logic.trend_entry_trading(ohlc_df, version=2)
+                
                 elif trading_logic == 'trend_entry_trading_0_to_6':
                     buy_yn, _ = logic.trend_entry_trading(ohlc_df, lower_threshold_ratio=0.0, upper_threshold_ratio= 0.06)
                     
@@ -2252,6 +2255,9 @@ class AutoTradingBot:
                     
                 elif trading_logic == 'ema_crossover_trading':
                     buy_yn, _ = logic.ema_crossover_trading(ohlc_df, resistance)
+
+                elif trading_logic == 'ema_crossover_trading_v2':
+                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df, resistance, version=2)
                     
                 elif trading_logic == 'anti_retail_ema_entry':
                     buy_yn, _ = logic.anti_retail_ema_entry(ohlc_df)
