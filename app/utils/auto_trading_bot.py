@@ -2257,7 +2257,7 @@ class AutoTradingBot:
                     buy_yn, _ = logic.ema_crossover_trading(ohlc_df, resistance)
 
                 elif trading_logic == 'ema_crossover_trading_v2':
-                    buy_yn, _ = logic.ema_crossover_trading(ohlc_df, resistance, version=2)
+                    buy_yn, _ = logic.ema_crossover_trading_v2(ohlc_df, resistance)
                     
                 elif trading_logic == 'anti_retail_ema_entry':
                     buy_yn, _ = logic.anti_retail_ema_entry(ohlc_df)

@@ -263,6 +263,47 @@ class TradingLogic:
         
         return buy_signal, None
     
+
+    def ema_crossover_trading_v2(self, df, last_resistance):
+        if len(df) < 2:
+            return False, None
+
+        # if last_resistance is None:
+        #     return False, None
+        
+        # 추가
+        df["close_minus_ema60"] = df["Close"] - df["EMA_60"]
+        df["ema5_minus_ema60"] = df["EMA_5"] - df["EMA_60"]
+        df["min_15d_close_minus_ema60"] = (
+            df["close_minus_ema60"].rolling(window=15).min()
+        )
+        df["min_20d_ema5_minus_ema60"] = (
+            df["ema5_minus_ema60"].rolling(window=20).min()
+        )
+        
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
+        prev_prev = df.iloc[-3]
+
+        cond1 = last['Close'] > last['EMA_5']
+        cond2 = prev['Close'] <= prev['EMA_5']
+        cond3 = prev_prev['Close'] <= prev_prev['EMA_5']
+        # cond4 = prev['min_15d_close_minus_ema60'] < 0
+        cond4 = prev['min_20d_ema5_minus_ema60'] < 0
+
+        cond5 = last['EMA_5'] > prev['EMA_5']
+        cond6 = last['EMA_20'] > prev['EMA_20']
+        cond7 = last['EMA_60'] > prev['EMA_60']
+        cond8 = last['EMA_120'] > prev['EMA_120']
+
+        cond9 = last['EMA_5'] > last['EMA_120']
+        cond10 = last['EMA_20'] > last['EMA_120']
+
+        buy_signal = cond1 and cond2 and cond3 and cond4 and cond5 and cond6 and cond7 and cond8 and cond9 and cond10
+        
+        return buy_signal, None
+    
+
     def anti_retail_ema_entry(self, df):
         """
         매수 조건:
