@@ -9,4 +9,4 @@ virtual_secret.json
 test.ipynb
 stock.ipynb
 app/utils/trading_logic.py
-app/legacy/trading_logic.py
+app/legacy/trading_logics.py
