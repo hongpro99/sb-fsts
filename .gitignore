@@ -11,4 +11,5 @@ local_experiment/stock.ipynb
 local_experiment/database.ipynb
 app/utils/trading_logic.py
 app/legacy/trading_logics.py
+app/utils/auto_trading_stock.py
 dashboard_web/trading_logic.json
