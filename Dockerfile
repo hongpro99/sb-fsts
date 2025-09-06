@@ -1,5 +1,5 @@
 # 베이스 이미지 설정 (Python 3.11 사용)
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # 작업 디렉토리 설정
 WORKDIR /app
@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 애플리케이션 코드 복사
 # 프로젝트 depth 일치 시키도록 /app/app 설정
 COPY ./app /app/app
+COPY ./ecs /app/ecs
 # COPY ./dashboard_web/trading_logic.json /app/app/trading_logic.json
 
 EXPOSE 7000

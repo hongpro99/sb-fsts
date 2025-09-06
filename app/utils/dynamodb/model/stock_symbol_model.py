@@ -1,8 +1,7 @@
 from pynamodb.models import Model
-from pynamodb.attributes import UnicodeAttribute, NumberAttribute
+from pynamodb.attributes import UnicodeAttribute, NumberAttribute, UnicodeSetAttribute
 import time
 import uuid
-
 
 class StockSymbol(Model):
     class Meta:
@@ -15,7 +14,8 @@ class StockSymbol(Model):
     symbol_name = UnicodeAttribute()
     type = UnicodeAttribute() #kospi, kosdaq
     market_cap = NumberAttribute(null=True)
-    
+    industry = UnicodeAttribute(null=True)
+    theme = UnicodeSetAttribute(null=True)
 class StockSymbol2(Model):
     class Meta:
         table_name = "fsts-stock-symbol2"
@@ -27,6 +27,8 @@ class StockSymbol2(Model):
     symbol_name = UnicodeAttribute()
     type = UnicodeAttribute() #kospi, kosdaq
     market_cap = NumberAttribute(null=True)
+    industry = UnicodeAttribute(null=True)
+    theme = UnicodeSetAttribute(null=True)
         
 #         # ✅ 테이블 생성
 # if not StockSymbol2.exists():

@@ -1,15 +1,19 @@
 import numpy as np
 import requests
+from dotenv import load_dotenv
+import os
 
+# 환경 변수 파일 로드
+load_dotenv()
 
 class Webhook:
     
     def send_discord_webhook(self, message, bot_type):
         if bot_type == 'trading':
-            webhook_url = 'https://discord.com/api/webhooks/1324331095583363122/wbpm4ZYV4gRZhaSywRp28ZWQrp_hJf8iiitISJrNYtAyt5NmBccYWAeYgcGd5pzh4jRK'  # 복사한 Discord 웹훅 URL로 변경
+            webhook_url = os.getenv("DISCORD_TRADING_ALARM_WEBHOOK_URL")
             username = "Stock Trading Bot"
         if bot_type == 'alarm':
-            webhook_url = 'https://discord.com/api/webhooks/1313346849838596106/6Rn_8BNDeL9bMYfFtqscpu4hPah5c2RsNl0rBiPoSw_Qb9RXgDdVHoHmwEuStPv_ufnV'
+            webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
             username = 'Stock Alarm Bot'
         data = {
             "content": message,

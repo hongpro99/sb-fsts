@@ -11,7 +11,7 @@ import requests
 # ✅ OpenAI 설정
 from openai import OpenAI
 # 🔑 OpenAI API 키 설정
-client = OpenAI(api_key = "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")
+client = OpenAI(api_key = "OPENAI_API_KEY")
 
 # ✅ 뉴스 수집 함수
 def get_stock_news(query, max_results=10, only_today=False):
