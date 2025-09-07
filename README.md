@@ -89,6 +89,7 @@
 
 ## 주요 폴더 구조
 
+```
 main.py                  # FastAPI 서버 실행
 app/utils/discord_bot.py # Discord 봇 실행 (알림 전송)
 technical_indicator.py   # 보조지표 계산 로직
@@ -96,6 +97,7 @@ auto_trading_stock.py    # 데이터 수집, 매매 판단, 알림, S3 저장
 scheduler.py             # 트레이딩 봇 및 주요 작업 스케줄링 (주기적 실행)
 dashboard_web/           # 웹 대시보드 코드 (Streamlit)
 llm/                     # LLM(대형 언어 모델) 관련 코드
+```
 
 ---
 
